@@ -1,0 +1,26 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "atlas-proxmox-0.1.0",
+  "documentNamespace": "https://github.com/benchristian88/atlas-connectors/sbom/proxmox/0.1.0",
+  "creationInfo": {
+    "creators": [
+      "Organization: Atlas Impact"
+    ],
+    "created": "2026-10-12T00:00:00Z"
+  },
+  "packages": [
+    {
+      "name": "atlas-proxmox",
+      "versionInfo": "0.1.0",
+      "SPDXID": "SPDXRef-proxmox",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Copyright 2026 Atlas Impact contributors"
+    }
+  ],
+  "relationships": []
+}

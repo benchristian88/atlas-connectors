@@ -1,2 +1,48 @@
-# atlas-connectors
-Atlas Connectors
+# Atlas official Connectors
+
+Apache-2.0 by default for Atlas-authored code. Connector source lives here;
+Atlas application/domain/runtime source remains in the AGPL Atlas project.
+Third-party dependencies retain their licences and are inventoried by their
+own distribution. No AGPL application/plugin implementation was copied here.
+
+Each `connectors/<id>/` package owns its independent SemVer Manifest, fixed
+entry-point playbooks, `library/`, README, NOTICE and SPDX SBOM. Repository-level
+LICENSE is included in every bundle. Fixtures/unit tests live in `tests/`.
+Only [Proxmox 0.1.0](connectors/proxmox/README.md) is implemented: Test Connection
+only. Docker, UniFi and discovery are deliberately absent.
+
+Python 3.12+ development:
+
+```bash
+python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+python tools/build_bundle.py
+```
+
+The same SDK **1.1.0 wheel/hash** is staged in Atlas and here. Canonical schemas
+remain exclusively in atlas-connector-sdk; the wheel is a pinned distribution
+artifact. Update that artifact in both consumers together after reproducibility
+and package-data checks, never via mutable source URLs or copied schemas.
+
+The USTAR/gzip builder sorts paths and fixes modes, owners and timestamps.
+`dist/proxmox/` contains the exact bundle, SHA256SUMS, detached combined Manifest
+and an index. The archive contains the domain Manifest without its own digest.
+Build twice and compare bytes. A local dirty-tree candidate has no authenticated
+remote provenance; its recorded source HEAD is contextual, not a claim that the
+uncommitted implementation exists at that commit.
+
+CI validates contracts, fixtures and build. The protected `proxmox-v<SemVer>`
+release workflow verifies tag/Manifest identity, builds and attests the exact
+bundle with the pinned GitHub `actions/attest` action, then retains a release
+candidate artifact. The operator publishes those unchanged files as immutable
+GitHub Release assets only after qualification. No release has been published
+by this work. Repository identity is **benchristian88/atlas-connectors** and
+signer workflow is **.github/workflows/release.yml**; Atlas must bind both, the
+exact digest/source commit and authenticated Sigstore issuer/predicate evidence.
+
+Remote acceptance remains blocked on an actual reviewed pushed workflow,
+immutable release, attestation/trust-root verification and operator
+qualification. Atlas's remote verifier remains fail-closed. Local acceptance
+uses the existing Atlas bootstrap trust path with an exact packaged allowlist;
+it is not a substitute claim of remote attestation verification.
