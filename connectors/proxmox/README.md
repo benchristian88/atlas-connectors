@@ -17,6 +17,11 @@ on 12 October 2026 for the two-call probe, not the I4 discovery qualification.
 Least-privilege inventory ACLs and the full external-reference/edge-case review
 remain I4 work. No live Proxmox environment has been qualified here.
 
+I4A dependency groundwork and its dated exact-artefact review are documented in
+the [capability matrix](docs/capability-matrix.md), proposed
+[permissions](docs/permissions.md) and [qualification status](docs/qualification.md).
+This does not enable discovery or qualify Proxmox 9.2.11.
+
 HTTPS verifies certificates by default. Fingerprint mode checks a trusted
 SHA-256 leaf-certificate pin **before sending credentials**. Advanced insecure
 mode is explicit and warned by Atlas. Redirects are never followed. DNS results
