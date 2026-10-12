@@ -1,4 +1,4 @@
-# Proxmox permission baseline — I4A, unqualified
+# Proxmox permission baseline — I4B candidate, unqualified
 
 Reviewed 12 October 2026 against the exact collection and official API sources
 in the [capability matrix](capability-matrix.md). **Proxmox 9.2.11 remains
@@ -10,11 +10,12 @@ It needs no new discovery role or collection dependency. Preserve its dedicated
 `pve` account/token, Privilege Separation, certificate verification/fingerprint,
 DNS peer pinning, redirect rejection and response/time bounds.
 
-For future whole-deployment discovery, the source-derived candidate minimum is:
+For candidate whole-deployment discovery, the source-derived minimum is:
 
 | Privilege | Effective ACL path | Purpose / qualification condition |
 | --- | --- | --- |
 | `Sys.Audit` | `/` for cluster status; inherited `/nodes/{node}` for node stats | Cluster status checks `/` directly. Node-only grants do not satisfy that read. |
+| `Sys.Audit` | `/access` | Proves the ACL list is unfiltered. Effective-permission dumps omit zero-permission paths and cannot alone exclude hidden NoAccess overrides. Raw ACLs are transient and never emitted. |
 | `VM.Audit` | `/vms` with propagation, or every explicitly in-scope `/vms/{vmid}` | Guest resource/list visibility and current QEMU/LXC configuration. A few per-guest grants prove only that explicit guest scope, not whole-cluster coverage. |
 | `Datastore.Audit` | `/storage` with propagation, or each in-scope `/storage/{id}` | Filtered storage definitions/list and future per-node status reads. |
 | `SDN.Audit` | `/sdn/zones/localnetwork` with propagation, or each `/sdn/zones/localnetwork/{bridge}` | Reviewed node network code always filters bridge/OVSBridge rows through SDN bridge permission checks. Verify path/privilege inheritance on every supported version. Wider SDN discovery is outside this baseline. |
@@ -31,8 +32,14 @@ The named storage-definition route requires `Datastore.Allocate`; avoid it and
 use the definition list route. Its module also reports permission/transport
 errors as "does not exist". That message is never trustworthy absence evidence.
 
-An empty success can hide guests, storage or bridges. Future I4 must prove all
-required paths and scoped visibility before COMPLETE. Unknown/unproven coverage
+The candidate checks propagated roots and every relevant ACL path using the
+token's own effective permissions, then compares proof before/after discovery.
+See [implemented policy and source evidence](discovery.md). Readiness probes
+return bounded capability, missing privilege and generic path category; they do
+not enumerate inventory or expose ACL records.
+
+An empty success can hide guests, storage or bridges. All
+required paths and scoped visibility must be proven before COMPLETE. Unknown/unproven coverage
 stays partial/failed and must not trigger absence or deletion. A final copyable
 role/token setup is deferred until live source qualification establishes the
 actual required paths. No operator ACL changes are performed by I4A.

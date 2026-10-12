@@ -4,6 +4,11 @@ Reviewed **12 October 2026**. This is dependency/runtime groundwork, not an
 implemented discovery Connector. Production 0.1.0 remains probe-only;
 **Proxmox 9.2.11 is UNQUALIFIED**. No live source acceptance was performed.
 
+This document preserves the I4A source review. The follow-on
+[I4B candidate](discovery.md) now implements secured collection reuse and records
+each contained fallback, ACL proof, mapping and exclusion. Production 0.1.0 and
+the unqualified live-source boundary remain unchanged.
+
 ## Exact evidence
 
 The inspected artefact is the [Galaxy community.proxmox 2.0.0 archive](https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/artifacts/community-proxmox-2.0.0.tar.gz),

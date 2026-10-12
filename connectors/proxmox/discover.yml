@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+- name: Read Proxmox inventory through the candidate secured collection adapter
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Emit canonical AIP observations and coverage
+      atlas_discover:
+        input_file: "{{ atlas_input_file }}"
+        aip_file: "{{ atlas_aip_file }}"
+      no_log: true

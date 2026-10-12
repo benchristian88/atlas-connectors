@@ -1,0 +1,19 @@
+{
+  "complete": {},
+  "standalone": {"standalone": true},
+  "empty_authorized": {"standalone": true, "empty_guests": true},
+  "empty_unproven": {"standalone": true, "empty_guests": true, "unproven": true},
+  "permission_filtered": {"denied": "/vms/999"},
+  "acl_audit_missing": {"acl_audit_missing": true},
+  "offline": {"offline": "node-b"},
+  "source_failure": {"failures": {"/cluster/resources?type=vm": 500}},
+  "storage_failure": {"failures": {"/nodes/node-b/storage": 403}},
+  "config_failure": {"failures": {"/nodes/node-a/qemu/100/config?current=1": 403}},
+  "pending": {"changes": {"/nodes/node-a/network": "staged configuration"}},
+  "malformed": {"malformed": true},
+  "limits": {"limits": true},
+  "renamed": {"rename": true},
+  "migrated": {"migration": true},
+  "slow": {"slow": true},
+  "malformed_aip": {"malformed_aip": true}
+}
