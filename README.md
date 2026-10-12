@@ -8,16 +8,22 @@ own distribution. No AGPL application/plugin implementation was copied here.
 Each `connectors/<id>/` package owns its independent SemVer Manifest, fixed
 entry-point playbooks, `library/`, README, NOTICE and SPDX SBOM. Repository-level
 LICENSE is included in every bundle. Fixtures/unit tests live in `tests/`.
-Only [Proxmox 0.1.0](connectors/proxmox/README.md) is implemented: Test Connection
-only. Docker, UniFi and discovery are deliberately absent.
+Production [Proxmox 0.1.0](connectors/proxmox/README.md) is Test Connection-only.
+The separate [I4B candidate](connectors/proxmox/docs/discovery.md),
+0.2.0-i4b.1, implements fixture-proven discovery and remains unqualified and
+unpublished. Docker/UniFi implementations remain absent.
 
 Python 3.12+ development:
 
 ```bash
 python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
 python -m pip install -r requirements-dev.txt
+python tools/test_collection.py --archive ../atlas/vendor/collections/community-proxmox-2.0.0.tar.gz --output /tmp/atlas-connector-test-collections
+export ATLAS_TEST_COLLECTIONS_PATH=/tmp/atlas-connector-test-collections
+export ATLAS_TEST_RUN_ANSIBLE=1
 python -m pytest -q
 python tools/build_bundle.py
+python tools/build_bundle.py --candidate
 ```
 
 The same SDK **1.1.0 wheel/hash** is staged in Atlas and here. Canonical schemas
@@ -31,6 +37,16 @@ and an index. The archive contains the domain Manifest without its own digest.
 Build twice and compare bytes. A local dirty-tree candidate has no authenticated
 remote provenance; its recorded source HEAD is contextual, not a claim that the
 uncommitted implementation exists at that commit.
+
+The test collection archive above is the exact I4A artefact from a sibling Atlas
+checkout. CI downloads the same archive and verifies its reviewed SHA-256 before
+test installation. This tooling never installs dependencies into a production
+Connector bundle. Candidate metadata and executable helpers are excluded from the
+normal 0.1.0 build. Candidate output goes to `dist/proxmox-candidate/`.
+`tools/build_acceptance_fixture.py --output <test-directory>` creates a separate
+deterministic `i4b-fixture` harness for Atlas tests. Its source adapter and embedded
+sanitized fixtures exist only in that test bundle; its `fixture-only` qualification
+does not qualify Proxmox or allow candidate activation.
 
 CI validates contracts, fixtures and build. The protected `proxmox-v<SemVer>`
 release workflow verifies tag/Manifest identity, builds and attests the exact

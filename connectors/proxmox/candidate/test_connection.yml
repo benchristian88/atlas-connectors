@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+- name: Test candidate authentication and bounded discovery readiness
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Check the declared token and ACL scope
+      atlas_readiness:
+        input_file: "{{ atlas_input_file }}"
+        result_file: "{{ atlas_result_file }}"
+      no_log: true

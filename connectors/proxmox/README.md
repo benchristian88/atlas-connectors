@@ -22,6 +22,12 @@ the [capability matrix](docs/capability-matrix.md), proposed
 [permissions](docs/permissions.md) and [qualification status](docs/qualification.md).
 This does not enable discovery or qualify Proxmox 9.2.11.
 
+The separate [I4B candidate](docs/discovery.md), **0.2.0-i4b.1**, now implements
+fixture-proven secured discovery under `candidate/manifest.json`. It remains
+unqualified, unpublished and rejected by normal Atlas activation. The production
+0.1.0 manifest/probe and Atlas bootstrap are retained. See the
+[candidate report](docs/i4b-completion-report.md) for validation and live gates.
+
 HTTPS verifies certificates by default. Fingerprint mode checks a trusted
 SHA-256 leaf-certificate pin **before sending credentials**. Advanced insecure
 mode is explicit and warned by Atlas. Redirects are never followed. DNS results

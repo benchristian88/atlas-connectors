@@ -16,13 +16,21 @@ REPOSITORY = "benchristian88/atlas-connectors"
 WORKFLOW = ".github/workflows/release.yml"
 
 
-def build(connector="proxmox", output=None):
+def build(connector="proxmox", output=None, *, candidate=False):
     if connector != "proxmox":
         raise ValueError("unknown_connector")
     source = ROOT / "connectors" / connector
-    manifest = json.loads((source / "manifest.json").read_bytes())
+    metadata = source / "candidate" if candidate else source
+    manifest = json.loads((metadata / "manifest.json").read_bytes())
     files = {path.relative_to(source).as_posix(): path.read_bytes() for path in source.rglob("*")
-             if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"}
+             if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+             and "candidate" not in path.relative_to(source).parts
+             and (candidate or path.relative_to(source).as_posix() not in {"discover.yml", "library/atlas_discover.py", "library/atlas_readiness.py"})
+             and (candidate or path.relative_to(source).parts[0] != "module_utils")}
+    for name in ["manifest.json", "sbom.spdx.json"]:
+        files[name] = (metadata / name).read_bytes()
+    if candidate:
+        files["test_connection.yml"] = (metadata / "test_connection.yml").read_bytes()
     files["LICENSE"] = (ROOT / "LICENSE").read_bytes()
     stream = io.BytesIO()
     with tarfile.open(fileobj=stream, mode="w", format=tarfile.USTAR_FORMAT) as archive:
@@ -54,7 +62,8 @@ def build(connector="proxmox", output=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, default=ROOT / "dist/proxmox")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--candidate", action="store_true", help="Build unqualified I4B candidate; never publish or activate")
     args = parser.parse_args()
-    payload, manifest = build(output=args.output)
+    payload, manifest = build(output=args.output or ROOT / ("dist/proxmox-candidate" if args.candidate else "dist/proxmox"), candidate=args.candidate)
     print(manifest["distribution"]["bundle_digest"])

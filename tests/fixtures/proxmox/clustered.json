@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "/": {"Sys.Audit": 1},
+    "/access": {"Sys.Audit": 1},
+    "/nodes": {"Sys.Audit": 1},
+    "/vms": {"VM.Audit": 1},
+    "/storage": {"Datastore.Audit": 1},
+    "/sdn/zones/localnetwork": {"SDN.Audit": 1}
+  },
+  "acl": [{"path": "/", "type": "user", "ugid": "fixture-account", "roleid": "FixtureAudit", "propagate": 1}],
+  "responses": {
+    "/version": {"version": "9.2.11"},
+    "/cluster/status": [{"type": "cluster", "name": "fixture-cluster", "quorate": 1}, {"type": "node", "name": "node-a", "id": "node/node-a", "nodeid": 1, "online": 1}, {"type": "node", "name": "node-b", "id": "node/node-b", "nodeid": 2, "online": 1}],
+    "/nodes": [{"node": "node-a", "status": "online"}, {"node": "node-b", "status": "online"}],
+    "/cluster/resources?type=vm": [{"vmid": 100, "node": "node-a", "type": "qemu", "name": "fixture-vm", "status": "running"}, {"vmid": 101, "node": "node-b", "type": "qemu", "name": "fixture-template", "status": "stopped", "template": 1}, {"vmid": 102, "node": "node-a", "type": "lxc", "name": "fixture-container", "status": "running"}],
+    "/storage": [{"storage": "shared", "type": "nfs", "shared": 1}, {"storage": "local", "type": "dir", "shared": 0}],
+    "/nodes/node-a/storage": [{"storage": "shared", "type": "nfs", "shared": 1, "active": 1}, {"storage": "local", "type": "dir", "shared": 0, "active": 1, "total": 100000, "avail": 60000}],
+    "/nodes/node-b/storage": [{"storage": "shared", "type": "nfs", "shared": 1, "active": 1}, {"storage": "local", "type": "dir", "shared": 0, "active": 1, "total": 200000, "avail": 90000}],
+    "/nodes/node-a/network": [{"iface": "vmbr0", "type": "bridge", "active": 1, "bridge_vlan_aware": 1, "cidr": "10.20.0.1/24", "comments": "ignored"}],
+    "/nodes/node-b/network": [{"iface": "vmbr0", "type": "bridge", "active": 1, "bridge_vlan_aware": 1, "cidr": "10.20.0.2/24"}],
+    "/nodes/node-a/qemu": [{"vmid": 100, "name": "fixture-vm", "status": "running"}],
+    "/nodes/node-a/lxc": [{"vmid": 102, "name": "fixture-container", "status": "running"}],
+    "/nodes/node-b/qemu": [{"vmid": 101, "name": "fixture-template", "status": "stopped", "template": 1}],
+    "/nodes/node-b/lxc": [],
+    "/nodes/node-a/qemu/100/config?current=1": {"scsi0": "shared:vm-100-disk-0,size=8G", "net0": "virtio=02:00:00:00:00:01,bridge=vmbr0", "description": "ignored arbitrary description", "args": "ignored command", "unused0": "local:unused"},
+    "/nodes/node-b/qemu/101/config?current=1": {"scsi0": "local:vm-101-disk-0,size=8G", "net0": "virtio=02:00:00:00:00:01,bridge=vmbr0,tag=22"},
+    "/nodes/node-a/lxc/102/config?current=1": {"rootfs": "local:subvol-102-disk-0,size=8G", "net0": "name=eth0,hwaddr=02:00:00:00:00:01,bridge=vmbr0,ip=10.20.0.10/24", "mp0": "/mnt/private,mp=/private", "description": "ignored notes"}
+  },
+  "changes": {},
+  "failures": {}
+}
