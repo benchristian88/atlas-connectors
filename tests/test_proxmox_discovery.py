@@ -21,7 +21,7 @@ from proxmox_fixture_transport import fixture, adapter_factory
 
 @pytest.fixture
 def inputs():
-    return {'reference': {'connector_id': 'proxmox', 'version': '0.2.0-i4b.1', 'digest': build(candidate=True)[1]['distribution']['bundle_digest'][7:]},
+    return {'reference': {'connector_id': 'proxmox', 'version': build(candidate=True)[1]['version'], 'digest': build(candidate=True)[1]['distribution']['bundle_digest'][7:]},
             'config': {'endpoint': 'https://source.example.test:8006'},
             'credentials': {'token_id': 'fixture_' + secrets.token_hex(8) + '@pve!discovery', 'token_secret': secrets.token_urlsafe(32)},
             'run_id': str(uuid.uuid4()), 'integration_id': str(uuid.uuid4()), 'selected_scopes': ['inventory'], 'object_classes': CLASSES,
@@ -118,10 +118,27 @@ def test_malformed_required_identity_and_inventory_consistency_prevent_complete(
 
 
 def test_lossy_collection_boolean_normalization_cannot_hide_malformed_source_flags(inputs):
-    for path,field in [('/storage','shared'),('/nodes/node-a/qemu','template'),('/nodes/node-a/network','bridge_vlan_aware')]:
+    for path,field in [('/storage','shared'),('/nodes/node-a/qemu','template'),
+                       ('/nodes/node-a/network','bridge_vlan_aware'),
+                       ('/nodes/node-a/network','active'), ('/nodes/node-a/network','autostart')]:
         data=fixture(); data['responses'][path][0][field]=2
         result,_=run(inputs,data=data)
         assert result[-1]['completeness'] in {'partial','failed'}
+
+
+def test_proxmox_9_2_11_vlan_exists_null_does_not_poison_bridge_discovery(inputs):
+    data = fixture()
+    # Preserve the ordinary vmbr0 fixture; this is a separate legitimate row.
+    data['responses']['/nodes/node-a/network'].append({
+        'active': 1, 'address': '192.168.99.27', 'cidr': '192.168.99.27/24',
+        'exists': None, 'iface': 'vmbr0.99', 'type': 'vlan',
+        'vlan-id': '99', 'vlan-raw-device': 'vmbr0',
+    })
+    result, _ = run(inputs, data=data)
+    assert result[-1]['completeness'] == 'complete'
+    assert 'bridge/node-a/vmbr0' in {row['external_id'] for batch in result[:-1] for row in batch['assets']}
+    assert any(row['target']['external_id'] == 'bridge/node-a/vmbr0'
+               for batch in result[:-1] for row in batch['relationships'])
 
 
 def test_test_bundle_is_reproducible_and_runtime_fixtures_are_test_only(tmp_path):

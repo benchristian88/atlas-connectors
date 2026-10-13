@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1",
   "id": "proxmox",
-  "version": "0.2.0-i4b.1",
+  "version": "0.2.0-i4b.2",
   "publisher": {
     "id": "atlas-official",
     "name": "Atlas Impact"
@@ -157,7 +157,7 @@
       "kind": "asset",
       "label": "Lxc",
       "required": true,
-      "recommended_asset_type_key": "container"
+      "recommended_asset_type_key": "lxc_container"
     },
     {
       "key": "proxmox.storage",

@@ -1,11 +1,63 @@
-# I4C — planned live Proxmox qualification
+# I4C — Proxmox live qualification
 
-Prepared **13 October 2026**. **No live qualification has occurred in I4C-A.**
-Proxmox **9.2.11 remains UNQUALIFIED**. Candidate **0.2.0-i4b.1** remains
-unqualified/unpublished; production bootstrap/catalogue remain **0.1.0 probe-only**.
-I4 is incomplete. Production discovery, scheduling and complete snapshots remain
-disabled. Promotion to 0.2.0 / production activation is a separate I4C-B decision
-after reviewed real evidence. Native Debian/systemd LIVE acceptance is outstanding.
+Updated **13 October 2026** after the operator-reported first live run.
+Proxmox **9.2.11 remains UNQUALIFIED**. Candidate **0.2.0-i4b.1** produced a
+**PARTIAL** run (140 observations, `invalid_source_record`, no Bridge Assets).
+No absence processing occurred. Source version was 9.2.11; runtime was
+`atlas-ansible-i4a-v1` / 1.2.0, runtime 0.3.1. Guest interfaces still came from
+current guest config. This is live operator evidence, not local test execution.
+
+The legitimate separate VLAN row `vmbr0.99` contained `exists: null`. The raw
+network validator incorrectly required that unused flag to be 0/1/bool, rejecting
+the entire response before the valid `vmbr0` bridge could be normalized. The fix
+removes only `exists` from that set; `active`, `autostart`, `bridge_vlan_aware`
+remain strict. A regression preserves vmbr0 and adds the separate VLAN row.
+
+The next artifact is **0.2.0-i4b.2**, still unqualified/unpublished. Version truth
+is stored in the existing candidate Manifest/SPDX metadata, not a second build
+configuration. The immutable `.1` artifact remains unchanged at
+`sha256:d283441dfa70d8e589fd3da868075bdb795a8cda938a78931437432b572166c8`.
+Production bootstrap/catalogue remain **0.1.0 probe-only**. I4/I4C are incomplete;
+I4C-B, production activation, release and native/systemd LIVE acceptance remain
+outstanding. No commit/push/merge/tag/publication is performed in this fix pass.
+
+## Live review findings and qualification limits
+
+- All Open silently truncated at 200; category queues could reveal items missing
+  from that view. Atlas now uses bounded cursor pages with scoped totals and the
+  Assets-style Previous / Page / Next footer. Reassess complete queue coverage.
+- Initial namespaced facts appeared as independent Changed cards. They now group
+  with their same-entity/source/run new Asset, with independent item actions.
+  Prior claims, later facts and conflicts remain independent. The backend
+  assertions, decisions, history and acceptance policy are preserved.
+- Test Connection returned bounded capability diagnostics that the UI omitted.
+  Atlas now renders the generic validated capability/state/path category and
+  optional privilege, using shared status presentation. No raw ACL/body passthrough.
+- Dynamic/DHCP/guest-agent/runtime IP enrichment remains deliberately omitted.
+  Tagged/trunk attachments deliberately omit unsupported logical Network membership;
+  guest-to-bridge connectivity must be reassessed after bridge discovery succeeds.
+- The apparent five `uses_storage` relationships for roughly 30 LXCs are
+  **unverified**, because All Open was truncated. Storage discovery is unchanged.
+  Reassess source coverage after paging and a COMPLETE `.2` run.
+- Operator review changes `.2`'s recommended mapping for `proxmox.lxc` to the
+  existing managed **LXC Container** key `lxc_container` (verified in Atlas's
+  reference-data migration). `proxmox.qemu` still recommends `virtual_machine`.
+  No taxonomy is created and no vendor-specific mapping moves into Atlas core.
+  The `.2` Manifest supersedes the earlier `container` recommendation recorded
+  in shared packaged discovery documentation; those shared files remain frozen
+  to preserve production `0.1.0` bytes.
+- New Asset headings now use their bounded observed name, retaining stable source
+  external IDs. Guest subtitles such as `LXC 1008 · pve3` remain deferred because
+  the current response has no generic presentation contract for those fields.
+- The Discovery summary table uses the friendly source name and structured scope
+  label, with separate connector/trigger and status/completeness lines. Technical
+  identities remain in existing API/detail/provenance contexts.
+- Archived-run reconciliation suppression is **not implemented**. Identical claims
+  coalesce by replacing the latest run/evidence pointers, without per-assertion
+  contributing-run links. The latest run can be archived while an older active
+  run observed the same claim. A run-pointer-only filter would incorrectly hide
+  that current work. Follow the operator's stop condition; retain existing archive,
+  queue, acceptance and history semantics pending a scoped provenance design.
 
 Perform **one operator action at a time**, inspect the result and record evidence
 before continuing. Stop on identity mismatch, unsafe credential handling or an
@@ -17,40 +69,20 @@ Read [discovery](discovery.md), [capability matrix](capability-matrix.md),
 [permissions](permissions.md), [qualification status](qualification.md), and
 the [I4C-A preparation report](i4c-a-preparation.md).
 
-## 1. Mac review and GitHub checkpoint — next operator action
+## 1. Local review gate — stop before commit/push
 
-Review the two feature-branch diffs and preparation reports. Confirm the SDK is
-clean on main. Commit only the reviewed I4C-A changes, one repository at a time:
+Review both feature-branch diffs and the Atlas
+`docs/architecture/integrations/i4c-live-qualification-fixes.md` acceptance report.
+Starting accepted checkpoints are Connector
+`76af2507bd29934192d1d89428a618d081e4f4a0` and Atlas
+`efde1d7b7a6bbb4f9098b1f7d228e4b834d096b4`. No new committed checkpoint exists
+until the operator separately reviews/authorizes it. Local builds carry contextual
+HEAD only and are not committed-source or remote-attestation evidence.
 
-```bash
-cd ~/Code/atlas-connectors
-git branch --show-current
-git diff --check
-git diff
-git status --short
-git add tools/build_bundle.py tools/verify_candidate.py tests/test_i4c_checkpoint.py README.md connectors/proxmox/docs/i4c-live-qualification.md connectors/proxmox/docs/i4c-a-preparation.md
-git commit -m "Prepare exact I4C Proxmox qualification checkpoint"
-git rev-parse HEAD
-git push -u origin feature/i4c-proxmox-qualification
-```
-
-Record that full Connector commit SHA outside the bundle. Then in Atlas:
-
-```bash
-cd ~/Code/atlas
-git branch --show-current
-git diff --check
-git diff
-git status --short
-git add apps/api/app/services/connector_qualification.py apps/api/app/services/connector_verification.py apps/api/app/services/connector_store.py apps/api/app/services/connector_lifecycle.py apps/api/app/services/integration_connections.py apps/api/scripts/qualify_connector.py apps/api/tests/test_connector_qualification.py apps/api/tests/test_connector_qualification_postgres.py apps/runtime/ansible/atlas_runtime/qualification.py apps/runtime/ansible/atlas_runtime/server.py infra/ci/release-critical.sh infra/docker/docker-compose.qualification.yml docs/decisions/0010-local-connector-qualification.md docs/deployment/connector-qualification.md docs/deployment/integration-runtime.md docs/architecture/integrations/i4c-a-preparation.md docs/architecture/integrations/integration-roadmap.md docs/product/feature-ledger.md
-git commit -m "Add exact local operator Connector qualification staging"
-git rev-parse HEAD
-git push -u origin feature/integrations-i4c-proxmox-qualification
-```
-
-Record the Atlas SHA. **Pause here for the interactive LXC checkpoint.** Neither
-commit nor push is performed by I4C-A. Do not merge, tag or publish a release.
-These future commit SHAs cannot be invented by the preparation report.
+After a separately reviewed operator checkpoint, record both full SHAs and rebuild
+from those exact clean checkouts using the procedure below. Do not stage a dirty
+Mac artifact, reuse `.1`, or overwrite an immutable artifact. This pass stops
+before any commit/push, LXC staging, activation, source call or promotion.
 
 ## 2. LXC committed-source reconstruction
 
@@ -104,7 +136,7 @@ procedure to production.
    .venv/bin/python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
    .venv/bin/python tools/build_bundle.py --candidate --output /tmp/i4c-candidate-a
    .venv/bin/python tools/build_bundle.py --candidate --output /tmp/i4c-candidate-b
-   cmp /tmp/i4c-candidate-a/proxmox-0.2.0-i4b.1.tar.gz /tmp/i4c-candidate-b/proxmox-0.2.0-i4b.1.tar.gz
+   cmp /tmp/i4c-candidate-a/proxmox-0.2.0-i4b.2.tar.gz /tmp/i4c-candidate-b/proxmox-0.2.0-i4b.2.tar.gz
    cmp /tmp/i4c-candidate-a/manifest.json /tmp/i4c-candidate-b/manifest.json
    ```
 
@@ -112,17 +144,17 @@ procedure to production.
 
    ```bash
    export CONNECTOR_ID=proxmox
-   export CANDIDATE_VERSION=0.2.0-i4b.1
-   export CANDIDATE_FILE=proxmox-0.2.0-i4b.1.tar.gz
-   export CANDIDATE_DIGEST=sha256:d283441dfa70d8e589fd3da868075bdb795a8cda938a78931437432b572166c8
+   export CANDIDATE_VERSION=0.2.0-i4b.2
+   export CANDIDATE_FILE=proxmox-0.2.0-i4b.2.tar.gz
+   export CANDIDATE_DIGEST=sha256:3dcf374e487a65a4398fe3ec2b3c0158c9fbdeaa5c8f885b85d8c3361904ffb5
    export CANDIDATE_DIR=/tmp/i4c-candidate-a
    .venv/bin/python tools/verify_candidate.py --directory "$CANDIDATE_DIR" --expected-digest "$CANDIDATE_DIGEST" --source-commit "$CONNECTOR_COMMIT"
    cd "$CANDIDATE_DIR"
    sha256sum -c SHA256SUMS
    ```
 
-   Require all comparisons/checks to pass. The archive digest is unchanged from
-   I4B; detached provenance must now identify the new committed Connector SHA.
+   Require all comparisons/checks to pass. This is the new `.2` archive digest;
+   detached provenance must identify the separately reviewed new Connector SHA.
    Its release URLs are schema descriptors, not published assets/attestations.
    Do not use an uncommitted Mac bundle or overwrite a mismatch with a new digest.
 
@@ -175,7 +207,7 @@ Record (no source credentials/raw ACLs):
 | --- | --- |
 | Atlas commit | Full reviewed Mac/pushed/LXC SHA; API build identity matches |
 | Connector commit | Full reviewed Mac/pushed/LXC SHA; detached manifest agrees |
-| Candidate | `0.2.0-i4b.1`, exact SHA-256 above, still unqualified |
+| Candidate | `0.2.0-i4b.2`, exact SHA-256 above, still unqualified |
 | Runtime | healthy `atlas-ansible-i4a-v1` / `1.2.0`, runtime `0.3.1` |
 | Ansible | core `2.19.7`, Runner `2.4.3` |
 | Client | proxmoxer `2.3.0` |
@@ -276,7 +308,7 @@ from fixture expectations. Stop on mismatches; fixes require a new reviewed Git
 checkpoint and rebuilt digest. Do not weaken I4B COMPLETE/security behavior.
 
 Disable/settle test jobs and revoke permission using the Atlas procedure when
-finished; its 48-hour expiry independently prevents new execution. I4C-A ends at
-operator review/commit/push readiness. Even successful individual live checks do
+finished; its 48-hour expiry independently prevents new execution. This fix pass ends at
+local review readiness, before commit/push. Even successful individual live checks do
 not themselves change metadata or authorize I4C-B promotion, merge, release,
 bootstrap replacement or production discovery/scheduling/complete snapshots.

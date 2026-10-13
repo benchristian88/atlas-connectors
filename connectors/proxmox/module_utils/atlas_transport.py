@@ -175,7 +175,9 @@ class PinnedAdapter(BaseAdapter):
             elif url.path.endswith('/cluster/resources') or re.search(r'/(qemu|lxc)$', url.path):
                 flags = {'template'}
             elif url.path.endswith('/network'):
-                flags = {'active', 'autostart', 'bridge_vlan_aware', 'exists'}
+                # Proxmox can report exists: null on unrelated VLAN rows.
+                # It is unused by discovery; retain strict topology flag checks.
+                flags = {'active', 'autostart', 'bridge_vlan_aware'}
             if flags and isinstance(value['data'], list):
                 for row in value['data']:
                     if not isinstance(row, dict) or any(type(row[key]) not in {int, bool} or row[key] not in {0, 1}
