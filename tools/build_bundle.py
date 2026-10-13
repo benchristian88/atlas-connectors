@@ -14,6 +14,18 @@ from atlas_connector_sdk.contracts import validate_manifest
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "benchristian88/atlas-connectors"
 WORKFLOW = ".github/workflows/release.yml"
+# Reviewed package contents. Operator runbooks, checkpoints, tests and incidental
+# local files never enter either immutable package.
+COMMON_FILES = (
+    "NOTICE", "README.md", "docs/capability-matrix.md", "docs/discovery.md",
+    "docs/i4b-completion-report.md", "docs/permissions.md", "docs/qualification.md",
+    "library/atlas_probe.py", "manifest.json", "sbom.spdx.json", "test_connection.yml",
+)
+CANDIDATE_FILES = (
+    "discover.yml", "library/atlas_discover.py", "library/atlas_readiness.py",
+    "module_utils/atlas_discovery.py", "module_utils/atlas_normalization.py",
+    "module_utils/atlas_transport.py",
+)
 
 
 def build(connector="proxmox", output=None, *, candidate=False):
@@ -22,11 +34,8 @@ def build(connector="proxmox", output=None, *, candidate=False):
     source = ROOT / "connectors" / connector
     metadata = source / "candidate" if candidate else source
     manifest = json.loads((metadata / "manifest.json").read_bytes())
-    files = {path.relative_to(source).as_posix(): path.read_bytes() for path in source.rglob("*")
-             if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
-             and "candidate" not in path.relative_to(source).parts
-             and (candidate or path.relative_to(source).as_posix() not in {"discover.yml", "library/atlas_discover.py", "library/atlas_readiness.py"})
-             and (candidate or path.relative_to(source).parts[0] != "module_utils")}
+    names = COMMON_FILES + (CANDIDATE_FILES if candidate else ())
+    files = {name: (source / name).read_bytes() for name in names}
     for name in ["manifest.json", "sbom.spdx.json"]:
         files[name] = (metadata / name).read_bytes()
     if candidate:
