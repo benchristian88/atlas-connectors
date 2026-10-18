@@ -156,15 +156,31 @@ class Inventory:
                 self.diagnostics.emit('skipped', 'source_record_rejected', record_count=1)
 
     def storage(self, definitions, node, statuses):
-        seen = set()
+        expected = {name for name, row in definitions.items() if not row.get('nodes') or node in row['nodes']}
+        seen, encountered = set(), set()
         for row in statuses:
             self.at('storage_status', object_class='proxmox.storage', parent_external_id=node_id(node),
                     external_id='storage/' + str(row.get('storage', '')))
             try:
                 self.check('storage_identity_invalid', 'storage', row.get('storage'), 'identifier')
                 name = identifier(row['storage'])
-                if name in seen:
+                if name in encountered:
                     self.reason = 'duplicate_source_record'
+                    raise SourceError('invalid_source_record')
+                encountered.add(name)
+                if name not in expected:
+                    # Proxmox can expose disabled/inactive rows on nodes where
+                    # a pool is not configured. Both flags must explicitly prove
+                    # this exclusion; missing or malformed evidence fails closed.
+                    self.check('storage_status_invalid', 'enabled', row.get('enabled'), 'boolean')
+                    enabled = flag(row['enabled']) if 'enabled' in row else None
+                    self.check('storage_status_invalid', 'active', row.get('active'), 'boolean')
+                    active = flag(row['active']) if 'active' in row else None
+                    if enabled is False and active is False:
+                        self.diagnostics.rule('storage', name, 'inactive_disabled_without_applicable_definition', 'out_of_scope')
+                        self.diagnostics.emit('skipped', 'storage_record_out_of_scope', record_count=1, action='skip')
+                        continue
+                    self.check('storage_definition_missing', 'storage', name, 'applicable_definition')
                     raise SourceError('invalid_source_record')
                 seen.add(name)
                 self.check('storage_definition_missing', 'storage', name, 'known_storage')
@@ -198,7 +214,6 @@ class Inventory:
             except (SourceError, KeyError, TypeError):
                 self.warning(reason=self.reason)
                 self.diagnostics.emit('skipped', 'source_record_rejected', record_count=1)
-        expected = {name for name, row in definitions.items() if not row.get('nodes') or node in row['nodes']}
         if seen != expected:
             self.at('storage_status', parent_external_id=node_id(node))
             self.warning(reason='storage_inventory_mismatch')

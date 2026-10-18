@@ -3,6 +3,7 @@
 from copy import deepcopy
 import json
 import os
+from pathlib import Path
 import secrets
 import uuid
 
@@ -14,7 +15,8 @@ from proxmox_fixture_transport import fixture, adapter_factory
 
 
 def inputs():
-    return {'reference': {'connector_id': 'proxmox', 'version': '0.2.0-i4b.3', 'digest': 'a' * 64},
+    version = json.loads((Path(__file__).resolve().parents[1] / 'connectors/proxmox/candidate/manifest.json').read_text())['version']
+    return {'reference': {'connector_id': 'proxmox', 'version': version, 'digest': 'a' * 64},
             'config': {'endpoint': 'https://source.example.test:8006'},
             'credentials': {'token_id': 'fixture_' + secrets.token_hex(8) + '@pve!discovery', 'token_secret': secrets.token_urlsafe(32)},
             'run_id': str(uuid.uuid4()), 'integration_id': str(uuid.uuid4()), 'selected_scopes': ['inventory'], 'object_classes': CLASSES,
@@ -22,7 +24,7 @@ def inputs():
 
 
 @pytest.mark.parametrize('scenario', ['complete', 'standalone', 'empty_authorized', 'empty_unproven', 'permission_filtered',
-    'offline', 'source_failure', 'storage_failure', 'config_failure', 'pending', 'malformed', 'limits'])
+    'offline', 'source_failure', 'storage_failure', 'config_failure', 'pending', 'malformed', 'limits', 'heterogeneous_storage'])
 def test_debug_only_changes_diagnostic_detail_not_aip_or_source_calls(scenario):
     source = inputs()
     messages, traces, calls = [], [], []
@@ -41,6 +43,49 @@ def test_debug_only_changes_diagnostic_detail_not_aip_or_source_calls(scenario):
     if messages[0][-1]['completeness'] != 'complete':
         assert any(row['result'] in {'warning', 'error'} for row in traces[0])
     assert all(len(json.dumps(row, separators=(',', ':')).encode()) + 1 <= MAX_EVENT_BYTES for row in traces[1])
+
+
+@pytest.mark.parametrize('case,expected', [
+    ('out_of_scope', 'complete'), ('enabled', 'partial'), ('active', 'partial'),
+    ('malformed_enabled', 'partial'), ('malformed_active', 'partial'), ('missing_flag', 'partial'),
+    ('missing_applicable', 'partial'), ('disabled_applicable', 'complete'),
+])
+def test_storage_scope_diagnostics_are_clear_redacted_and_debug_cannot_change_results(case, expected):
+    source, data = inputs(), fixture('heterogeneous_storage')
+    row = data['responses']['/nodes/pve3/storage'][-1]
+    marker = secrets.token_hex(32)
+    row.update(description=marker, arbitrary_config={'ignored': marker})
+    if case in {'enabled', 'active'}: row[case] = 1
+    elif case == 'malformed_enabled': row['enabled'] = '0'
+    elif case == 'malformed_active': row['active'] = None
+    elif case == 'missing_flag': row.pop('enabled')
+    elif case == 'missing_applicable': data['responses']['/nodes/pve3/storage'].pop(-2)
+    elif case == 'disabled_applicable': data['responses']['/nodes/pve1/storage'][-1].update(enabled=0, active=0)
+    messages, calls, traces = [], [], []
+    for debug in [False, True]:
+        diagnostic = Diagnostics(debug=debug, sensitive=source['credentials'].values())
+        adapter = adapter_factory(data)
+        output = discover({**source, 'debug_enabled': debug}, adapter_factory=adapter, diagnostics=diagnostic)
+        for message in output: message.pop('observed_at')
+        assert output[-1]['completeness'] == expected
+        messages.append(output); calls.append(adapter.calls); traces.append(diagnostic.events)
+        assert all(value not in json.dumps(diagnostic.events) for value in [marker, *source['credentials'].values()])
+    assert messages[0] == messages[1] and calls[0] == calls[1]
+    debug_keys = {'field', 'encountered_type', 'validation_rule', 'expected', 'action'}
+    assert [{key: value for key, value in event.items() if key not in debug_keys} for event in traces[1]] == traces[0]
+    assert all(len(json.dumps(event, separators=(',', ':')).encode()) + 1 <= MAX_EVENT_BYTES for event in traces[1])
+    if case in {'out_of_scope', 'missing_applicable', 'disabled_applicable'}:
+        event = next(event for event in traces[0] if event['reason_code'] == 'storage_record_out_of_scope')
+        assert event == {'sequence': event['sequence'], 'stage': 'storage_status', 'result': 'skipped',
+                         'reason_code': 'storage_record_out_of_scope', 'record_count': 1, 'object_class': 'proxmox.storage',
+                         'external_id': 'storage/local-zfs', 'parent_external_id': 'node/pve3'}
+        detail = next(event for event in traces[1] if event['reason_code'] == 'storage_record_out_of_scope')
+        assert detail['validation_rule'] == 'inactive_disabled_without_applicable_definition'
+        assert detail['expected'] == 'out_of_scope' and detail['action'] == 'skip'
+    else:
+        assert not any(event['reason_code'] == 'storage_record_out_of_scope' for event in traces[0])
+    if expected == 'complete':
+        assert not any(event['result'] in {'warning', 'error'} for event in traces[0])
 
 
 @pytest.mark.parametrize('mutation,reason', [

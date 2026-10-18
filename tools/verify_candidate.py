@@ -23,9 +23,9 @@ COLLECTION_DIGEST = "77e02e0d1e341c6b064900fe58484ad8880cee4832f5fd65d09834ed068
 def verify(directory, expected_digest, *, source_commit=None):
     manifest = json.loads((directory / "manifest.json").read_bytes())
     validate_manifest(manifest)
-    if manifest["id"] != "proxmox" or manifest["version"] != "0.2.0-i4b.3":
+    if manifest["id"] != "proxmox" or manifest["version"] != "0.2.0-i4b.4":
         raise ValueError("candidate_identity_mismatch")
-    archive_path = directory / "proxmox-0.2.0-i4b.3.tar.gz"
+    archive_path = directory / "proxmox-0.2.0-i4b.4.tar.gz"
     if archive_path.stat().st_size > 20 * 1024 * 1024:
         raise ValueError("candidate_archive_limit")
     actual = "sha256:" + hashlib.sha256(archive_path.read_bytes()).hexdigest()
@@ -61,7 +61,7 @@ def verify(directory, expected_digest, *, source_commit=None):
             or manifest["compatibility"]["runtime"]["baseline"] != {"minimum": "1.2.0", "exclusive_maximum": "2.0.0"}
             or manifest["implementation"]["dependencies"] != [{"kind": "collection", "name": "community.proxmox",
                 "version": "2.0.0", "digest": "sha256:" + COLLECTION_DIGEST, "licence": "GPL-3.0-or-later"}]
-            or sbom["packages"][0]["versionInfo"] != "0.2.0-i4b.3"
+            or sbom["packages"][0]["versionInfo"] != "0.2.0-i4b.4"
             or sbom["packages"][1]["versionInfo"] != "2.0.0"
             or sbom["packages"][1]["checksums"] != [{"algorithm": "SHA256", "checksumValue": COLLECTION_DIGEST}]):
         raise ValueError("candidate_contract_mismatch")

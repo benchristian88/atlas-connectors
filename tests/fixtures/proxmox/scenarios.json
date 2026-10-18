@@ -1,5 +1,6 @@
 {
   "complete": {},
+  "heterogeneous_storage": {"heterogeneous_storage": true},
   "standalone": {"standalone": true},
   "empty_authorized": {"standalone": true, "empty_guests": true},
   "empty_unproven": {"standalone": true, "empty_guests": true, "unproven": true},

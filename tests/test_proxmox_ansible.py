@@ -16,7 +16,7 @@ from build_acceptance_fixture import build_fixture
 
 
 @pytest.mark.skipif(not os.getenv('ATLAS_TEST_RUN_ANSIBLE'),reason='enable with pinned Ansible Runner installed')
-@pytest.mark.parametrize('scenario,expected',[('complete','complete'),('permission_filtered','partial'),('source_failure','failed'),('limits','failed')])
+@pytest.mark.parametrize('scenario,expected',[('complete','complete'),('permission_filtered','partial'),('source_failure','failed'),('limits','failed'),('heterogeneous_storage','complete')])
 @pytest.mark.parametrize('debug', [False, True])
 def test_fixed_candidate_playbook_real_runner_and_sdk_stream(tmp_path,scenario,expected,debug):
     import ansible_runner
@@ -49,3 +49,8 @@ def test_fixed_candidate_playbook_real_runner_and_sdk_stream(tmp_path,scenario,e
     events=[json.loads(line) for line in trace.read_text().splitlines()]
     assert events[0]['reason_code']=='discovery_started' and events[-1]['reason_code']=='discovery_finished'
     assert all(value not in trace.read_text() for value in values.values())
+    if scenario == 'heterogeneous_storage':
+        assert 'storage/local/pve3/local-zfs' not in {row['external_id'] for batch in messages[:-1] for row in batch['assets']}
+        event = next(event for event in events if event['reason_code'] == 'storage_record_out_of_scope')
+        assert event['result'] == 'skipped' and event['parent_external_id'] == 'node/pve3'
+        assert not any(event['result'] in {'warning', 'error'} for event in events)

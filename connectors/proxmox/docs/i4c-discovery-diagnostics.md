@@ -1,4 +1,4 @@
-# I4C diagnostic successor — 0.2.0-i4b.3
+# I4C discovery diagnostics — introduced in 0.2.0-i4b.3
 
 The operator's `.2` live run of Proxmox VE 9.2.11 was COMPLETED/PARTIAL with
 179 observations, 48 reconciliation items and `invalid_source_record`. The `.1`
@@ -6,11 +6,19 @@ run had 140 observations. Both remain failed qualification evidence; `.2`'s
 exists:null fix succeeded but did not resolve the independent remaining condition.
 **9.2.11 and candidate .3 remain UNQUALIFIED; qualified_versions is empty.**
 
-The next candidate is **0.2.0-i4b.3**, archive digest
+Diagnostics were introduced in **0.2.0-i4b.3**, archive digest
 `sha256:05c8ccb44b3964b780d3ffcef9a71a89b80ed2a5b7f4de22806ea7b0f62cf626`.
 It instruments existing validation paths; it does not relax validators or change
 source calls, privileges, AIP observations, warnings or completeness semantics.
 Production 0.1.0 remains probe-only. No live source is contacted by fixture checks.
+
+The operator's `.3` live debug trace then isolated the only PARTIAL cause to
+`storage_inventory_mismatch` on `node/pve3`. Proxmox exposes an additional
+disabled/inactive local-zfs status row there without an applicable configuration
+definition. `.3` remains failed/unqualified evidence. The current **0.2.0-i4b.4**
+successor applies the narrow storage exclusion documented in the
+[active live runbook](i4c-live-qualification.md), retaining this diagnostic contract.
+It is also unqualified, with no qualified source versions or production promotion.
 
 ## Structured trace
 
@@ -44,7 +52,7 @@ Accepted counts describe normalization, not operator acceptance of Atlas knowled
 | Source read | source_response_invalid, source_response_limit, source_total_bytes_limit, source_call_limit, source_json_invalid, source_boolean_invalid |
 | Authorization | permission_response_invalid, permission_flag_invalid, acl_path_invalid, acl_path_limit, authorization_unproven, authorization_changed_during_discovery |
 | Deployment/node | deployment_record_unknown, duplicate_source_record, node_membership_mismatch, node_status_invalid, node_not_visible |
-| Storage | storage_definition_missing, storage_definition_mismatch, storage_node_unresolved, storage_status_invalid, storage_capacity_invalid, storage_inventory_mismatch |
+| Storage | storage_definition_missing, storage_definition_mismatch, storage_node_unresolved, storage_status_invalid, storage_capacity_invalid, storage_inventory_mismatch, storage_record_out_of_scope |
 | Network/bridge | network_changes_pending, bridge_duplicate, bridge_inactive, bridge_cidr_invalid, bridge_status_invalid |
 | Guest/config | guest_identity_invalid, guest_node_unresolved, guest_power_state_invalid, guest_config_missing, guest_config_read_failed, guest_inventory_mismatch |
 | Guest storage | guest_storage_reference_invalid, guest_storage_unresolved |
@@ -55,6 +63,14 @@ The existing outward warning invalid_source_record remains compatible. The trace
 supplies the stage/object/rule that produced it. Debug types and expected grammar
 are metadata, not source values. Explicit source-local identity stays separate
 from human display names and accepted canonical knowledge.
+
+`storage_record_out_of_scope` is **Skipped**, never Warning: no applicable node
+definition and both strict enabled/active flags explicitly false. Its stage is
+`storage_status`, with storage and node identities. Debug adds the fixed rule
+`inactive_disabled_without_applicable_definition`, `expected=out_of_scope` and
+`action=skip` using existing fields; no source value or config body is included.
+Applicable disabled storage is still accepted; unknown active/enabled storage,
+missing applicable status and malformed flags still prevent COMPLETE.
 
 ## One next run, administrator access and retention
 
@@ -80,6 +96,7 @@ verify from the reviewed committed source before staging a new exact authorizati
 Tests exercise diagnostic visibility, secret/body/config exclusions, destination
 tricks, bounded flush/overflow, actual Runner, and identical AIP/source calls for
 debug off/on. They do not qualify an actual Proxmox deployment. Do not accept live
-reconciliation automatically or promote 0.2.0. The next live run should collect
-safe normal reasons first and use the one-shot debug metadata to identify the
-remaining validator. Any source-shape change is a separate reviewed fix.
+reconciliation automatically or promote 0.2.0. The next `.4` live run should
+confirm the pve3 row is skipped without a false mismatch, and inspect all remaining
+normal reasons before any COMPLETE claim. One-shot debug detail remains optional.
+Any further source-shape change is a separate reviewed fix.

@@ -12,7 +12,8 @@ import pytest
 from atlas_connector_sdk.aip import validate_example_stream
 from atlas_connector_sdk.contracts import validate_manifest
 from ansible.module_utils.atlas_discovery import discover
-from ansible.module_utils.atlas_normalization import CLASSES
+from ansible.module_utils.atlas_diagnostics import Diagnostics
+from ansible.module_utils.atlas_normalization import CLASSES, relationship, storage_id
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from build_bundle import build
@@ -170,3 +171,107 @@ def test_inactive_bridge_preserves_identity_without_current_topology_or_complete
     assert result[-1]['completeness']=='partial'
     assert 'bridge/node-a/vmbr0' in {row['external_id'] for batch in result[:-1] for row in batch['assets']}
     assert not any(row['target']['external_id']=='bridge/node-a/vmbr0' for batch in result[:-1] for row in batch['relationships'])
+
+
+def test_three_node_storage_scope_preserves_complete_and_local_shared_and_guest_identities(inputs):
+    data = fixture('heterogeneous_storage')
+    result, calls = run(inputs, data=data)
+    assert result[-1]['completeness'] == 'complete' and 'warnings' not in result[-1]
+    assets = {row['external_id']: row for batch in result[:-1] for row in batch['assets']}
+    links = [row for batch in result[:-1] for row in batch['relationships']]
+    for index, node in enumerate(['pve1', 'pve2', 'pve3'], 1):
+        local = 'local-lvm' if node == 'pve3' else 'local-zfs'
+        external = storage_id(node, local, False)
+        assert external in assets
+        assert {'key': 'proxmox.shared', 'value_type': 'boolean', 'class': 'configuration',
+                'cardinality': 'single', 'value': False} in assets[external]['facts']
+        assert relationship('uses_storage', f'guest/qemu/{100 + index}', external) in links
+        assert relationship('uses_storage', f'guest/qemu/{100 + index}', 'storage/shared/synology-vmdata') in links
+    assert 'storage/local/pve3/local-zfs' not in assets
+    assert len([key for key in assets if key.startswith('storage/shared/')]) == 4
+    assert len([key for key in assets if key.startswith('storage/local/')]) == 6
+    # Removing only the irrelevant row has no effect on AIP or source requests.
+    data['responses']['/nodes/pve3/storage'].pop()
+    baseline, baseline_calls = run(inputs, data=data)
+    assert [{k: v for k, v in row.items() if k != 'observed_at'} for row in result] == [
+        {k: v for k, v in row.items() if k != 'observed_at'} for row in baseline]
+    assert calls == baseline_calls
+
+
+@pytest.mark.parametrize('enabled,active', [(1, 0), (0, 1), (1, 1)])
+@pytest.mark.parametrize('defined_elsewhere', [False, True])
+def test_non_applicable_enabled_or_active_storage_prevents_complete(inputs, enabled, active, defined_elsewhere):
+    data = fixture('heterogeneous_storage')
+    if not defined_elsewhere:
+        # Other nodes also now lack a definition: all such rows must fail closed.
+        data['responses']['/storage'].pop()
+    data['responses']['/nodes/pve3/storage'][-1].update(enabled=enabled, active=active)
+    diagnostics = Diagnostics()
+    result = discover(inputs, adapter_factory=adapter_factory(data), diagnostics=diagnostics)
+    assert result[-1]['completeness'] == 'partial'
+    assert result[-1]['warnings'] == [{'code': 'invalid_source_record'}]
+    assert 'storage/local/pve3/local-zfs' not in {row['external_id'] for batch in result[:-1] for row in batch['assets']}
+    assert any(event['reason_code'] == 'storage_definition_missing' and event['parent_external_id'] == 'node/pve3'
+               for event in diagnostics.events)
+
+
+@pytest.mark.parametrize('field', ['active', 'enabled', 'shared'])
+@pytest.mark.parametrize('value', [None, '0', 'false', 2, -1, 0.0, [], {}])
+def test_malformed_storage_boolean_never_becomes_out_of_scope_or_complete(inputs, field, value):
+    data = fixture('heterogeneous_storage')
+    data['responses']['/nodes/pve3/storage'][-1][field] = value
+    result, _ = run(inputs, data=data)
+    assert result[-1]['completeness'] == 'partial'
+    assert {'code': 'invalid_source_record'} in result[-1]['warnings']
+
+
+def test_missing_applicable_storage_status_preserves_partial_mismatch(inputs):
+    data = fixture('heterogeneous_storage')
+    data['responses']['/nodes/pve3/storage'] = [
+        row for row in data['responses']['/nodes/pve3/storage'] if row['storage'] != 'pbs-backup']
+    diagnostics = Diagnostics()
+    result = discover(inputs, adapter_factory=adapter_factory(data), diagnostics=diagnostics)
+    assert result[-1]['completeness'] == 'partial'
+    assert any(event['reason_code'] == 'storage_inventory_mismatch' and event['parent_external_id'] == 'node/pve3'
+               for event in diagnostics.events)
+
+
+def test_applicable_disabled_inactive_storage_remains_inventory_and_resolves_guest_links(inputs):
+    data = fixture('heterogeneous_storage')
+    data['responses']['/storage'][-1]['disable'] = 1
+    for node in ['pve1', 'pve2']:
+        data['responses']['/nodes/' + node + '/storage'][-1].update(enabled=0, active=0)
+    result, _ = run(inputs, data=data)
+    assert result[-1]['completeness'] == 'complete'
+    assets = {row['external_id']: row for batch in result[:-1] for row in batch['assets']}
+    links = [row for batch in result[:-1] for row in batch['relationships']]
+    for index, node in enumerate(['pve1', 'pve2'], 1):
+        external = 'storage/local/' + node + '/local-zfs'
+        assert external in assets
+        assert {fact['key'] for fact in assets[external]['facts']} == {'proxmox.shared', 'proxmox.storage_type'}
+        assert relationship('uses_storage', f'guest/qemu/{100 + index}', external) in links
+
+
+@pytest.mark.parametrize('field,value', [('shared', 1), ('type', 'dir')])
+def test_applicable_storage_definition_status_inconsistency_remains_partial(inputs, field, value):
+    data = fixture('heterogeneous_storage')
+    data['responses']['/nodes/pve1/storage'][-1][field] = value
+    result, _ = run(inputs, data=data)
+    assert result[-1]['completeness'] == 'partial'
+
+
+@pytest.mark.parametrize('field,value', [('avail', -1), ('avail', 100001), ('total', '100000'), ('total', None)])
+def test_active_local_storage_capacity_validation_remains_partial(inputs, field, value):
+    data = fixture('heterogeneous_storage')
+    data['responses']['/nodes/pve1/storage'][-1][field] = value
+    result, _ = run(inputs, data=data)
+    assert result[-1]['completeness'] == 'partial'
+
+
+def test_guest_reference_to_out_of_scope_storage_still_prevents_complete(inputs):
+    data = fixture('heterogeneous_storage')
+    data['responses']['/nodes/pve3/qemu/103/config?current=1']['scsi0'] = 'local-zfs:fixture-disk'
+    diagnostics = Diagnostics()
+    result = discover(inputs, adapter_factory=adapter_factory(data), diagnostics=diagnostics)
+    assert result[-1]['completeness'] == 'partial'
+    assert any(event['reason_code'] == 'guest_storage_unresolved' for event in diagnostics.events)

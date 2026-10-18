@@ -2,8 +2,8 @@
   "spdxVersion": "SPDX-2.3",
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
-  "name": "atlas-proxmox-0.2.0-i4b.3",
-  "documentNamespace": "https://github.com/benchristian88/atlas-connectors/sbom/proxmox/0.2.0-i4b.3",
+  "name": "atlas-proxmox-0.2.0-i4b.4",
+  "documentNamespace": "https://github.com/benchristian88/atlas-connectors/sbom/proxmox/0.2.0-i4b.4",
   "creationInfo": {
     "creators": [
       "Organization: Atlas Impact"
@@ -13,7 +13,7 @@
   "packages": [
     {
       "name": "atlas-proxmox",
-      "versionInfo": "0.2.0-i4b.3",
+      "versionInfo": "0.2.0-i4b.4",
       "SPDXID": "SPDXRef-proxmox",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,

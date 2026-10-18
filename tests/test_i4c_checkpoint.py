@@ -53,13 +53,24 @@ def test_successor_candidate_uses_new_identity_and_preserves_existing_original_a
     original.write_bytes(b"immutable prior candidate fixture")
     second = tmp_path / "proxmox-0.2.0-i4b.2.tar.gz"
     second.write_bytes(b"immutable second candidate fixture")
+    third = tmp_path / "proxmox-0.2.0-i4b.3.tar.gz"
+    third.write_bytes(b"immutable diagnostic candidate fixture")
     payload, manifest = build(output=tmp_path, candidate=True)
-    assert manifest["version"] == "0.2.0-i4b.3"
-    assert (tmp_path / "proxmox-0.2.0-i4b.3.tar.gz").read_bytes() == payload
+    assert manifest["version"] == "0.2.0-i4b.4"
+    assert (tmp_path / "proxmox-0.2.0-i4b.4.tar.gz").read_bytes() == payload
     assert original.read_bytes() == b"immutable prior candidate fixture"
     assert second.read_bytes() == b"immutable second candidate fixture"
+    assert third.read_bytes() == b"immutable diagnostic candidate fixture"
     assert manifest["source_versions"]["qualification"] == "unqualified"
     assert manifest["source_versions"]["qualified_versions"] == []
+
+
+def test_default_production_archive_remains_exact_probe_only_release():
+    _, manifest = build()
+    assert manifest["version"] == "0.1.0"
+    assert manifest["distribution"]["bundle_digest"] == "sha256:b83ec2b3938b1747d12be5f0675dbc3e9da13c6259c2ab40f5daa994ee59ea60"
+    assert manifest["capabilities"]["discover"] is False
+    assert set(manifest["implementation"]["entry_points"]) == {"test_connection"}
 
 
 def test_candidate_recommends_existing_lxc_type_and_retains_vm_mapping():

@@ -1,16 +1,60 @@
 # I4C — Proxmox live qualification
 
-Updated **18 October 2026** after the operator-reported second live run.
+Updated **18 October 2026** after the operator-reported `.3` live diagnostic run.
+
+The **0.2.0-i4b.3** run, digest
+`sha256:05c8ccb44b3964b780d3ffcef9a71a89b80ed2a5b7f4de22806ea7b0f62cf626`,
+remained **PARTIAL**. Test Connection authenticated, reported Proxmox VE **9.2.11**
+and inventory capability **Ready**. Debug diagnostics successfully isolated the
+only completeness warning: `storage_inventory_mismatch`, stage `storage_status`,
+object `node/pve3`. This is operator-provided live evidence; `.3` remains failed,
+unqualified evidence, with its immutable artifact unchanged.
+
+The narrow compatibility successor is **0.2.0-i4b.4**, still **UNQUALIFIED** with
+`qualified_versions: []`, archive digest
+`sha256:62d25b92cf694dd7a8fde320961ccd887dc29b85497c084a44fab08fe1d7d645`.
+No `.4` live qualification, production promotion or source qualification is claimed.
+
+### Confirmed storage shape and contained normalization fix
+
+The cluster has pve1, pve2 and pve3. pve1/pve2 use local-zfs on a ZFS SSD;
+pve3 has only its system disk and uses LVM/LVM-thin. The applicable pve3 storage
+configuration contains `local`, `synology-immich`, `synology-backup`,
+`synology-vmdata`, `pbs-backup` and `local-lvm`. All six have node status rows.
+Proxmox additionally returns `local-zfs`, type `zfspool`, `shared=0`, `enabled=0`,
+`active=0` on pve3 despite there being no applicable pve3 definition or ZFS disk.
+
+The old loop added every status ID to `seen` before checking configuration
+applicability, so that extra row caused an unequal applicable-inventory set.
+`.4` skips a status row only when **no configuration definition applies to that
+node AND enabled and active are both explicitly false/0 AND both pass the existing
+strict boolean validation**. Missing flags are not proof; strings, null, floats
+and arbitrary values are not coerced. The skipped row enters neither the
+applicable `seen` set nor Assets/storage lookup. Its normal diagnostic is
+**Skipped / `storage_record_out_of_scope`**, with storage/node identity. Existing
+debug fields explain the `inactive_disabled_without_applicable_definition` rule
+and `action=skip`; no diagnostic schema, bounds or redaction change is required.
+
+Applicable disabled/inactive storage remains inventory. Unknown/non-applicable
+active or enabled storage still warns `storage_definition_missing` and prevents
+COMPLETE. Missing applicable status still warns `storage_inventory_mismatch`;
+malformed booleans, duplicate rows, type/shared inconsistencies, local capacity
+validation and unresolved guest storage remain fail-closed. Local identity stays
+node-scoped; shared identity stays source-level; guest relationship identity is
+unchanged. No source call, privilege, Atlas/SDK code or global COMPLETE rule changes.
+
+The original `.1`/`.2` findings and diagnostics introduced by `.3` follow.
 
 The `.2` run, digest
 `sha256:3dcf374e487a65a4398fe3ec2b3c0158c9fbdeaa5c8f885b85d8c3361904ffb5`,
 was COMPLETED/PARTIAL: **179 observations**, **48 reconciliation items created**,
 `invalid_source_record`. Its exists:null fix worked, but another independent
-condition remains. Source flag shapes and guest active bridge/storage references
-have already been checked by the operator. Do not guess another relaxation.
+condition remained; `.3` subsequently isolated it as described above. Source flag
+shapes and guest active bridge/storage references had already been checked by the
+operator.
 
-The diagnostic successor is **0.2.0-i4b.3**, still UNQUALIFIED with no qualified
-source versions. Enable **debug for next discovery run** only as an administrator;
+Structured diagnostics were introduced in **0.2.0-i4b.3** and are retained in `.4`.
+Enable **debug for next discovery run** only as an administrator;
 it is consumed when the run is created and expires within 48 hours. Normal safe
 diagnostics are always enabled. Neither mode logs raw source bodies/config values
 or changes calls, privileges, validation or completeness. See the
@@ -37,6 +81,71 @@ Production bootstrap/catalogue remain **0.1.0 probe-only**. I4/I4C are incomplet
 I4C-B, production activation, release and native/systemd LIVE acceptance remain
 outstanding. No commit/push/merge/tag/publication is performed in this fix pass.
 
+## Local `.4` validation — fixtures, not live qualification
+
+The pinned native-style environment uses Python 3.14.7, SDK 1.1.0,
+ansible-core 2.19.7, Runner 2.4.3, proxmoxer 2.3.0, requests 2.34.2 and the
+reviewed community.proxmox 2.0.0 collection. Commands actually executed:
+
+```bash
+ATLAS_TEST_COLLECTIONS_PATH=/private/tmp/atlas-i4c-diagnostics/collections ATLAS_TEST_RUN_ANSIBLE=1 /private/tmp/atlas-i4c-diagnostics/runtime-venv/bin/python -m pytest tests/test_proxmox_normalization.py tests/test_proxmox_discovery.py tests/test_discovery_diagnostics.py tests/test_i4c_checkpoint.py tests/test_proxmox_ansible.py -q --tb=short
+ATLAS_TEST_COLLECTIONS_PATH=/private/tmp/atlas-i4c-diagnostics/collections ATLAS_TEST_RUN_ANSIBLE=1 /private/tmp/atlas-i4c-diagnostics/runtime-venv/bin/python -m pytest -q --tb=short
+/private/tmp/atlas-i4c-diagnostics/runtime-venv/bin/python tools/build_bundle.py --candidate --output /private/tmp/atlas-i4c-storage-fix/candidate-a
+/private/tmp/atlas-i4c-diagnostics/runtime-venv/bin/python tools/build_bundle.py --candidate --output /private/tmp/atlas-i4c-storage-fix/candidate-b
+cmp /private/tmp/atlas-i4c-storage-fix/candidate-a/proxmox-0.2.0-i4b.4.tar.gz /private/tmp/atlas-i4c-storage-fix/candidate-b/proxmox-0.2.0-i4b.4.tar.gz
+cmp /private/tmp/atlas-i4c-storage-fix/candidate-a/manifest.json /private/tmp/atlas-i4c-storage-fix/candidate-b/manifest.json
+cmp /private/tmp/atlas-i4c-storage-fix/candidate-a/SHA256SUMS /private/tmp/atlas-i4c-storage-fix/candidate-b/SHA256SUMS
+cmp /private/tmp/atlas-i4c-storage-fix/candidate-a/index.json /private/tmp/atlas-i4c-storage-fix/candidate-b/index.json
+/private/tmp/atlas-i4c-diagnostics/runtime-venv/bin/python tools/verify_candidate.py --directory /private/tmp/atlas-i4c-storage-fix/candidate-a --expected-digest sha256:62d25b92cf694dd7a8fde320961ccd887dc29b85497c084a44fab08fe1d7d645
+/private/tmp/atlas-i4c-diagnostics/runtime-venv/bin/python tools/build_bundle.py --output /private/tmp/atlas-i4c-storage-fix/final-production
+cmp /private/tmp/atlas-i4c-storage-fix/original-production/proxmox-0.1.0.tar.gz /private/tmp/atlas-i4c-storage-fix/final-production/proxmox-0.1.0.tar.gz
+git diff --check
+```
+
+Focused checks: **144 passed**. Full Connector suite: **209 passed, no skips**;
+90 existing Runner `codecs.open` deprecation warnings. The ten actual Runner
+cases include the three-node storage fixture with debug off and on. Coverage
+proves the exact COMPLETE case; active/enabled unknown storage, malformed/missing
+flags and missing applicable status remain PARTIAL; applicable disabled storage,
+type/shared checks, capacity checks, duplicate detection and guest links retain
+their required behavior. Debug modes produce identical AIP, relationships,
+warnings, completeness and request sequences.
+
+Both builds' archive, detached manifest, checksum file and index compare
+byte-for-byte; the independent verifier accepts all 19 reviewed archive files.
+The review copy is `dist/proxmox-candidate-0.2.0-i4b.4/`; previous output
+directories were not overwritten. The builder already derives candidate identity
+from Manifest/SPDX metadata; its checkpoint tests and the verifier now expect `.4`.
+
+A separate compatibility audit ran the preserved `.3` archive code and `.4`
+against the same sanitized three-node fixture: `.3` was PARTIAL with only
+`storage_inventory_mismatch`; `.4` was COMPLETE. Both executed the same **52 source
+requests in the same order**. Only the spurious pve3/local-zfs Asset was removed;
+every remaining observation and relationship was identical. Atlas's unchanged
+runtime/API diagnostic validators accepted the entire `.4` debug trace, with
+one skipped row and zero warnings/errors.
+
+Saved before/after SHA-256 audits confirm all **16 prior artifact files**
+(archives, manifests, checksums and indexes) are unchanged. The default production
+rebuild also matches all four pre-edit production output files byte-for-byte.
+
+| Preserved archive | Unchanged SHA-256 |
+| --- | --- |
+| `0.2.0-i4b.1` | `d283441dfa70d8e589fd3da868075bdb795a8cda938a78931437432b572166c8` |
+| `0.2.0-i4b.2` | `3dcf374e487a65a4398fe3ec2b3c0158c9fbdeaa5c8f885b85d8c3361904ffb5` |
+| `0.2.0-i4b.3` | `05c8ccb44b3964b780d3ffcef9a71a89b80ed2a5b7f4de22806ea7b0f62cf626` |
+| `0.1.0` probe-only | `b83ec2b3938b1747d12be5f0675dbc3e9da13c6259c2ab40f5daa994ee59ea60` |
+
+All 804 tracked Atlas files and 16 tracked SDK files match their pre-edit hashes;
+both worktrees remain clean at their starting HEADs. No database migration, API/UI
+change, tenancy/authorization change, source privilege or secret handling change
+was required. Shared packaged documentation remains frozen with production 0.1.0;
+this runbook and the diagnostics document describe the current candidate.
+Logs, compatibility evidence and hash audits are under
+`/private/tmp/atlas-i4c-storage-fix/`. Nothing was committed, staged or pushed.
+The only remaining step for this fix is operator review followed by a separate
+clean-checkpoint `.4` live qualification using the procedure below.
+
 ## Live review findings and qualification limits
 
 - All Open silently truncated at 200; category queues could reveal items missing
@@ -54,7 +163,7 @@ outstanding. No commit/push/merge/tag/publication is performed in this fix pass.
   guest-to-bridge connectivity must be reassessed after bridge discovery succeeds.
 - The apparent five `uses_storage` relationships for roughly 30 LXCs are
   **unverified**, because All Open was truncated. Storage discovery is unchanged.
-  Reassess source coverage using `.3` diagnostics; COMPLETE is still a live gate.
+  Reassess source coverage using `.4` diagnostics; COMPLETE is still a live gate.
 - Operator review changes `.2`'s recommended mapping for `proxmox.lxc` to the
   existing managed **LXC Container** key `lxc_container` (verified in Atlas's
   reference-data migration). `proxmox.qemu` still recommends `virtual_machine`.
@@ -87,13 +196,14 @@ the [I4C-A preparation report](i4c-a-preparation.md).
 
 ## 1. Local review gate — stop before commit/push
 
-Review both feature-branch diffs and the Atlas
+Review the Connector feature-branch diff and the historical Atlas
 `docs/architecture/integrations/i4c-live-qualification-fixes.md` acceptance report.
-Starting accepted checkpoints are Connector
-`76af2507bd29934192d1d89428a618d081e4f4a0` and Atlas
-`efde1d7b7a6bbb4f9098b1f7d228e4b834d096b4`. No new committed checkpoint exists
-until the operator separately reviews/authorizes it. Local builds carry contextual
-HEAD only and are not committed-source or remote-attestation evidence.
+Clean starting checkpoints for this contained fix are Connector
+`aafc3d77c6fb7a1e34dba70c7885331e9b4f7f21` and read-only Atlas
+`85d750b626cdfe772706a92d1f9678f26c5f4e97`. Atlas and atlas-connector-sdk are
+unchanged. No new committed Connector checkpoint exists until the operator
+separately reviews/authorizes it. Local builds carry contextual HEAD only and are
+not committed-source or remote-attestation evidence.
 
 After a separately reviewed operator checkpoint, record both full SHAs and rebuild
 from those exact clean checkouts using the procedure below. Do not stage a dirty
@@ -152,24 +262,26 @@ procedure to production.
    .venv/bin/python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
    .venv/bin/python tools/build_bundle.py --candidate --output /tmp/i4c-candidate-a
    .venv/bin/python tools/build_bundle.py --candidate --output /tmp/i4c-candidate-b
-   cmp /tmp/i4c-candidate-a/proxmox-0.2.0-i4b.3.tar.gz /tmp/i4c-candidate-b/proxmox-0.2.0-i4b.3.tar.gz
+   cmp /tmp/i4c-candidate-a/proxmox-0.2.0-i4b.4.tar.gz /tmp/i4c-candidate-b/proxmox-0.2.0-i4b.4.tar.gz
    cmp /tmp/i4c-candidate-a/manifest.json /tmp/i4c-candidate-b/manifest.json
+   cmp /tmp/i4c-candidate-a/SHA256SUMS /tmp/i4c-candidate-b/SHA256SUMS
+   cmp /tmp/i4c-candidate-a/index.json /tmp/i4c-candidate-b/index.json
    ```
 
 5. Independently inspect the candidate, including clean committed-source identity:
 
    ```bash
    export CONNECTOR_ID=proxmox
-   export CANDIDATE_VERSION=0.2.0-i4b.3
-   export CANDIDATE_FILE=proxmox-0.2.0-i4b.3.tar.gz
-   export CANDIDATE_DIGEST=sha256:05c8ccb44b3964b780d3ffcef9a71a89b80ed2a5b7f4de22806ea7b0f62cf626
+   export CANDIDATE_VERSION=0.2.0-i4b.4
+   export CANDIDATE_FILE=proxmox-0.2.0-i4b.4.tar.gz
+   export CANDIDATE_DIGEST=sha256:62d25b92cf694dd7a8fde320961ccd887dc29b85497c084a44fab08fe1d7d645
    export CANDIDATE_DIR=/tmp/i4c-candidate-a
    .venv/bin/python tools/verify_candidate.py --directory "$CANDIDATE_DIR" --expected-digest "$CANDIDATE_DIGEST" --source-commit "$CONNECTOR_COMMIT"
    cd "$CANDIDATE_DIR"
    sha256sum -c SHA256SUMS
    ```
 
-   Require all comparisons/checks to pass. This is the new `.2` archive digest;
+   Require all comparisons/checks to pass. This is the new `.4` archive digest;
    detached provenance must identify the separately reviewed new Connector SHA.
    Its release URLs are schema descriptors, not published assets/attestations.
    Do not use an uncommitted Mac bundle or overwrite a mismatch with a new digest.
@@ -223,7 +335,7 @@ Record (no source credentials/raw ACLs):
 | --- | --- |
 | Atlas commit | Full reviewed Mac/pushed/LXC SHA; API build identity matches |
 | Connector commit | Full reviewed Mac/pushed/LXC SHA; detached manifest agrees |
-| Candidate | `0.2.0-i4b.3`, exact SHA-256 above, still unqualified |
+| Candidate | `0.2.0-i4b.4`, exact SHA-256 above, still unqualified |
 | Runtime | healthy `atlas-ansible-i4a-v1` / `1.2.0`, runtime `0.3.1` |
 | Ansible | core `2.19.7`, Runner `2.4.3` |
 | Client | proxmoxer `2.3.0` |
@@ -256,6 +368,10 @@ print runtime-control credentials or call source APIs from Atlas core.
    COMPLETE/PARTIAL/failed seal. Confirm actual isolated Ansible Runner and AIP
    ingestion using run provenance and sanitized orchestration evidence. Never enable
    raw source/ACL/Ansible event logging or expose tokens to prove execution.
+   Confirm `storage_record_out_of_scope` is **Skipped** for pve3/local-zfs, no
+   pve3/local-zfs Asset is emitted, pve1/pve2 retain their node-local local-zfs,
+   and no false storage mismatch remains. COMPLETE is expected only if every
+   other existing completeness condition is proven; retain any real warning.
 4. Review observations/evidence/reconciliation in the correct Customer/Site before
    accepting any new knowledge. Acceptance remains an explicit operator action.
    Confirm no cross-tenant observations and no silent overwrite of curated values.
