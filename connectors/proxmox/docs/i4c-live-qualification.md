@@ -1,11 +1,142 @@
 # I4C — Proxmox live qualification
 
-Updated **18 October 2026** for the subsequent bridge Asset product scope decision.
+Updated **18 October 2026** with completed operator-reported `.6` live evidence.
 
-The active successor is **0.2.0-i4b.6**, still **UNQUALIFIED**, unpublished and with
-`qualified_versions: []`. Proxmox VE **9.2.11 remains UNQUALIFIED**. The candidate
-archive digest is `sha256:dd3b7fa5ebc7e47dd3c4607d631d87f50ef3eef3f6add7fff63e10fe721bea97`. `.6` has no live results yet.
+**Live qualification evidence accepted/passed:** the positive path against Proxmox
+VE **9.2.11** passed repeatably, including one fail-closed TLS negative test.
+These are supplied operator results, not live execution by this documentation update.
+Candidate **0.2.0-i4b.6** remains **UNQUALIFIED in Manifest/catalogue state**,
+unpublished, with `source_versions.qualification=unqualified` and
+`qualified_versions: []`. The archive digest remains
+`sha256:dd3b7fa5ebc7e47dd3c4607d631d87f50ef3eef3f6add7fff63e10fe721bea97`.
+Accepted live evidence is a separate operation from published/global qualification,
+a released 0.2.0 Connector or production promotion; none of those occurred.
 Production/default **0.1.0** remains probe-only and byte-identical.
+
+## Operator-reported `.6` live qualification — passed
+
+### Environment and reproducible checkpoint
+
+| Identity | Recorded evidence |
+| --- | --- |
+| Date / environment | 18 October 2026; isolated Atlas qualification instance |
+| Atlas commit | `85d750b626cdfe772706a92d1f9678f26c5f4e97` |
+| Connector commit | `73f539883fe1663c332b7e6cd1cb4c054e0eae75` |
+| Candidate | `0.2.0-i4b.6` |
+| Archive digest | `sha256:dd3b7fa5ebc7e47dd3c4607d631d87f50ef3eef3f6add7fff63e10fe721bea97` |
+| Source | Proxmox VE `9.2.11` |
+| Scope / Integration | Fresh Customer/Site and fresh Proxmox Integration; no prior reconciliation-decision history |
+
+The existing Proxmox source identity/credential was stored as a new Atlas
+Integration secret instance. No secret, token or certificate fingerprint value is
+recorded here. The qualification LXC checkout was reset to the exact Connector
+commit above with a clean worktree. Two LXC rebuilds produced identical archives
+and manifests. The operator's independent verifier returned:
+
+```json
+{
+  "bundle_digest": "sha256:dd3b7fa5ebc7e47dd3c4607d631d87f50ef3eef3f6add7fff63e10fe721bea97",
+  "candidate_version": "0.2.0-i4b.6",
+  "files": 19,
+  "source_commit": "73f539883fe1663c332b7e6cd1cb4c054e0eae75",
+  "source_qualification": "unqualified"
+}
+```
+
+### Isolated staging, mappings and Test Connection
+
+The previous `.5` qualification permission was revoked first. `.6` staging
+succeeded with `state=staged_for_qualification`, `verification_status=verified` and
+`qualification_digest=sha256:84a1b1199a14ace3eff1ae329577fe942e33fb895fa6f395ec88fed22e33268e`.
+The qualification plan resolved exactly these mappings:
+
+| Class | Managed target | Selection |
+| --- | --- | --- |
+| `proxmox.cluster` | `proxmox_cluster` | Explicit override |
+| `proxmox.node` | `hypervisor_node` | Resolved |
+| `proxmox.qemu` | `virtual_machine` | Resolved |
+| `proxmox.lxc` | `lxc_container` | Resolved |
+| `proxmox.member_of` | `member_of` | Resolved |
+| `proxmox.runs_on` | `runs_on` | Resolved |
+
+`dependent_configuration_ready=true`; no `proxmox.bridge`,
+`proxmox.connected_to` or storage mapping was present. Activation was solely for
+isolated qualification and retained `source_qualification=unqualified`.
+Test Connection authenticated successfully using SHA-256 certificate fingerprint
+verification, returned Proxmox VE **9.2.11** and **Inventory Ready**, and displayed
+compatibility as **untested**.
+
+### Two manual live runs and topology evidence
+
+| Evidence | First run — Debug On | Second run — Debug Off |
+| --- | --- | --- |
+| Trigger / outcome | Manual Run Now / Completed | Manual Run Now / Completed |
+| Coverage | Complete / Full scope | Complete / Full scope |
+| Observations / batches | 100 / 1 | 100 / 1 |
+| Warnings / errors | 0 / 0 | 0 / 0 |
+| Baseline | `baseline_run_id=null` | First `.6` run: `af5bf74c-4d81-40e0-b163-e6fc6f38e73a` |
+
+First-run diagnostics reported `processed=75`, `accepted=66`, `skipped=9`,
+`warning=0`, `error=0`. These are classified normalization counts, not observation
+counts or operator acceptance of knowledge. **Debug next run** was armed before
+the first discovery and automatically returned to **Off** after run
+creation/completion. Debug did not change discovery coverage or outcome.
+
+Live reconciliation evidence confirmed:
+
+- Host **vmbr0** was represented as `proxmox.interface`, with no standalone bridge Asset.
+- Guest Interfaces retained `proxmox.bridge_name=vmbr0`.
+- Real guest VLAN facts were `proxmox.vlan_tag=3`, `proxmox.vlan_tag=5` and
+  `proxmox.vlan_tag=6`. **VLAN 99 remains fixture/test evidence only**, not a live result.
+- Searches found no `connected_to`, `uses_storage` or `proxmox.storage`.
+
+This preserves bridge attachment/VLAN context without bridge/storage Asset
+over-modelling. Existing canonical Network/Interface and bounded MAC/static-IP/
+trunk behavior remains pre-live implementation evidence; no additional live values
+for those fields are claimed here.
+
+The second-run summary was:
+
+```json
+{
+  "warnings": [],
+  "observations": 100,
+  "baseline_run_id": "af5bf74c-4d81-40e0-b163-e6fc6f38e73a",
+  "reobserved_count": 0,
+  "assertions_created": 0,
+  "evidence_records_created": 100,
+  "no_longer_observed_count": 0,
+  "reconciliation_items_created": 0
+}
+```
+
+The first run had no prior baseline in the fresh Customer/Site; the second used
+that first `.6` run as its baseline and repeated exactly **100 observations** with
+Debug Off. No duplicate reconciliation work or unsafe absence/no-longer-observed
+result was generated. No reconciliation items were accepted or rejected during
+qualification, so no assertions/reobservations were expected. The repeat run
+retained 100 new evidence records without creating reconciliation items.
+
+### TLS negative test, limits and cleanup
+
+After the successful discovery runs, the configured SHA-256 certificate
+fingerprint was deliberately changed to an incorrect value. Test Connection
+failed as expected. The correct fingerprint was restored and Test Connection
+succeeded again, returning **Proxmox 9.2.11 / Inventory Ready**. This is live
+fail-closed TLS verification evidence; the fingerprint itself is not retained.
+
+**Authentication-secret negative testing was not performed.** The stored secret
+is intentionally hidden/non-readable after storage and Integration fields become
+immutable after successful discovery. Other live negative/mutation scenarios in
+the retained procedure below are not claimed by this evidence.
+
+After evidence collection, temporary `.6` qualification permission was revoked:
+
+> Qualification permission revoked; retain history and settle any running jobs.
+
+Historical run/evidence data was retained. No continuing activation is authorized
+by this documentation update. There was no published/global qualification,
+release, production promotion, catalogue or licensing change.
 
 ## Operator-reported `.5` live baseline
 
@@ -47,8 +178,9 @@ An active `vmbr0` becomes canonical host Interface
 boolean fact and explicit CIDR-derived current IP/Network link where available.
 Guest Interface `guest/{kind}/{vmid}/interface/net0` retains configured name/MAC,
 explicit static IP and validated attachment as single string configuration fact
-`proxmox.bridge_name=vmbr0`. `proxmox.vlan_tag=99` remains an integer configuration
-fact when explicitly configured. `proxmox.vlan_trunks` safely retains at most 128
+`proxmox.bridge_name=vmbr0`. `proxmox.vlan_tag` remains an integer configuration
+fact when explicitly configured: live evidence above contains **3, 5 and 6**;
+**99** is fixture/test evidence only. `proxmox.vlan_trunks` safely retains at most 128
 unique VLANs as a sorted semicolon-separated string, with the same 1–4094 bounds.
 No coercion, default VLAN 0, inferred DHCP address or guest-agent call is allowed.
 Tagged/trunk Interfaces cannot inherit the bridge subnet; untagged membership
@@ -56,7 +188,7 @@ requires the unchanged explicit static-subnet match.
 
 `/nodes/{node}/network` remains required for host topology, bridge-reference
 validation, subnet evidence, pending/current safety and completeness. The source
-sequence/count is unchanged from `.5`: **46 three-node / 40 two-node requests**.
+fixture sequence/count is unchanged from `.5`: **46 three-node / 40 two-node requests**.
 All ACL, malformed-record, placement, offline, pending, limits and before/after
 consistency checks remain fail-closed. Missing/unresolved attachment still warns
 and prevents COMPLETE. PARTIAL/failed still prohibits absence processing.
@@ -76,16 +208,13 @@ Candidate-specific [README](../candidate/README.md),
 [qualification](../candidate/docs/qualification.md) and
 [packaged completion report](../candidate/docs/i4b-completion-report.md) describe `.6`.
 The [local implementation/validation report](i4c-network-scope-report.md) records
-actual commands, fixture counts, exact digest and immutable-byte proof.
-Shared production documents and prior archives remain frozen.
-
-Next live action after separate review and a clean committed-source checkpoint:
-rebuild twice and verify this exact `.6` identity, preview only the four/two mapping
-plan, stage/activate in the isolated qualification instance, run Test Connection,
-then one manual Debug On discovery. Inspect vmbr0 host topology, guest bridge/MAC/
-VLAN 99/static IP and conservative membership, explain count changes from `.5`,
-then repeat unchanged with Debug Off. No commit/push/staging/activation/live source
-call or production promotion occurs in this implementation pass.
+actual pre-live commands, fixture counts, exact digest and immutable-byte proof,
+with a subsequent live completion update. Packaged qualification/completion
+documents preserve their pre-live snapshot so the exact `.6` archive bytes remain
+unchanged. Shared production documents and prior archives also remain frozen.
+The clean checkpoint, dual LXC rebuild, isolated mapping/staging/activation,
+Test Connection, Debug On/Off discovery and cleanup are now complete as recorded
+above. This documentation update performs no operational action or promotion.
 
 ## Historical `.5` product boundary and preparation
 
@@ -413,21 +542,21 @@ Read the current [discovery](../candidate/docs/discovery.md),
 [qualification status](../candidate/docs/qualification.md), and
 the [I4C-A preparation report](i4c-a-preparation.md).
 
-## 1. Local review gate — stop before commit/push
+## 1. Reviewed source checkpoint and retained procedure
 
-Review the Connector feature-branch diff and the historical Atlas
-`docs/architecture/integrations/i4c-live-qualification-fixes.md` acceptance report.
-Clean starting checkpoints for this contained MVP scope change are Connector
-`a153d8804c89f5184e151cef51b5f9a961f20705` and read-only Atlas
-`85d750b626cdfe772706a92d1f9678f26c5f4e97`. Atlas and atlas-connector-sdk are
-unchanged. No new committed Connector checkpoint exists until the operator
-separately reviews/authorizes it. Local builds carry contextual HEAD only and are
-not committed-source or remote-attestation evidence.
+The completed `.6` operator qualification used Connector
+`73f539883fe1663c332b7e6cd1cb4c054e0eae75` and Atlas
+`85d750b626cdfe772706a92d1f9678f26c5f4e97`, as recorded above. Atlas and
+atlas-connector-sdk remain unchanged by this documentation update. The earlier
+pre-live review gate is complete; the procedure below is retained as a reference,
+not an instruction or authorization to repeat staging, activation or live calls.
+It includes scenarios beyond the supplied completed evidence; those remain
+untested live unless explicitly recorded above.
 
-After a separately reviewed operator checkpoint, record both full SHAs and rebuild
-from those exact clean checkouts using the procedure below. Do not stage a dirty
-Mac artifact, reuse `.1`, or overwrite an immutable artifact. This pass stops
-before any commit/push, LXC staging, activation, source call or promotion.
+Any future operational qualification needs its own authorization and exact clean
+source checkpoint. Do not stage a dirty Mac artifact, reuse `.1`, or overwrite an
+immutable artifact. This documentation update remains uncommitted and unstaged,
+with no push, LXC staging, activation, source call or promotion.
 
 ## 2. LXC committed-source reconstruction
 
@@ -593,7 +722,7 @@ print runtime-control credentials or call source APIs from Atlas core.
    Confirm no storage-pool Assets, uses_storage relationships, storage capacity
    facts or storage diagnostics are emitted on any node, and no storage inventory
    calls execute. Host bridge Interfaces and guest Interfaces must remain. Verify guest bridge_name,
-   MAC and explicit VLAN 99/static IP evidence; require no bridge Assets or connected_to
+   MAC and configured VLAN/static IP evidence; require no bridge Assets or connected_to
    Asset relationships. Tagged/trunk Interfaces must not inherit a bridge Network.
    Compare against `.5`'s 136 only by counting removed bridge Assets/connected_to
    links or recording genuine live source changes; never hard-code 136 for `.6`.
@@ -610,7 +739,8 @@ that class. Check cluster versus standalone (no fake standalone cluster), nodes,
 QEMU, LXC, templates, host bridge Interfaces and explicit Networks.
 Check node→cluster `member_of`, guest→node `runs_on`, direction and target identity.
 Check guest `proxmox.bridge_name` against an active bridge on its own node,
-`proxmox.vlan_tag` against configured VLAN (including 99), and canonical MAC/static IP.
+`proxmox.vlan_tag` against the configured VLAN, and canonical MAC/static IP.
+Recorded live VLANs are **3, 5 and 6**; **99** is fixture/test evidence only.
 There must be no bridge Assets or connected_to Asset relationships. Review VLAN/trunk
 and subnet exclusions; do not infer unsupported logical membership or unknown IPs.
 Record node-renaming, source-replacement and VMID-reuse identity limitations.
@@ -668,7 +798,7 @@ from fixture expectations. Stop on mismatches; fixes require a new reviewed Git
 checkpoint and rebuilt digest. Do not weaken I4B COMPLETE/security behavior.
 
 Disable/settle test jobs and revoke permission using the Atlas procedure when
-finished; its 48-hour expiry independently prevents new execution. This fix pass ends at
-local review readiness, before commit/push. Even successful individual live checks do
+finished; its 48-hour expiry independently prevents new execution. The operator's
+completed `.6` permission revocation is recorded above. Successful live checks do
 not themselves change metadata or authorize I4C-B promotion, merge, release,
 bootstrap replacement or production discovery/scheduling/complete snapshots.

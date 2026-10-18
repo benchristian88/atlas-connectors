@@ -37,9 +37,9 @@ The operator subsequently reported two `.5` COMPLETE runs: 136 observations,
 one batch and zero warnings/errors each, with no storage operations. `.5` and
 Proxmox 9.2.11 remain unqualified, with qualified_versions empty.
 
-The active **0.2.0-i4b.6** is a separate product scope decision removing bridge
+Candidate **0.2.0-i4b.6** is a separate product scope decision removing bridge
 Assets and connected_to Asset relationships while retaining host bridge Interfaces,
-validated guest `proxmox.bridge_name`, explicit `proxmox.vlan_tag` (including 99),
+validated guest `proxmox.bridge_name`, explicit `proxmox.vlan_tag` (99 in fixtures),
 bounded trunk VLANs, canonical MAC/static IP and conservatively proven Networks.
 Network enumeration, ACL, bridge/VLAN/reference and pending/current validation
 remain mandatory. No DHCP IPs are inferred; no storage Assets/dependencies return.
@@ -47,7 +47,11 @@ Host network source/normalization contexts now use `proxmox.interface` with
 `node/{node}/interface/{iface}`, never `proxmox.bridge` or bridge Asset IDs.
 No generic diagnostic schema or UI is changed. Source-call order/count remains
 identical to `.5`, and normal/debug still differ only in safe diagnostic detail.
-`.6` has no live result and remains unqualified with qualified_versions empty.
+Operator-reported `.6` live positive-path qualification against Proxmox VE
+**9.2.11** passed repeatably on **18 October 2026**, with the diagnostic and
+Debug On/Off evidence below. This accepted/passed live evidence does not change
+published/global qualification: `.6` remains `source_versions.qualification=unqualified`
+with `qualified_versions=[]`, unpublished and without production promotion.
 
 ## Structured trace
 
@@ -112,21 +116,53 @@ expires within 48 hours of creation; Atlas's existing worker purges expired rows
 and reads purge expired rows immediately. Portable backups exclude debug data.
 Deletion retains normal diagnostics, run, evidence, reconciliation and audit.
 
-## Local and live gates
+## Local validation and completed live evidence
 
-Use the [active runbook](i4c-live-qualification.md) for exact clean-commit staging.
-This work remains uncommitted until operator review. Detached source_commit on a
-dirty checkout is contextual, not a publisher attestation. Rebuild and independently
-verify from the reviewed committed source before staging a new exact authorization.
+The [live qualification record](i4c-live-qualification.md) records the completed
+operator checkpoint at Connector `73f539883fe1663c332b7e6cd1cb4c054e0eae75` and
+Atlas `85d750b626cdfe772706a92d1f9678f26c5f4e97`, clean LXC dual rebuilds, independent
+verification of exact archive
+`sha256:dd3b7fa5ebc7e47dd3c4607d631d87f50ef3eef3f6add7fff63e10fe721bea97`,
+isolated staging and final revocation. Pre-live dirty-checkout provenance remains
+contextual, not a publisher attestation. Packaged documents preserve that pre-live
+snapshot; this repository record adds the later operator evidence.
 
 Tests exercise diagnostic visibility, secret/body/config exclusions, destination
 tricks, bounded flush/overflow, actual Runner, and identical AIP/source calls for
-debug off/on. They do not qualify an actual Proxmox deployment. Do not accept live
-reconciliation automatically or promote 0.2.0. The next `.6` live run should
-confirm no bridge/storage Assets or connected_to/uses_storage links, with host
-bridge Interfaces, guest bridge_name/MAC/VLAN 99/static IP and bounded trunks
-retained. Verify justified Network membership and all normal reasons before any
-COMPLETE claim. Compare the observation count to `.5` by removing only bridge
-Assets/connected_to links or recording actual source changes. Repeat with Debug Off.
-One-shot debug detail remains optional outside this qualification comparison.
-Any further source-shape change is a separate reviewed fix.
+debug off/on. Those tests establish fixture evidence independently of the following
+operator-supplied live results; this documentation update did not repeat live execution.
+
+The first manual `.6` discovery in a fresh Customer/Site and fresh Integration
+completed with **Coverage Complete / Full scope, 100 observations, one batch and
+zero warnings/errors**. Normal diagnostics reported **75 processed, 66 accepted,
+9 skipped, 0 warning, 0 error**. These counts concern normalization, not operator
+acceptance of knowledge. **Debug next run** was armed before discovery and returned
+automatically to **Off** after run creation/completion. Debug did not alter coverage
+or outcome.
+
+Live reconciliation showed host **vmbr0** as `proxmox.interface`, guest
+`proxmox.bridge_name=vmbr0`, and real VLAN tags **3, 5 and 6**. No bridge Asset was
+observed; searches found no `connected_to`, `uses_storage` or `proxmox.storage`.
+**VLAN 99 remains fixture/test evidence only.** MAC/static IP/trunk and conservative
+Network membership behavior retains its pre-live test evidence; no additional live
+field values are supplied.
+
+The second manual run with **Debug Off** again completed **Complete / Full scope**,
+with **100 observations, one batch and zero warnings/errors**. The first had
+`baseline_run_id=null`; the second used the first `.6` run,
+`af5bf74c-4d81-40e0-b163-e6fc6f38e73a`, as baseline. It created **100 evidence records**,
+**0 reconciliation items**, **0 assertions**, **0 reobservations** and **0 no-longer-observed
+results**. No duplicate reconciliation work or unsafe absence was generated. No
+reconciliation decisions were accepted/rejected during qualification, so the zero
+assertion/reobservation counts were expected.
+
+An incorrect SHA-256 certificate fingerprint then caused Test Connection to fail;
+restoring the correct fingerprint restored **9.2.11 / Inventory Ready**. This is
+live fail-closed TLS evidence. No fingerprint value is recorded. Authentication-secret
+negative testing was **not performed** because the stored secret is hidden/non-readable
+and Integration fields become immutable after successful discovery.
+
+The temporary `.6` qualification permission was revoked after collection, retaining
+run/evidence history. There was no release, published/global qualification or
+production/default 0.1.0 promotion. One-shot debug detail remains optional outside
+this completed comparison; any further source-shape change is a separate reviewed fix.

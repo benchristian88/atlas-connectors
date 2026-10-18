@@ -1,12 +1,25 @@
 # Proxmox .6 network topology implementation report
 
-**18 October 2026.** Implemented only in `atlas-connectors`, on
-`feature/i4c-proxmox-qualification`, starting and remaining at HEAD
-`a153d8804c89f5184e151cef51b5f9a961f20705`. All changes remain uncommitted and
-unstaged. No commit, push, merge, tag, release, rebase, staging/activation or live
-source call was performed. Candidate **0.2.0-i4b.6** and Proxmox **9.2.11** remain
-**UNQUALIFIED**; `source_versions.qualification=unqualified`, `qualified_versions=[]`.
+**Status updated 18 October 2026:** operator-reported live positive-path
+qualification of **0.2.0-i4b.6** against Proxmox VE **9.2.11** has passed repeatably,
+including one fail-closed TLS negative test. The exact source checkpoint is
+`73f539883fe1663c332b7e6cd1cb4c054e0eae75`; the archive digest is unchanged. The
+[live qualification record](i4c-live-qualification.md) contains the complete
+supplied evidence, including final permission revocation.
+
+**Live qualification evidence accepted/passed** does not change published/global
+qualification or authorize production promotion. Candidate Manifest/catalogue state
+remains **UNQUALIFIED**; `source_versions.qualification=unqualified`, `qualified_versions=[]`.
 Production/default 0.1.0 is unchanged and remains Test Connection-only.
+
+The implementation and local validation evidence below preserves the pre-live pass
+of **18 October 2026**, implemented only in `atlas-connectors` on
+`feature/i4c-proxmox-qualification`, starting and remaining at HEAD
+`a153d8804c89f5184e151cef51b5f9a961f20705`. Its changes were then uncommitted and
+unstaged; that pass performed no commit, push, merge, tag, release, rebase,
+staging/activation or live source call. Subsequent operator checkpoint/live evidence
+is recorded separately below. Packaged qualification/completion documents remain
+the frozen pre-live snapshot to preserve the exact candidate archive bytes.
 
 ## Implemented model and topology
 
@@ -142,7 +155,8 @@ JUnit and reference JUnit files are in `/private/tmp/atlas-i4c-network-scope/`.
 `shasum -a 256 -c SHA256SUMS` from candidate-a also passed. Archive, detached
 Manifest, SHA256SUMS and index compare exactly between both builds and the default
 `.6` review output. The independent verifier accepts all **19** reviewed package
-files. Native systemd/live qualification is not run or claimed.
+files. Native systemd/live qualification was not run or claimed by that pre-live
+implementation pass; the subsequent isolated operator live evidence is recorded below.
 
 The separate fixture audit command uses the retained local `audit_discovery.py`,
 ANSIBLE_COLLECTIONS_PATH set to the reviewed collection, and isolated module paths
@@ -161,9 +175,12 @@ sha256:dd3b7fa5ebc7e47dd3c4607d631d87f50ef3eef3f6add7fff63e10fe721bea97
 Review output: `dist/proxmox-candidate-0.2.0-i4b.6/`, containing archive,
 combined detached Manifest, SHA256SUMS and index. Detached provenance still carries
 starting HEAD `a153d8804c89f5184e151cef51b5f9a961f20705` as context; the `.6`
-implementation is uncommitted and is **not** represented by that clean commit or
-an authenticated remote attestation. A separately reviewed checkpoint/rebuild is
-required before live staging; this task performs neither.
+implementation was then uncommitted and was **not** represented by that clean commit
+or an authenticated remote attestation. The required subsequent clean checkpoint
+and LXC rebuilds were completed by the operator at
+`73f539883fe1663c332b7e6cd1cb4c054e0eae75`; the independent live-checkpoint verifier
+returned the same digest and **19** files, with `source_qualification=unqualified`.
+Historical local artifacts retain their original bytes/provenance.
 
 Before/after SHA-256 checks preserve **28 historical artifact files**: the existing
 20 dist files plus both retained four-file `.2` directories. All six historical
@@ -191,9 +208,10 @@ No API/UI route, SDK/AIP contract, tenancy/customer/site authority, token/TLS po
 licensing boundary, runtime-control secret handling or production taxonomy changes.
 Apache-2.0 Connector ownership and AGPL Atlas ownership remain intact.
 
-## Exact changed files and purpose
+## Pre-live changed files and purpose
 
-The status below is the complete changed-file list. Normalization/transport files
+The historical status below is the complete changed-file list for the pre-live
+implementation pass. Normalization/transport files
 remove Asset/link emission and update only network diagnostic identities;
 Manifest/SBOM identify `.6` and declare Interface facts. Candidate README and all
 five candidate docs describe the new reachable boundary and packaged completion
@@ -236,25 +254,40 @@ Atlas is edited because Atlas is explicitly read-only for this task.
 The new four-file `.6` dist output is ignored by Git, as earlier build outputs are.
 No historical artifact, SDK file, Atlas file or production package source changed.
 
-## Remaining limits and exact next live step
+## Remaining limits and completed live qualification
 
 No architectural blocker was found. Bridge attachment/trunks remain declared
 Interface facts, not new canonical fields; unsupported/malformed/oversized topology
 stays PARTIAL. Fixture/reference checks do not qualify a live database/runtime or
 Proxmox version. Existing node rename/VMID reuse/source identity limitations remain.
-The exact `.6` live observation count is unknown until the source is read.
 
-After operator review and a separately authorized clean Connector checkpoint,
-follow the [active live procedure](i4c-live-qualification.md): reconstruct twice on
-the isolated qualification LXC, compare and independently verify this exact digest
-against the new source commit; preview `--scope inventory` with only four/two
-mappings and the cluster→proxmox_cluster override, then stage/activate that exact
-authorization while retaining the saved Integration credentials/DataSource. Run
-Test Connection (9.2.11, Ready), then one manual **Debug On** discovery. Verify no
-bridge/storage Assets or connected_to/uses_storage links, host vmbr0 Interface/IP/
-Network, guest bridge_name/MAC/**VLAN 99**/supported static IP and fail-closed
-Network membership. Explain changes from `.5`'s 136 using the actual removed
-objects/links or genuine source changes; confirm the new coverage key and no
-unsafe absence. Repeat unchanged with **Debug Off** and compare evidence and
-counts. Review knowledge in the correct Customer/Site before explicit acceptance.
-Keep `.6`, `.5` and 9.2.11 UNQUALIFIED; no 0.2.0 release or production promotion.
+The operator has now completed the clean-source dual LXC rebuild, independent
+verification, exact four/two mapping plan, isolated staging/activation, Test
+Connection, two manual discovery runs and permission revocation. Atlas was at
+`85d750b626cdfe772706a92d1f9678f26c5f4e97`; Connector was at
+`73f539883fe1663c332b7e6cd1cb4c054e0eae75`. A fresh Customer/Site and fresh Integration
+were used, with the existing source identity/credential stored as a new secret
+instance. No secret or certificate fingerprint value is recorded.
+
+Both **Debug On** and **Debug Off** runs completed with **Coverage Complete / Full
+scope, 100 observations, one batch and zero warnings/errors**. First-run diagnostic
+counts were **75 processed / 66 accepted / 9 skipped / 0 warning / 0 error**; debug
+arming automatically returned to Off. Host vmbr0 was `proxmox.interface`, guest
+Interfaces retained `proxmox.bridge_name=vmbr0`, and real guest VLAN tags were
+**3, 5 and 6**. No bridge Asset was observed; live searches found no `connected_to`,
+`uses_storage` or `proxmox.storage`. **VLAN 99 remains fixture/test evidence only.**
+
+The first run had `baseline_run_id=null`; the second used that first `.6` run as
+baseline and created **100 evidence records, 0 reconciliation items, 0 assertions,
+0 reobservations and 0 no-longer-observed results**. There was no duplicate
+reconciliation work or unsafe absence. No reconciliation decisions were
+accepted/rejected, so zero assertions/reobservations were expected.
+
+A deliberately incorrect TLS certificate fingerprint failed Test Connection;
+restoring the correct fingerprint restored **9.2.11 / Inventory Ready**. This is
+live fail-closed TLS evidence. Authentication-secret negative testing was **not
+performed** because the stored secret is hidden/non-readable and Integration fields
+become immutable after successful discovery. Other live negative/mutation scenarios
+are not claimed. Temporary `.6` qualification permission was revoked with history
+retained. No candidate version/Manifest state, published/global qualification,
+catalogue, licensing, release or production/default 0.1.0 promotion changed.

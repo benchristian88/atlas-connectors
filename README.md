@@ -47,12 +47,28 @@ scope decision and achieved repeatable operator-reported live COMPLETE against
 9.2.11: two runs, 136 observations/one batch/zero warnings or errors each, the second
 with Debug Off. `.6` makes a subsequent product scope decision about bridges.
 Production **0.1.0** and **.1/.2/.3/.4/.5** artifacts remain immutable.
-All candidates and Proxmox **9.2.11** remain unqualified; no candidate is published.
+On **18 October 2026**, operator-reported `.6` live positive-path qualification
+against Proxmox VE **9.2.11** passed repeatably: Debug On and Debug Off manual runs
+each completed with **Coverage Complete / Full scope, 100 observations, one batch
+and zero warnings/errors**. Live evidence confirms host vmbr0 as an Interface,
+guest `proxmox.bridge_name=vmbr0` and VLAN tags **3, 5 and 6**, with no bridge/storage
+Assets or connected_to/uses_storage links. VLAN **99** remains fixture/test evidence
+only. A deliberately incorrect TLS certificate fingerprint failed Test Connection;
+restoring the correct fingerprint restored success. Temporary `.6` qualification
+permission was revoked after evidence collection, retaining history.
+
+**Live qualification evidence accepted/passed** is distinct from published/global
+qualification or production promotion. All candidate Manifests retain
+`source_versions.qualification=unqualified` and `qualified_versions=[]`; no candidate
+is published or released as 0.2.0, and production/default **0.1.0** is unchanged.
 Docker/UniFi implementations remain absent.
 
 [I4C-A preparation](connectors/proxmox/docs/i4c-a-preparation.md) preserves the exact
 original candidate bytes. The [active live runbook](connectors/proxmox/docs/i4c-live-qualification.md)
-records historical PARTIAL results, the positive `.5` baseline and the next `.6` checkpoint.
+records historical PARTIAL results, the positive `.5` baseline and the completed
+`.6` checkpoint, exact digest, live runs, TLS negative test and cleanup.
+[The implementation report](connectors/proxmox/docs/i4c-network-scope-report.md)
+preserves pre-live validation and records the subsequent live completion evidence.
 [Discovery diagnostics](connectors/proxmox/docs/i4c-discovery-diagnostics.md) describes
 always-on safe reasons and administrator-only next-run debug, with 48-hour retention,
 no raw source logging and debug-independent behavior. `.6` retains all network
@@ -93,6 +109,8 @@ test installation. This tooling never installs dependencies into a production
 Connector bundle. Candidate metadata and executable helpers are excluded from the
 normal 0.1.0 build. Current candidate README/docs are explicit overrides under
 `connectors/proxmox/candidate/`; shared production package docs remain frozen.
+Packaged `.6` qualification/completion documents preserve their pre-live snapshot
+to retain the exact archive bytes; the repository live record carries later evidence.
 Candidate output goes to `dist/proxmox-candidate-0.2.0-i4b.6/`, so the legacy
 `.1` output directory and earlier candidate descriptors are not overwritten.
 `tools/build_acceptance_fixture.py --output <test-directory>` creates a separate
