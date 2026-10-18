@@ -8,6 +8,7 @@ import sys
 
 import pytest
 from atlas_connector_sdk.contracts import validate_manifest
+from atlas_connector_sdk.configuration import source_compatibility
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -47,16 +48,47 @@ def factory(status=200, oversized=False):
     return Connection
 
 
-def test_manifest_and_reproducible_bundle_has_no_discovery_entry_point():
+def test_production_manifest_promotes_exact_qualified_discovery_contract():
     first, manifest = build()
     second, _ = build()
     assert first == second
     validate_manifest(manifest)
-    assert manifest["capabilities"]["discover"] is False
-    assert set(manifest["implementation"]["entry_points"]) == {"test_connection"}
-    assert manifest["source_versions"]["qualified_versions"] == []
-    assert manifest["source_versions"]["qualification"] == "unqualified"
-    assert not manifest.get("object_classes")
+    assert manifest["version"] == "0.2.0"
+    assert manifest["source_versions"] == {
+        "qualification": "qualified", "qualified_versions": ["9.2.11"],
+        "known_incompatible": [], "newer_untested_policy": "allow_with_warning",
+    }
+    assert manifest["capabilities"] == {
+        "test_connection": True, "discover": "read_only",
+        "scheduling": True, "complete_snapshot": True,
+    }
+    assert manifest["implementation"]["entry_points"] == {
+        "test_connection": "test_connection", "discover": "discover",
+    }
+    candidate = json.loads((ROOT / "connectors/proxmox/candidate/manifest.json").read_bytes())
+    promoted = json.loads(json.dumps(candidate))
+    promoted["version"] = "0.2.0"
+    promoted["source_versions"].update(qualification="qualified", qualified_versions=["9.2.11"])
+    promoted["display"]["description"] = manifest["display"]["description"]
+    assert {key: value for key, value in manifest.items() if key != "distribution"} == promoted
+    assert "unqualified" not in manifest["display"]["description"].lower()
+    assert manifest["compatibility"]["runtime"]["baseline"] == {
+        "minimum": "1.2.0", "exclusive_maximum": "2.0.0",
+    }
+    assert manifest["implementation"]["dependencies"] == [{
+        "kind": "collection", "name": "community.proxmox", "version": "2.0.0",
+        "digest": "sha256:77e02e0d1e341c6b064900fe58484ad8880cee4832f5fd65d09834ed068216f6",
+        "licence": "GPL-3.0-or-later",
+    }]
+    tls = next(row for row in manifest["connection_fields"] if row["key"] == "tls_policy")
+    assert tls["options"] == ["verify", "fingerprint"] and tls["default"] == "verify"
+
+
+@pytest.mark.parametrize("version,expected", [
+    ("9.2.11", "supported"), ("9.2.12", "untested"), ("9.3.0", "untested"), ("8.4.1", "untested"),
+])
+def test_production_source_compatibility_uses_canonical_sdk_semantics(version, expected):
+    assert source_compatibility(build()[1], version) == expected
 
 
 @pytest.mark.parametrize("url", ["http://192.168.1.2", "file:///tmp/x", "https://u:p@example.test", "https://localhost", "https://example.test:0", "https://example.test:99999", "https://example.test/a", "https://example.test?token=x"])

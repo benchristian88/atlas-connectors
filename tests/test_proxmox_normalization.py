@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from copy import deepcopy
 
-from ansible.module_utils.atlas_normalization import node_id, guest_id, storage_id, Inventory
+from ansible.module_utils.atlas_normalization import node_id, guest_id, Inventory
 from test_proxmox_discovery import inputs, run
 from proxmox_fixture_transport import fixture
 
@@ -28,10 +28,8 @@ def test_rename_migration_endpoint_edit_and_order_preserve_guest_identity(inputs
     assert domains(run(inputs, data=data)[0]) == original
 
 
-def test_shared_and_local_storage_and_duplicate_mac_identity(inputs):
+def test_existing_network_interface_and_duplicate_mac_identity(inputs):
     output = domains(run(inputs)[0])
-    assert all(key in output['assets'] for key in [storage_id('node-a','local',False), storage_id('node-b','local',False), storage_id('node-a','shared',True)])
-    assert sum(key.startswith('storage/shared/') for key in output['assets']) == 1
     interfaces = [row for row in output['interfaces'].values() if row.get('mac_address') == '02:00:00:00:00:01']
     assert len(interfaces) == len({row['external_id'] for row in interfaces}) == 3
     assert len(output['networks']) == 2  # same name AND CIDR do not merge node segments

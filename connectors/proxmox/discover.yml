@@ -8,4 +8,5 @@
       atlas_discover:
         input_file: "{{ atlas_input_file }}"
         aip_file: "{{ atlas_aip_file }}"
+        diagnostics_file: "{{ atlas_diagnostics_file | default(omit) }}"
       no_log: true

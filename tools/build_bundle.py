@@ -14,6 +14,26 @@ from atlas_connector_sdk.contracts import validate_manifest
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "benchristian88/atlas-connectors"
 WORKFLOW = ".github/workflows/release.yml"
+# Reviewed package contents. Operator runbooks, checkpoints, tests and incidental
+# local files never enter either immutable package.
+COMMON_FILES = (
+    "NOTICE", "README.md", "docs/capability-matrix.md", "docs/discovery.md",
+    "docs/i4b-completion-report.md", "docs/permissions.md", "docs/qualification.md",
+    "library/atlas_probe.py", "manifest.json", "sbom.spdx.json", "test_connection.yml",
+)
+DISCOVERY_FILES = (
+    "discover.yml", "library/atlas_discover.py", "library/atlas_readiness.py",
+    "module_utils/atlas_discovery.py", "module_utils/atlas_normalization.py",
+    "module_utils/atlas_transport.py",
+    "module_utils/atlas_diagnostics.py",
+)
+# Preserve the historical qualification contract and pre-live documentation when
+# rebuilding the candidate; production uses its promoted metadata and docs.
+CANDIDATE_OVERRIDES = (
+    "manifest.json", "sbom.spdx.json", "test_connection.yml", "README.md",
+    "docs/capability-matrix.md", "docs/discovery.md", "docs/permissions.md",
+    "docs/qualification.md", "docs/i4b-completion-report.md",
+)
 
 
 def build(connector="proxmox", output=None, *, candidate=False):
@@ -22,15 +42,11 @@ def build(connector="proxmox", output=None, *, candidate=False):
     source = ROOT / "connectors" / connector
     metadata = source / "candidate" if candidate else source
     manifest = json.loads((metadata / "manifest.json").read_bytes())
-    files = {path.relative_to(source).as_posix(): path.read_bytes() for path in source.rglob("*")
-             if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
-             and "candidate" not in path.relative_to(source).parts
-             and (candidate or path.relative_to(source).as_posix() not in {"discover.yml", "library/atlas_discover.py", "library/atlas_readiness.py"})
-             and (candidate or path.relative_to(source).parts[0] != "module_utils")}
-    for name in ["manifest.json", "sbom.spdx.json"]:
-        files[name] = (metadata / name).read_bytes()
+    names = COMMON_FILES + DISCOVERY_FILES
+    files = {name: (source / name).read_bytes() for name in names}
     if candidate:
-        files["test_connection.yml"] = (metadata / "test_connection.yml").read_bytes()
+        for name in CANDIDATE_OVERRIDES:
+            files[name] = (metadata / name).read_bytes()
     files["LICENSE"] = (ROOT / "LICENSE").read_bytes()
     stream = io.BytesIO()
     with tarfile.open(fileobj=stream, mode="w", format=tarfile.USTAR_FORMAT) as archive:
@@ -65,5 +81,12 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path)
     parser.add_argument("--candidate", action="store_true", help="Build unqualified I4B candidate; never publish or activate")
     args = parser.parse_args()
-    payload, manifest = build(output=args.output or ROOT / ("dist/proxmox-candidate" if args.candidate else "dist/proxmox"), candidate=args.candidate)
+    output = args.output
+    if output is None:
+        if args.candidate:
+            version = json.loads((ROOT / "connectors/proxmox/candidate/manifest.json").read_bytes())["version"]
+            output = ROOT / "dist" / ("proxmox-candidate-" + version)
+        else:
+            output = ROOT / "dist/proxmox"
+    payload, manifest = build(output=output, candidate=args.candidate)
     print(manifest["distribution"]["bundle_digest"])

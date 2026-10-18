@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1",
   "id": "proxmox",
-  "version": "0.2.0-i4b.1",
+  "version": "0.2.0-i4b.6",
   "publisher": {
     "id": "atlas-official",
     "name": "Atlas Impact"
@@ -157,21 +157,7 @@
       "kind": "asset",
       "label": "Lxc",
       "required": true,
-      "recommended_asset_type_key": "container"
-    },
-    {
-      "key": "proxmox.storage",
-      "kind": "asset",
-      "label": "Storage",
-      "required": true,
-      "recommended_asset_type_key": "storage_pool"
-    },
-    {
-      "key": "proxmox.bridge",
-      "kind": "asset",
-      "label": "Bridge",
-      "required": true,
-      "recommended_asset_type_key": "network_device"
+      "recommended_asset_type_key": "lxc_container"
     },
     {
       "key": "proxmox.network",
@@ -203,8 +189,6 @@
         "proxmox.node",
         "proxmox.qemu",
         "proxmox.lxc",
-        "proxmox.storage",
-        "proxmox.bridge",
         "proxmox.network",
         "proxmox.interface"
       ]
@@ -235,35 +219,6 @@
       ],
       "target_object_classes": [
         "proxmox.node"
-      ],
-      "direction": "source_to_target"
-    },
-    {
-      "key": "proxmox.uses_storage",
-      "label": "Uses Storage",
-      "required": true,
-      "recommended_relationship_type_key": "uses_storage",
-      "source_object_classes": [
-        "proxmox.qemu",
-        "proxmox.lxc"
-      ],
-      "target_object_classes": [
-        "proxmox.storage"
-      ],
-      "direction": "source_to_target"
-    },
-    {
-      "key": "proxmox.connected_to",
-      "label": "Connected To",
-      "required": true,
-      "recommended_relationship_type_key": "connected_to",
-      "source_object_classes": [
-        "proxmox.node",
-        "proxmox.qemu",
-        "proxmox.lxc"
-      ],
-      "target_object_classes": [
-        "proxmox.bridge"
       ],
       "direction": "source_to_target"
     }
@@ -324,59 +279,39 @@
       ]
     },
     {
-      "key": "proxmox.storage_type",
-      "label": "Storage Type",
-      "value_type": "string",
-      "class": "configuration",
-      "cardinality": "single",
-      "object_classes": [
-        "proxmox.storage"
-      ]
-    },
-    {
-      "key": "proxmox.shared",
-      "label": "Shared",
-      "value_type": "boolean",
-      "class": "configuration",
-      "cardinality": "single",
-      "object_classes": [
-        "proxmox.storage"
-      ]
-    },
-    {
-      "key": "proxmox.capacity_bytes",
-      "label": "Capacity Bytes",
-      "value_type": "integer",
-      "class": "operational",
-      "cardinality": "single",
-      "object_classes": [
-        "proxmox.storage"
-      ]
-    },
-    {
-      "key": "proxmox.available_bytes",
-      "label": "Available Bytes",
-      "value_type": "integer",
-      "class": "operational",
-      "cardinality": "single",
-      "object_classes": [
-        "proxmox.storage"
-      ]
-    },
-    {
       "key": "proxmox.vlan_aware",
       "label": "Vlan Aware",
       "value_type": "boolean",
       "class": "configuration",
       "cardinality": "single",
       "object_classes": [
-        "proxmox.bridge"
+        "proxmox.interface"
       ]
     },
     {
       "key": "proxmox.vlan_tag",
       "label": "Vlan Tag",
       "value_type": "integer",
+      "class": "configuration",
+      "cardinality": "single",
+      "object_classes": [
+        "proxmox.interface"
+      ]
+    },
+    {
+      "key": "proxmox.bridge_name",
+      "label": "Bridge Name",
+      "value_type": "string",
+      "class": "configuration",
+      "cardinality": "single",
+      "object_classes": [
+        "proxmox.interface"
+      ]
+    },
+    {
+      "key": "proxmox.vlan_trunks",
+      "label": "VLAN Trunks",
+      "value_type": "string",
       "class": "configuration",
       "cardinality": "single",
       "object_classes": [

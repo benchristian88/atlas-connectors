@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+import pytest
+
 from test_proxmox_discovery import inputs, run
 from proxmox_fixture_transport import fixture
 
@@ -12,8 +14,21 @@ def test_hidden_noaccess_override_is_detected_even_when_effective_dump_omits_it(
     assert {'code':'permission_limited'} in result[-1]['warnings']
 
 
+@pytest.mark.parametrize('path', ['/nodes/node-a', '/vms/999', '/sdn/zones/localnetwork/vmbr0'])
+def test_hidden_noaccess_still_blocks_every_remaining_inventory_or_topology_capability(inputs, path):
+    from urllib.parse import quote
+    data = fixture()
+    data['permissions'][path] = {}
+    data['acl'].append({'path': path, 'roleid': 'NoAccess', 'type': 'user',
+                        'ugid': 'fixture-account', 'propagate': 1})
+    result, calls = run(inputs, data=data)
+    assert result[-1]['completeness'] == 'partial'
+    assert {'code': 'permission_limited'} in result[-1]['warnings']
+    assert '/access/permissions?path=' + quote(path, safe='') in calls
+
+
 def test_nonpropagated_grants_and_user_token_intersection_cannot_prove_whole_scope(inputs):
-    for path, privilege in [('/vms','VM.Audit'),('/storage','Datastore.Audit'),('/sdn/zones/localnetwork','SDN.Audit'),('/nodes','Sys.Audit')]:
+    for path, privilege in [('/','Sys.Audit'),('/vms','VM.Audit'),('/sdn/zones/localnetwork','SDN.Audit'),('/nodes','Sys.Audit')]:
         for grants in [{privilege:0}, {}]:
             data = fixture(); data['permissions'][path] = grants
             result, _ = run(inputs, data=data)

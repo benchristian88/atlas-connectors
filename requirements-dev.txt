@@ -1,7 +1,6 @@
 jsonschema[format-nongpl]==4.25.1
 pytest==8.4.1
-atlas-connector-sdk==1.1.0
-# Candidate source tests use the same reviewed collection/client versions as I4A.
+# Proxmox discovery tests use the same reviewed collection/client versions as I4A.
 ansible-core==2.19.7
 proxmoxer==2.3.0
 requests==2.34.2

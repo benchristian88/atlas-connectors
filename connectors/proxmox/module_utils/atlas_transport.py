@@ -22,14 +22,31 @@ MAX_CALLS = 4096
 MAX_TOTAL_BYTES = 24 * 1024 * 1024
 TIMEOUT = 6
 SEGMENT = r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}'
-ROUTES = re.compile(r'/api2/json/(?:version|access/(?:permissions|acl)|cluster/(?:status|resources)|nodes|storage|nodes/'
-                    + SEGMENT + r'/(?:network|storage|(?:qemu|lxc)(?:/[1-9][0-9]{0,8}/config)?))')
+ROUTES = re.compile(r'/api2/json/(?:version|access/(?:permissions|acl)|cluster/(?:status|resources)|nodes|nodes/'
+                    + SEGMENT + r'/(?:network|(?:qemu|lxc)(?:/[1-9][0-9]{0,8}/config)?))')
 
 
 class SourceError(ValueError):
-    def __init__(self, code):
+    def __init__(self, code, *, reason=None):
         self.code = code
+        self.reason = reason
         super().__init__(code)
+
+
+def diagnostic_object(category, parts, row):
+    """Only explicit durable identities; never names/comments/config values."""
+    result = {}
+    name = row.get('iface') if category == 'network' else row.get('node') or row.get('name')
+    if isinstance(name, str) and re.fullmatch(SEGMENT, name):
+        if category == 'network' and len(parts) > 4:
+            result = {'object_class': 'proxmox.interface', 'external_id': 'node/' + parts[4] + '/interface/' + name}
+        elif category in {'nodes', 'deployment'}:
+            result = {'object_class': 'proxmox.node', 'external_id': 'node/' + name}
+    kind = row.get('type') if category == 'guest_resources' else parts[5] if len(parts) > 5 else None
+    vmid = row.get('vmid')
+    if isinstance(kind, str) and kind in {'qemu', 'lxc'} and type(vmid) is int and 1 <= vmid <= 999999999:
+        result = {'object_class': 'proxmox.' + kind, 'external_id': 'guest/' + kind + '/' + str(vmid)}
+    return result
 
 
 def endpoint(value):
@@ -100,6 +117,8 @@ class PinnedAdapter(BaseAdapter):
 
     def send(self, request, **kwargs):
         connection = None
+        diagnostics = getattr(self, 'diagnostics', None)
+        reason = 'source_request_invalid'
         try:
             from atlas_connector_sdk.contracts import strict_json
             url = urlsplit(request.url)
@@ -119,11 +138,24 @@ class PinnedAdapter(BaseAdapter):
                            for key, values in query.items())
                     or url.path.endswith('/config') and query.get('current') != ['1']):
                 raise SourceError('source_unavailable')
+            category = ('version' if url.path.endswith('/version') else 'authorization' if '/access/' in url.path else
+                        'deployment' if url.path.endswith('/cluster/status') else 'guest_resources' if '/cluster/' in url.path else
+                        'guest_config' if url.path.endswith('/config') else 'network' if url.path.endswith('/network') else
+                        'nodes' if url.path == '/api2/json/nodes' else 'guest_list')
+            if diagnostics:
+                diagnostics.at('source_read', source_category=category)
+                parts = url.path.split('/')
+                if len(parts) >= 6 and parts[3] == 'nodes':
+                    diagnostics.context['parent_external_id'] = 'node/' + parts[4]
+                    if len(parts) >= 8 and parts[5] in {'qemu', 'lxc'}:
+                        diagnostics.context.update(object_class='proxmox.' + parts[5], external_id='guest/' + parts[5] + '/' + parts[6])
+            reason = 'source_response_invalid'
             remaining = self.deadline - time.monotonic()
             self.calls += 1
             if remaining <= 0:
                 raise SourceError('timeout')
             if self.calls > MAX_CALLS:
+                reason = 'source_call_limit'
                 raise SourceError('invalid_source_record')
             connection = self.factory(self.host, self.port, self.address, self.context, self.fingerprint, min(TIMEOUT, remaining))
             # http.client calls connect (including pin verification) before it sends headers.
@@ -139,6 +171,7 @@ class PinnedAdapter(BaseAdapter):
                 raise SourceError('source_unavailable')
             length = response.getheader('Content-Length')
             if length is not None and (not length.isdigit() or int(length) > MAX_RESPONSE):
+                reason = 'source_response_limit'
                 raise SourceError('invalid_source_record')
             raw = bytearray()
             while True:
@@ -150,13 +183,17 @@ class PinnedAdapter(BaseAdapter):
                 chunk = response.read(min(65536, MAX_RESPONSE + 1 - len(raw)))
                 raw.extend(chunk)
                 if len(raw) > MAX_RESPONSE:
+                    reason = 'source_response_limit'
                     raise SourceError('invalid_source_record')
                 if not chunk:
                     break
             self.total_bytes += len(raw)
             if self.total_bytes > MAX_TOTAL_BYTES:
+                reason = 'source_total_bytes_limit'
                 raise SourceError('invalid_source_record')
+            reason = 'source_json_invalid'
             value = strict_json(bytes(raw), maximum=MAX_RESPONSE)
+            reason = 'source_response_invalid'
             if not isinstance(value, dict) or not isinstance(value.get('data'), (dict, list)):
                 raise SourceError('invalid_source_record')
             mapping = url.path.endswith('/version') or url.path.endswith('/access/permissions') or url.path.endswith('/config')
@@ -170,31 +207,46 @@ class PinnedAdapter(BaseAdapter):
             flags = set()
             if url.path.endswith('/cluster/status'):
                 flags = {'online', 'local', 'quorate'}
-            elif url.path.endswith('/storage'):
-                flags = {'shared', 'active', 'enabled'}
             elif url.path.endswith('/cluster/resources') or re.search(r'/(qemu|lxc)$', url.path):
                 flags = {'template'}
             elif url.path.endswith('/network'):
-                flags = {'active', 'autostart', 'bridge_vlan_aware', 'exists'}
+                # Proxmox can report exists: null on unrelated VLAN rows.
+                # It is unused by discovery; retain strict topology flag checks.
+                flags = {'active', 'autostart', 'bridge_vlan_aware'}
             if flags and isinstance(value['data'], list):
                 for row in value['data']:
                     if not isinstance(row, dict) or any(type(row[key]) not in {int, bool} or row[key] not in {0, 1}
                                                         for key in flags & row.keys()):
+                        reason = 'source_boolean_invalid'
+                        if diagnostics and isinstance(row, dict):
+                            diagnostics.context.update(diagnostic_object(category, parts, row))
+                            field = next(key for key in sorted(flags & row.keys()) if type(row[key]) not in {int, bool} or row[key] not in {0, 1})
+                            diagnostics.rule(field, row[field], 'strict_source_boolean', 'boolean_0_1')
                         raise SourceError('invalid_source_record')
+            if diagnostics:
+                diagnostics.emit('accepted', 'source_response_valid')
             result = Response()
             result.status_code, result._content = 200, bytes(raw)
             result.headers['Content-Type'] = 'application/json'
             return result
         except SourceError as error:
+            if diagnostics:
+                diagnostics.emit('warning', reason if error.code == 'invalid_source_record' else error.code)
             self.last_error = error.code
             raise
         except ssl.SSLError:
+            if diagnostics:
+                diagnostics.emit('warning', 'tls_trust_required')
             self.last_error = 'tls_trust_required'
             raise SourceError(self.last_error) from None
         except TimeoutError:
+            if diagnostics:
+                diagnostics.emit('warning', 'source_timeout')
             self.last_error = 'timeout'
             raise SourceError(self.last_error) from None
         except (OSError, ValueError, TypeError, KeyError, http.client.HTTPException):
+            if diagnostics:
+                diagnostics.emit('warning', reason)
             self.last_error = 'source_unavailable'
             raise SourceError(self.last_error) from None
         finally:
@@ -218,6 +270,7 @@ def secure_api(module, config, deadline, *, adapter_factory=PinnedAdapter):
         def _connect(self):
             adapter = adapter_factory(config, deadline)
             module.adapter = adapter
+            adapter.diagnostics = getattr(module, 'diagnostics', None)
             api = super()._connect()  # token construction makes no network request
             original = api._store['session']
             session = SecuredSession()

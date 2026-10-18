@@ -60,7 +60,7 @@ def test_dns_is_resolved_once_and_every_actual_request_uses_that_peer():
     def resolve(*args, **kwargs): calls.append(args); return resolver()()
     client = transport.PinnedAdapter({'endpoint':'https://source.example.test:8006'},time.monotonic()+30,
         resolver=resolve,connection_factory=factory(Response(),peers))
-    client.send(request()); client.send(request('/storage'))
+    client.send(request()); client.send(request('/nodes/node-a/network'))
     assert len(calls) == 1
     assert peers.count(('source.example.test','192.168.50.2',ssl.CERT_REQUIRED)) == 2
 
@@ -80,7 +80,10 @@ def test_redirect_and_error_payloads_are_rejected_safely(status,code):
     ('/nodes/node-a/qemu/100/config','GET','source.example.test:8006',None),
     ('/nodes/node-a/qemu/100/agent/network-get-interfaces','GET','source.example.test:8006',None),
     ('/nodes','GET','other.example.test:8006',None),('/nodes','GET','source.example.test:8006','unexpected'),
-    ('/nodes?arbitrary=1','GET','source.example.test:8006',None),('/storage/shared','GET','source.example.test:8006',None)])
+    ('/nodes?arbitrary=1','GET','source.example.test:8006',None),
+    ('/storage','GET','source.example.test:8006',None),
+    ('/nodes/node-a/storage','GET','source.example.test:8006',None),
+    ('/storage/shared','GET','source.example.test:8006',None)])
 def test_request_allowlist_blocks_writes_discovered_hosts_and_unreviewed_reads(path,method,host,body):
     seen=[]; client=adapter(seen=seen)
     with pytest.raises(transport.SourceError): client.send(request(path,method,host,body))
