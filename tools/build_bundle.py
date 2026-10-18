@@ -21,14 +21,14 @@ COMMON_FILES = (
     "docs/i4b-completion-report.md", "docs/permissions.md", "docs/qualification.md",
     "library/atlas_probe.py", "manifest.json", "sbom.spdx.json", "test_connection.yml",
 )
-CANDIDATE_FILES = (
+DISCOVERY_FILES = (
     "discover.yml", "library/atlas_discover.py", "library/atlas_readiness.py",
     "module_utils/atlas_discovery.py", "module_utils/atlas_normalization.py",
     "module_utils/atlas_transport.py",
     "module_utils/atlas_diagnostics.py",
 )
-# Candidate documentation follows its contract; the shared 0.1.0 package files
-# remain frozen so rebuilding the production probe preserves its exact bytes.
+# Preserve the historical qualification contract and pre-live documentation when
+# rebuilding the candidate; production uses its promoted metadata and docs.
 CANDIDATE_OVERRIDES = (
     "manifest.json", "sbom.spdx.json", "test_connection.yml", "README.md",
     "docs/capability-matrix.md", "docs/discovery.md", "docs/permissions.md",
@@ -42,7 +42,7 @@ def build(connector="proxmox", output=None, *, candidate=False):
     source = ROOT / "connectors" / connector
     metadata = source / "candidate" if candidate else source
     manifest = json.loads((metadata / "manifest.json").read_bytes())
-    names = COMMON_FILES + (CANDIDATE_FILES if candidate else ())
+    names = COMMON_FILES + DISCOVERY_FILES
     files = {name: (source / name).read_bytes() for name in names}
     if candidate:
         for name in CANDIDATE_OVERRIDES:

@@ -58,10 +58,11 @@ def test_coverage_requires_executed_calls_acl_consistency_and_valid_records(inpu
     assert not any('/agent/' in path or 'current=0' in path or '/storage/shared' == path for path in calls)
 
 
-def test_candidate_is_reproducible_unqualified_and_isolated_from_production():
+def test_historical_candidate_is_reproducible_unqualified_with_shared_release_implementation():
     payload, manifest = build(candidate=True)
     assert payload == build(candidate=True)[0]
     validate_manifest(manifest)
+    assert manifest['version'] == '0.2.0-i4b.6'
     assert manifest['source_versions']['qualification'] == 'unqualified'
     assert not manifest['source_versions']['qualified_versions']
     assert manifest['implementation']['dependencies'][0]['version'] == '2.0.0'
@@ -69,10 +70,24 @@ def test_candidate_is_reproducible_unqualified_and_isolated_from_production():
         assert {'discover.yml', 'library/atlas_discover.py', 'module_utils/atlas_transport.py'} <= set(archive.getnames())
         assert not any('fixtures' in path or path.startswith('tests/') or path.startswith('candidate/') for path in archive.getnames())
     production, prod_manifest = build()
-    assert prod_manifest['version'] == '0.1.0' and prod_manifest['capabilities']['discover'] is False
-    with tarfile.open(fileobj=io.BytesIO(production)) as archive:
-        assert 'discover.yml' not in archive.getnames()
-        assert not any(path.startswith('module_utils/') for path in archive.getnames())
+    assert prod_manifest['version'] == '0.2.0' and prod_manifest['capabilities']['discover'] == 'read_only'
+    assert prod_manifest['source_versions']['qualification'] == 'qualified'
+    with tarfile.open(fileobj=io.BytesIO(production)) as release, tarfile.open(fileobj=io.BytesIO(payload)) as candidate:
+        for name in ['discover.yml', 'library/atlas_discover.py', 'library/atlas_readiness.py',
+                     'module_utils/atlas_discovery.py', 'module_utils/atlas_normalization.py',
+                     'module_utils/atlas_transport.py', 'module_utils/atlas_diagnostics.py']:
+            assert release.extractfile(name).read() == candidate.extractfile(name).read()
+
+
+@pytest.mark.parametrize('scenario,expected', [
+    ('complete', 'complete'), ('permission_filtered', 'partial'), ('source_failure', 'failed'),
+])
+def test_promoted_manifest_validates_unchanged_discovery_stream(inputs, scenario, expected):
+    manifest = build()[1]
+    inputs['reference'].update(version=manifest['version'], digest=manifest['distribution']['bundle_digest'][7:])
+    result = discover(inputs, adapter_factory=adapter_factory(fixture(scenario)))
+    validate_example_stream(result, manifest)
+    assert result[-1]['completeness'] == expected
 
 
 def test_mandatory_scope_and_classes_cannot_be_silently_skipped(inputs):

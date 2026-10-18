@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 import importlib.util
+import hashlib
+import io
 import json
 from pathlib import Path
 import sys
+import tarfile
 
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
@@ -12,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("verify_candidate", ROOT / "tools/verify_candidate.py")
 verifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(verifier)
+QUALIFIED_CANDIDATE_DIGEST = "sha256:dd3b7fa5ebc7e47dd3c4607d631d87f50ef3eef3f6add7fff63e10fe721bea97"
 
 
 def test_exact_candidate_and_default_bytes_survive_unrelated_files(tmp_path, monkeypatch):
@@ -37,6 +41,8 @@ def test_independent_candidate_verification_and_digest_failure(tmp_path):
     second, _ = build(candidate=True)
     assert first == second
     digest = manifest["distribution"]["bundle_digest"]
+    assert digest == QUALIFIED_CANDIDATE_DIGEST
+    assert "sha256:" + hashlib.sha256(first).hexdigest() == QUALIFIED_CANDIDATE_DIGEST
     assert verifier.verify(tmp_path, digest)["files"] == 19
     with pytest.raises(ValueError, match="candidate_digest_mismatch"):
         verifier.verify(tmp_path, "sha256:" + "0" * 64)
@@ -71,12 +77,65 @@ def test_successor_candidate_uses_new_identity_and_preserves_existing_original_a
     assert manifest["source_versions"]["qualified_versions"] == []
 
 
-def test_default_production_archive_remains_exact_probe_only_release():
-    _, manifest = build()
-    assert manifest["version"] == "0.1.0"
-    assert manifest["distribution"]["bundle_digest"] == "sha256:b83ec2b3938b1747d12be5f0675dbc3e9da13c6259c2ab40f5daa994ee59ea60"
-    assert manifest["capabilities"]["discover"] is False
-    assert set(manifest["implementation"]["entry_points"]) == {"test_connection"}
+def test_default_production_archive_contains_only_reviewed_release_files(tmp_path):
+    payload, manifest = build(output=tmp_path)
+    second, descriptor = build()
+    assert (payload, manifest) == (second, descriptor)
+    assert manifest["version"] == "0.2.0"
+    distribution = manifest["distribution"]
+    assert distribution["bundle_digest"] == "sha256:" + hashlib.sha256(payload).hexdigest()
+    assert distribution["asset_uri"] == (
+        "https://github.com/benchristian88/atlas-connectors/releases/download/"
+        "proxmox-v0.2.0/proxmox-0.2.0.tar.gz"
+    )
+    import subprocess
+    assert distribution["provenance"] == {
+        "method": "github-artifact-attestation-sigstore", "publisher_id": "atlas-official",
+        "repository": "benchristian88/atlas-connectors", "workflow": ".github/workflows/release.yml",
+        "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+        "evidence_uri": "https://github.com/benchristian88/atlas-connectors/attestations",
+    }
+    assert (tmp_path / "proxmox-0.2.0.tar.gz").read_bytes() == payload
+    assert json.loads((tmp_path / "manifest.json").read_bytes()) == manifest
+    assert json.loads((tmp_path / "index.json").read_bytes()) == {"schema_version": "1.0", "entries": [manifest]}
+    assert (tmp_path / "SHA256SUMS").read_text() == distribution["bundle_digest"][7:] + "  proxmox-0.2.0.tar.gz\n"
+    assert payload[3:8] == b'\x00' * 5  # No optional gzip fields and mtime zero.
+    with tarfile.open(fileobj=io.BytesIO(payload)) as archive:
+        names = archive.getnames()
+        assert names == sorted(verifier.EXPECTED_FILES)
+        assert not any("candidate" in Path(name).parts or "tests" in Path(name).parts
+                       or "fixtures" in name or "__pycache__" in name or name.endswith(".pyc") for name in names)
+        for member in archive.getmembers():
+            assert member.isfile() and member.mode == 0o644 and member.mtime == 0
+            assert member.uid == member.gid == 0 and member.uname == member.gname == ""
+            path = ROOT / "LICENSE" if member.name == "LICENSE" else ROOT / "connectors/proxmox" / member.name
+            assert archive.extractfile(member).read() == path.read_bytes()
+        packaged = json.loads(archive.extractfile("manifest.json").read())
+        assert packaged == {key: value for key, value in manifest.items() if key != "distribution"}
+        from atlas_connector_sdk.contracts import validate_manifest
+        validate_manifest({**packaged, "distribution": distribution})
+        from yaml import safe_load
+        playbook = safe_load(archive.extractfile("test_connection.yml").read())
+        assert "atlas_readiness" in playbook[0]["tasks"][0]
+        assert playbook[0]["tasks"][0]["no_log"] is True
+
+
+def test_production_sbom_promotes_runtime_owned_collection_without_bundling_it():
+    sbom = json.loads((ROOT / "connectors/proxmox/sbom.spdx.json").read_bytes())
+    assert sbom["name"] == "atlas-proxmox-0.2.0"
+    assert sbom["documentNamespace"] == "https://github.com/benchristian88/atlas-connectors/sbom/proxmox/0.2.0"
+    candidate = json.loads((ROOT / "connectors/proxmox/candidate/sbom.spdx.json").read_bytes())
+    candidate.update(name=sbom["name"], documentNamespace=sbom["documentNamespace"])
+    candidate["packages"][0]["versionInfo"] = "0.2.0"
+    assert sbom == candidate
+    dependency = sbom["packages"][1]
+    assert dependency["versionInfo"] == "2.0.0"
+    assert dependency["checksums"] == [{"algorithm": "SHA256", "checksumValue": verifier.COLLECTION_DIGEST}]
+    assert "runtime-owned" in dependency["comment"] and "not bundled" in dependency["comment"]
+    assert sbom["relationships"] == [{
+        "spdxElementId": "SPDXRef-proxmox", "relationshipType": "DEPENDS_ON",
+        "relatedSpdxElement": "SPDXRef-community-proxmox",
+    }]
 
 
 def test_candidate_recommends_existing_lxc_type_and_retains_vm_mapping():
@@ -86,8 +145,9 @@ def test_candidate_recommends_existing_lxc_type_and_retains_vm_mapping():
     assert mappings["proxmox.qemu"] == "virtual_machine"
 
 
-def test_qualification_mapping_plan_requires_only_four_assets_and_two_relationships():
-    _, manifest = build(candidate=True)
+@pytest.mark.parametrize("candidate", [False, True])
+def test_release_and_candidate_require_only_four_assets_and_two_relationships(candidate):
+    _, manifest = build(candidate=candidate)
     assets = {row['key']: row['recommended_asset_type_key'] for row in manifest['object_classes'] if row['kind'] == 'asset'}
     relationships = {row['key']: row['recommended_relationship_type_key'] for row in manifest['relationship_classes']}
     assert assets == {'proxmox.cluster': 'cluster', 'proxmox.node': 'hypervisor_node',
@@ -107,14 +167,18 @@ def test_qualification_mapping_plan_requires_only_four_assets_and_two_relationsh
     assert 'proxmox.storage' not in json.dumps(manifest) and 'proxmox.uses_storage' not in json.dumps(manifest)
 
 
-def test_candidate_packages_current_mvp_docs_without_changing_frozen_production_docs():
-    import io
-    import tarfile
+def test_candidate_keeps_pre_live_snapshot_while_production_packages_qualified_docs():
     candidate, _ = build(candidate=True)
     production, _ = build()
     with tarfile.open(fileobj=io.BytesIO(candidate)) as archive:
         assert b'0.2.0-i4b.6' in archive.extractfile('README.md').read()
         assert b'Not called or allowlisted in .6' in archive.extractfile('docs/discovery.md').read()
         assert b'lxc_container' in archive.extractfile('docs/discovery.md').read()
+        qualification = archive.extractfile('docs/qualification.md').read()
+        assert b'UNQUALIFIED' in qualification and b'has no live results yet' in qualification
     with tarfile.open(fileobj=io.BytesIO(production)) as archive:
         assert archive.extractfile('README.md').read() == (ROOT / 'connectors/proxmox/README.md').read_bytes()
+        qualification = archive.extractfile('docs/qualification.md').read()
+        assert b'9.2.11' in qualification and b'100 observations' in qualification
+        assert b'Authentication-secret negative testing was not performed' in qualification
+        assert b'Native Debian/systemd LIVE acceptance remains outstanding' in qualification

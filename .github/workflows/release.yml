@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-24.04
     environment: connector-release
     timeout-minutes: 10
+    env:
+      ATLAS_TEST_COLLECTIONS_PATH: /tmp/i4b-test-collections
+      ATLAS_TEST_RUN_ANSIBLE: '1'
     permissions:
       contents: read
       id-token: write
@@ -27,6 +30,10 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python -c "import os,json; assert os.environ['RELEASE_TAG'] == 'proxmox-v' + json.load(open('connectors/proxmox/manifest.json'))['version']"
+      - name: Provision exact reviewed collection for source tests
+        run: |
+          curl --fail --silent --show-error --location https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/artifacts/community-proxmox-2.0.0.tar.gz --output /tmp/community-proxmox-2.0.0.tar.gz
+          python tools/test_collection.py --archive /tmp/community-proxmox-2.0.0.tar.gz --output "$ATLAS_TEST_COLLECTIONS_PATH"
       - run: python -m pytest -q
       - run: python tools/build_bundle.py
       - uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
