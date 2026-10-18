@@ -15,9 +15,10 @@ cluster, node, QEMU and LXC Assets, canonical Networks/Interfaces and
 member_of/runs_on relationships. There are no bridge or storage Assets,
 connected_to or uses_storage relationships. Other source versions remain untested
 with a warning; this does not claim all Proxmox 9.x versions are supported.
-0.2.0 is the first production Connector release being prepared. **0.1.0** was an
+0.2.0 is published as the first production Connector release under the immutable
+tag `proxmox-v0.2.0`. **0.1.0** was an
 internal development/probe baseline, never tagged or published as a GitHub Release;
-Git history preserves that state. No release is published by this promotion.
+Git history preserves that state.
 
 Proxmox bridges are host networking constructs used to describe Interface and
 Network topology. Atlas MVP does not model them as standalone Assets. Guest bridge
@@ -116,6 +117,14 @@ Build twice and compare bytes. A local dirty-tree candidate has no authenticated
 remote provenance; its recorded source HEAD is contextual, not a claim that the
 uncommitted implementation exists at that commit.
 
+The per-release `index.json` is immutable detached metadata, not the aggregate
+global catalogue. [Official catalogue maintenance](catalogue/README.md) documents
+the separate checked-in release registry, deterministic catalogue builder and
+manual protected preparation/attestation workflow. Stage A prepares
+`dist/catalogue/catalogue.json` and an identical numbered audit snapshot for the
+eventual `catalogue-v1` channel; publication remains a separate operator step.
+This does not implement Atlas remote catalogue consumption or installation.
+
 The test collection archive above is the exact I4A artefact from a sibling Atlas
 checkout. CI downloads the same archive and verifies its reviewed SHA-256 before
 test installation. This tooling never installs dependencies into a production
@@ -137,8 +146,8 @@ CI validates contracts, fixtures and build. The protected `proxmox-v<SemVer>`
 release workflow verifies tag/Manifest identity, builds and attests the exact
 bundle with the pinned GitHub `actions/attest` action, then retains a release
 candidate artifact. The operator publishes those unchanged files as immutable
-GitHub Release assets only after qualification. No release has been published
-by this work. Repository identity is **benchristian88/atlas-connectors** and
+GitHub Release assets only after qualification. Production **0.2.0** is published
+under the immutable tag `proxmox-v0.2.0`. Repository identity is **benchristian88/atlas-connectors** and
 signer workflow is **.github/workflows/release.yml**; Atlas must bind both, the
 exact digest/source commit and authenticated Sigstore issuer/predicate evidence.
 
