@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Prepare the official aggregate catalogue offline; never publish or run bundles."""
 import argparse
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -20,7 +20,7 @@ MAX_INTEGER = 2**53 - 1
 MAX_CATALOGUE_BYTES = 4 * 1024 * 1024
 ENTRY_FIELDS = {"status", "release_tag", "release_asset_id", "manifest"}
 CATALOGUE_FIELDS = {
-    "schema_version", "sequence", "generated_at", "expires_at", "publisher_id",
+    "schema_version", "sequence", "generated_at", "publisher_id",
     "repository", "entries",
 }
 
@@ -123,10 +123,7 @@ def validate_catalogue(document):
         raise ValueError("invalid_official_publisher")
     if document["repository"] != REPOSITORY:
         raise ValueError("invalid_official_repository")
-    generated = parse_timestamp(document["generated_at"])
-    expires = parse_timestamp(document["expires_at"])
-    if expires - generated != timedelta(days=7):
-        raise ValueError("invalid_catalogue_expiry")
+    parse_timestamp(document["generated_at"])
     entries = document["entries"]
     if not isinstance(entries, list) or len(entries) > MAX_ENTRIES:
         raise ValueError("invalid_catalogue_entry_count")
@@ -198,7 +195,6 @@ def build(output=None):
     document = validate_catalogue({
         "schema_version": "1.0", "sequence": sequence,
         "generated_at": generated.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "expires_at": (generated + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "publisher_id": PUBLISHER, "repository": REPOSITORY, "entries": entries,
     })
     payload = canonical_json(document)
