@@ -368,6 +368,32 @@ def test_unsorted_document_is_rejected(document):
         catalogue.validate_catalogue(document)
 
 
+def test_catalogue_metadata_and_entry_bounds_are_explicit():
+    assert catalogue.MAX_CATALOGUE_BYTES == 4 * 1024 * 1024
+    assert catalogue.MAX_METADATA_BYTES == 256 * 1024
+    assert catalogue.MAX_ENTRIES == 200
+
+
+@pytest.mark.parametrize("size_delta", [-1, 0, 1])
+def test_aggregate_catalogue_size_boundary(document, size_delta):
+    entry = document["entries"][0]
+    document["entries"] = [release(entry, f"0.3.{i}", i + 1) for i in range(20)]
+    document["entries"].sort(key=lambda row: (row["manifest"]["id"], row["manifest"]["version"]))
+    target_size = catalogue.MAX_CATALOGUE_BYTES + size_delta
+    padding, remainder = divmod(target_size - len(catalogue.canonical_json(document)),
+                                len(document["entries"]))
+    # Grow schema-valid URLs while keeping each release below the SDK bound.
+    for i, row in enumerate(document["entries"]):
+        row["manifest"]["display"]["documentation_uri"] += "a" * (padding + (i < remainder))
+        assert len(catalogue.canonical_json(row)) <= catalogue.MAX_METADATA_BYTES
+    assert len(catalogue.canonical_json(document)) == target_size
+    if size_delta > 0:
+        with pytest.raises(ValueError, match="^catalogue_too_large$"):
+            catalogue.validate_catalogue(document)
+    else:
+        assert catalogue.validate_catalogue(document) == document
+
+
 def test_hard_entry_count_accepts_limit_rejects_excess(document):
     entry = document["entries"][0]
     document["entries"] = [release(entry, f"0.3.{i}", i + 1) for i in range(catalogue.MAX_ENTRIES)]
@@ -426,11 +452,17 @@ def test_invalid_unicode_in_an_otherwise_valid_manifest_fails_closed(document):
         catalogue.validate_catalogue(document)
 
 
-def test_release_metadata_size_is_bounded(tmp_path):
+@pytest.mark.parametrize("size_delta", [-1, 0, 1])
+def test_release_metadata_size_is_bounded(tmp_path, entry, size_delta):
     source = write_registry(tmp_path, [])
-    (source / "releases/proxmox-0.2.0.json").write_bytes(b" " * (catalogue.MAX_METADATA_BYTES + 1))
-    with pytest.raises(ValueError, match="metadata_too_large"):
-        catalogue.load_registry(source)
+    raw = catalogue.canonical_json(entry)
+    raw += b" " * (catalogue.MAX_METADATA_BYTES + size_delta - len(raw))
+    (source / "releases/proxmox-0.2.0.json").write_bytes(raw)
+    if size_delta > 0:
+        with pytest.raises(ValueError, match="metadata_too_large"):
+            catalogue.load_registry(source)
+    else:
+        assert catalogue.load_registry(source) == (1, [entry])
 
 
 @pytest.mark.parametrize("kind", ["wrong_name", "symlink", "directory", "non_json"])

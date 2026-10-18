@@ -69,6 +69,11 @@ source commit, and `github-artifact-attestation-sigstore` provenance from
 `.github/workflows/release.yml` in the approved repository.
 
 Only UTF-8, bounded, regular JSON registry files are accepted (256 KiB per entry).
+The complete serialized aggregate catalogue has a separate 4 MiB (4,194,304-byte)
+bound, inclusive. This deliberately limits the total catalogue payload independently
+of the SDK's 256 KiB bound for each release descriptor/Manifest; it is not derived
+by multiplying that per-entry allowance by the 200-entry ceiling. All three bounds
+apply independently.
 Duplicate JSON keys, non-finite numbers, malformed JSON, unexpected fields,
 symlinks and inconsistent identity filenames fail closed. Deterministic output is
 UTF-8 JSON with sorted object keys, two-space indentation and a final newline.

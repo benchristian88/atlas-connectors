@@ -17,7 +17,7 @@ REPOSITORY = "benchristian88/atlas-connectors"
 RELEASE_WORKFLOW = ".github/workflows/release.yml"
 MAX_ENTRIES = 200
 MAX_INTEGER = 2**53 - 1
-MAX_CATALOGUE_BYTES = MAX_ENTRIES * MAX_METADATA_BYTES + 4096
+MAX_CATALOGUE_BYTES = 4 * 1024 * 1024
 ENTRY_FIELDS = {"status", "release_tag", "release_asset_id", "manifest"}
 CATALOGUE_FIELDS = {
     "schema_version", "sequence", "generated_at", "expires_at", "publisher_id",
