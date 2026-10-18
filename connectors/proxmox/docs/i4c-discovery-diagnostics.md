@@ -15,10 +15,25 @@ Production 0.1.0 remains probe-only. No live source is contacted by fixture chec
 The operator's `.3` live debug trace then isolated the only PARTIAL cause to
 `storage_inventory_mismatch` on `node/pve3`. Proxmox exposes an additional
 disabled/inactive local-zfs status row there without an applicable configuration
-definition. `.3` remains failed/unqualified evidence. The current **0.2.0-i4b.4**
-successor applies the narrow storage exclusion documented in the
-[active live runbook](i4c-live-qualification.md), retaining this diagnostic contract.
-It is also unqualified, with no qualified source versions or production promotion.
+definition. `.3` remains failed/unqualified evidence. The historical
+**0.2.0-i4b.4** correctly fixed that precise condition; its artifact and
+normalization remain immutable. It was valid qualification work under that scope.
+
+The active **0.2.0-i4b.5** is a subsequent MVP product scope decision. Proxmox
+storage definitions are configuration/resources exposed by the virtualisation
+platform. Atlas MVP does not model them as standalone Assets. Backing storage
+infrastructure should be discovered by the integration responsible for that
+infrastructure where available. `.5` emits no storage-pool Assets, uses_storage
+relationships, storage capacity telemetry, workload storage facts or storage
+dependencies. Atlas may introduce a richer resource/dependency model later.
+
+Neither storage inventory endpoint is called; storage normalization, resolution
+and associated diagnostic stages/reasons are absent from `.5`. Guest disk/rootfs/
+mount entries are ignored without storage warnings; bounded guest network parsing
+is retained. All remaining validation and generic diagnostic behavior is unchanged.
+See the [active live runbook](i4c-live-qualification.md) and
+[current discovery specification/source call matrix](../candidate/docs/discovery.md).
+`.5` and Proxmox 9.2.11 remain unqualified, with qualified_versions empty.
 
 ## Structured trace
 
@@ -45,17 +60,15 @@ Processed/accepted/skipped counts concern classified inventory rows/interface
 subrecords, independently of the number of AIP observations.
 Accepted counts describe normalization, not operator acceptance of Atlas knowledge.
 
-## Stages and reason vocabulary
+## Active `.5` stages and reason vocabulary
 
 | Stage | Representative stable reasons |
 | --- | --- |
 | Source read | source_response_invalid, source_response_limit, source_total_bytes_limit, source_call_limit, source_json_invalid, source_boolean_invalid |
 | Authorization | permission_response_invalid, permission_flag_invalid, acl_path_invalid, acl_path_limit, authorization_unproven, authorization_changed_during_discovery |
 | Deployment/node | deployment_record_unknown, duplicate_source_record, node_membership_mismatch, node_status_invalid, node_not_visible |
-| Storage | storage_definition_missing, storage_definition_mismatch, storage_node_unresolved, storage_status_invalid, storage_capacity_invalid, storage_inventory_mismatch, storage_record_out_of_scope |
 | Network/bridge | network_changes_pending, bridge_duplicate, bridge_inactive, bridge_cidr_invalid, bridge_status_invalid |
 | Guest/config | guest_identity_invalid, guest_node_unresolved, guest_power_state_invalid, guest_config_missing, guest_config_read_failed, guest_inventory_mismatch |
-| Guest storage | guest_storage_reference_invalid, guest_storage_unresolved |
 | Guest interface | guest_interface_invalid, guest_mac_invalid, guest_ip_invalid, vlan_tag_invalid, guest_bridge_invalid, guest_bridge_unresolved |
 | Consistency/limits | inventory_changed_during_discovery, observation_limit, sensitive_material_rejected, duplicate_observation |
 
@@ -64,13 +77,12 @@ supplies the stage/object/rule that produced it. Debug types and expected gramma
 are metadata, not source values. Explicit source-local identity stays separate
 from human display names and accepted canonical knowledge.
 
-`storage_record_out_of_scope` is **Skipped**, never Warning: no applicable node
-definition and both strict enabled/active flags explicitly false. Its stage is
-`storage_status`, with storage and node identities. Debug adds the fixed rule
-`inactive_disabled_without_applicable_definition`, `expected=out_of_scope` and
-`action=skip` using existing fields; no source value or config body is included.
-Applicable disabled storage is still accepted; unknown active/enabled storage,
-missing applicable status and malformed flags still prevent COMPLETE.
+Historical `.4` traces can still contain Skipped / `storage_record_out_of_scope`
+for the proven inactive/disabled non-applicable row, and storage-specific warnings
+for real uncertainty under `.4`'s broader scope. Those records are not rewritten.
+`.5` has no storage stage, storage source category or guest-storage resolution;
+normal/debug tests require none to appear. The generic sidecar format and reason
+validation do not change, so historical traces remain interpretable.
 
 ## One next run, administrator access and retention
 
@@ -96,7 +108,8 @@ verify from the reviewed committed source before staging a new exact authorizati
 Tests exercise diagnostic visibility, secret/body/config exclusions, destination
 tricks, bounded flush/overflow, actual Runner, and identical AIP/source calls for
 debug off/on. They do not qualify an actual Proxmox deployment. Do not accept live
-reconciliation automatically or promote 0.2.0. The next `.4` live run should
-confirm the pve3 row is skipped without a false mismatch, and inspect all remaining
-normal reasons before any COMPLETE claim. One-shot debug detail remains optional.
+reconciliation automatically or promote 0.2.0. The next `.5` live run should
+confirm there are no storage observations/calls/diagnostics and retained guest/network
+topology is correct, then inspect all remaining normal reasons before any COMPLETE
+claim. One-shot debug detail remains optional.
 Any further source-shape change is a separate reviewed fix.

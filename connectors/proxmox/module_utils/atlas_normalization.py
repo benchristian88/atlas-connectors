@@ -8,13 +8,11 @@ import re
 from ansible.module_utils.atlas_transport import SourceError, SEGMENT
 from ansible.module_utils.atlas_diagnostics import Diagnostics
 
-CLASSES = ['proxmox.' + name for name in ['cluster', 'node', 'qemu', 'lxc', 'storage', 'bridge', 'network', 'interface']]
+CLASSES = ['proxmox.' + name for name in ['cluster', 'node', 'qemu', 'lxc', 'bridge', 'network', 'interface']]
 FACTS = {
     'vmid': ('integer', 'identity'), 'template': ('boolean', 'configuration'),
     'deployment_mode': ('string', 'informational'), 'power_state': ('string', 'operational'),
-    'online': ('boolean', 'operational'), 'storage_type': ('string', 'configuration'),
-    'shared': ('boolean', 'configuration'), 'capacity_bytes': ('integer', 'operational'),
-    'available_bytes': ('integer', 'operational'), 'vlan_aware': ('boolean', 'configuration'),
+    'online': ('boolean', 'operational'), 'vlan_aware': ('boolean', 'configuration'),
     'vlan_tag': ('integer', 'configuration'),
 }
 
@@ -52,10 +50,6 @@ def guest_id(kind, vmid):
     return 'guest/' + kind + '/' + str(vmid)
 
 
-def storage_id(node, name, shared):
-    return 'storage/shared/' + identifier(name) if shared else 'storage/local/' + identifier(node) + '/' + identifier(name)
-
-
 def bridge_id(node, name):
     return 'bridge/' + identifier(node) + '/' + identifier(name)
 
@@ -74,7 +68,7 @@ class Inventory:
         self.warnings = set()
         self.sensitive = tuple(value for value in sensitive if value)
         self.maximum = maximum
-        self.nodes, self.storages, self.bridges, self.networks = {}, {}, {}, {}
+        self.nodes, self.bridges, self.networks = {}, {}, {}
         self.mode = 'standalone'
         self.diagnostics = diagnostics or Diagnostics(sensitive=sensitive)
         self.reason = 'normalization_invalid'
@@ -154,69 +148,6 @@ class Inventory:
             except (SourceError, KeyError, TypeError):
                 self.warning(reason=self.reason)
                 self.diagnostics.emit('skipped', 'source_record_rejected', record_count=1)
-
-    def storage(self, definitions, node, statuses):
-        expected = {name for name, row in definitions.items() if not row.get('nodes') or node in row['nodes']}
-        seen, encountered = set(), set()
-        for row in statuses:
-            self.at('storage_status', object_class='proxmox.storage', parent_external_id=node_id(node),
-                    external_id='storage/' + str(row.get('storage', '')))
-            try:
-                self.check('storage_identity_invalid', 'storage', row.get('storage'), 'identifier')
-                name = identifier(row['storage'])
-                if name in encountered:
-                    self.reason = 'duplicate_source_record'
-                    raise SourceError('invalid_source_record')
-                encountered.add(name)
-                if name not in expected:
-                    # Proxmox can expose disabled/inactive rows on nodes where
-                    # a pool is not configured. Both flags must explicitly prove
-                    # this exclusion; missing or malformed evidence fails closed.
-                    self.check('storage_status_invalid', 'enabled', row.get('enabled'), 'boolean')
-                    enabled = flag(row['enabled']) if 'enabled' in row else None
-                    self.check('storage_status_invalid', 'active', row.get('active'), 'boolean')
-                    active = flag(row['active']) if 'active' in row else None
-                    if enabled is False and active is False:
-                        self.diagnostics.rule('storage', name, 'inactive_disabled_without_applicable_definition', 'out_of_scope')
-                        self.diagnostics.emit('skipped', 'storage_record_out_of_scope', record_count=1, action='skip')
-                        continue
-                    self.check('storage_definition_missing', 'storage', name, 'applicable_definition')
-                    raise SourceError('invalid_source_record')
-                seen.add(name)
-                self.check('storage_definition_missing', 'storage', name, 'known_storage')
-                definition = definitions[name]
-                self.check('storage_definition_invalid', 'shared', definition.get('shared', False), 'boolean')
-                shared = flag(definition.get('shared', False))
-                if 'shared' in row and flag(row['shared']) != shared:
-                    self.check('storage_definition_mismatch', 'shared', row['shared'], 'matching_definition')
-                    raise SourceError('invalid_source_record')
-                kind = identifier(definition['type'])
-                if 'type' in row and row['type'] != kind:
-                    self.check('storage_definition_mismatch', 'type', row['type'], 'matching_definition')
-                    raise SourceError('invalid_source_record')
-                facts = [fact('shared', shared), fact('storage_type', kind)]
-                self.check('storage_status_invalid', 'active', row.get('active', 0), 'boolean')
-                # Shared totals can vary between node reads. Keep source-level inventory;
-                # optional per-node capacity remains only on local pools.
-                if not shared and flag(row.get('active', 0)):
-                    self.check('storage_capacity_invalid', 'avail', row.get('avail'), 'capacity_range')
-                    if 'total' in row and 'avail' in row and integer(row['avail']) > integer(row['total']):
-                        self.check('storage_capacity_invalid', 'avail', row['avail'], 'capacity_range')
-                        raise SourceError('invalid_source_record')
-                    for field, source in [('capacity_bytes', 'total'), ('available_bytes', 'avail')]:
-                        if source in row:
-                            self.check('storage_capacity_invalid', source, row[source], 'nonnegative_integer')
-                            facts.append(fact(field, integer(row[source])))
-                external = storage_id(node, name, shared)
-                self.asset(external, 'storage', name, facts)
-                self.storages[(node, name)] = external
-                self.accepted()
-            except (SourceError, KeyError, TypeError):
-                self.warning(reason=self.reason)
-                self.diagnostics.emit('skipped', 'source_record_rejected', record_count=1)
-        if seen != expected:
-            self.at('storage_status', parent_external_id=node_id(node))
-            self.warning(reason='storage_inventory_mismatch')
 
     def network(self, node, rows, pending=False):
         self.at('network', parent_external_id=node_id(node))
@@ -299,23 +230,9 @@ class Inventory:
                 self.warning(reason='guest_config_missing')
                 return
             for key, value in sorted(config.items()):
-                if re.fullmatch(r'(?:ide|sata|scsi|virtio|mp)\d{1,2}|rootfs', key):
-                    self.at('guest_storage', object_class='proxmox.' + kind, external_id=external, parent_external_id=node_id(node))
-                    self.check('guest_storage_reference_invalid', key, value, 'storage_reference')
-                    if not isinstance(value, str) or len(value) > 8192:
-                        self.warning(reason='guest_storage_reference_invalid'); continue
-                    volume = value.split(',', 1)[0]
-                    if volume in {'none', 'cdrom'} or volume.startswith('/'):
-                        continue  # no mount contents/host paths ingested
-                    if ':' not in volume:
-                        self.warning(reason='guest_storage_reference_invalid'); continue
-                    storage = volume.split(':', 1)[0]
-                    target = self.storages.get((node, storage))
-                    if target:
-                        self.link('uses_storage', external, target)
-                    else:
-                        self.warning(reason='guest_storage_unresolved')
-                elif re.fullmatch(r'net\d{1,2}', key):
+                # Storage volumes, mounts and arbitrary config are outside the
+                # MVP contract. Only bounded network-interface fields are parsed.
+                if re.fullmatch(r'net\d{1,2}', key):
                     self.guest_interface(external, node, key, value)
         except (SourceError, KeyError, TypeError, ValueError):
             self.warning(reason=self.reason)

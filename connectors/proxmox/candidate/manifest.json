@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1",
   "id": "proxmox",
-  "version": "0.2.0-i4b.4",
+  "version": "0.2.0-i4b.5",
   "publisher": {
     "id": "atlas-official",
     "name": "Atlas Impact"
@@ -160,13 +160,6 @@
       "recommended_asset_type_key": "lxc_container"
     },
     {
-      "key": "proxmox.storage",
-      "kind": "asset",
-      "label": "Storage",
-      "required": true,
-      "recommended_asset_type_key": "storage_pool"
-    },
-    {
       "key": "proxmox.bridge",
       "kind": "asset",
       "label": "Bridge",
@@ -203,7 +196,6 @@
         "proxmox.node",
         "proxmox.qemu",
         "proxmox.lxc",
-        "proxmox.storage",
         "proxmox.bridge",
         "proxmox.network",
         "proxmox.interface"
@@ -235,20 +227,6 @@
       ],
       "target_object_classes": [
         "proxmox.node"
-      ],
-      "direction": "source_to_target"
-    },
-    {
-      "key": "proxmox.uses_storage",
-      "label": "Uses Storage",
-      "required": true,
-      "recommended_relationship_type_key": "uses_storage",
-      "source_object_classes": [
-        "proxmox.qemu",
-        "proxmox.lxc"
-      ],
-      "target_object_classes": [
-        "proxmox.storage"
       ],
       "direction": "source_to_target"
     },
@@ -321,46 +299,6 @@
       "cardinality": "single",
       "object_classes": [
         "proxmox.node"
-      ]
-    },
-    {
-      "key": "proxmox.storage_type",
-      "label": "Storage Type",
-      "value_type": "string",
-      "class": "configuration",
-      "cardinality": "single",
-      "object_classes": [
-        "proxmox.storage"
-      ]
-    },
-    {
-      "key": "proxmox.shared",
-      "label": "Shared",
-      "value_type": "boolean",
-      "class": "configuration",
-      "cardinality": "single",
-      "object_classes": [
-        "proxmox.storage"
-      ]
-    },
-    {
-      "key": "proxmox.capacity_bytes",
-      "label": "Capacity Bytes",
-      "value_type": "integer",
-      "class": "operational",
-      "cardinality": "single",
-      "object_classes": [
-        "proxmox.storage"
-      ]
-    },
-    {
-      "key": "proxmox.available_bytes",
-      "label": "Available Bytes",
-      "value_type": "integer",
-      "class": "operational",
-      "cardinality": "single",
-      "object_classes": [
-        "proxmox.storage"
       ]
     },
     {

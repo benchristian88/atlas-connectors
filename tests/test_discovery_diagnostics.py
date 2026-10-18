@@ -37,6 +37,8 @@ def test_debug_only_changes_diagnostic_detail_not_aip_or_source_calls(scenario):
         messages.append(output); calls.append(adapter.calls); traces.append(diagnostics.events)
     assert messages[0] == messages[1]
     assert calls[0] == calls[1]
+    assert not any('storage' in path for path in calls[0])
+    assert not any('storage' in json.dumps(event) for trace in traces for event in trace)
     assert all(row['reason_code'] != 'invalid_source_record' for row in traces[0])
     assert [{k: v for k, v in row.items() if k not in {'field', 'encountered_type', 'validation_rule', 'expected', 'action'}}
             for row in traces[1]] == traces[0]
@@ -45,53 +47,10 @@ def test_debug_only_changes_diagnostic_detail_not_aip_or_source_calls(scenario):
     assert all(len(json.dumps(row, separators=(',', ':')).encode()) + 1 <= MAX_EVENT_BYTES for row in traces[1])
 
 
-@pytest.mark.parametrize('case,expected', [
-    ('out_of_scope', 'complete'), ('enabled', 'partial'), ('active', 'partial'),
-    ('malformed_enabled', 'partial'), ('malformed_active', 'partial'), ('missing_flag', 'partial'),
-    ('missing_applicable', 'partial'), ('disabled_applicable', 'complete'),
-])
-def test_storage_scope_diagnostics_are_clear_redacted_and_debug_cannot_change_results(case, expected):
-    source, data = inputs(), fixture('heterogeneous_storage')
-    row = data['responses']['/nodes/pve3/storage'][-1]
-    marker = secrets.token_hex(32)
-    row.update(description=marker, arbitrary_config={'ignored': marker})
-    if case in {'enabled', 'active'}: row[case] = 1
-    elif case == 'malformed_enabled': row['enabled'] = '0'
-    elif case == 'malformed_active': row['active'] = None
-    elif case == 'missing_flag': row.pop('enabled')
-    elif case == 'missing_applicable': data['responses']['/nodes/pve3/storage'].pop(-2)
-    elif case == 'disabled_applicable': data['responses']['/nodes/pve1/storage'][-1].update(enabled=0, active=0)
-    messages, calls, traces = [], [], []
-    for debug in [False, True]:
-        diagnostic = Diagnostics(debug=debug, sensitive=source['credentials'].values())
-        adapter = adapter_factory(data)
-        output = discover({**source, 'debug_enabled': debug}, adapter_factory=adapter, diagnostics=diagnostic)
-        for message in output: message.pop('observed_at')
-        assert output[-1]['completeness'] == expected
-        messages.append(output); calls.append(adapter.calls); traces.append(diagnostic.events)
-        assert all(value not in json.dumps(diagnostic.events) for value in [marker, *source['credentials'].values()])
-    assert messages[0] == messages[1] and calls[0] == calls[1]
-    debug_keys = {'field', 'encountered_type', 'validation_rule', 'expected', 'action'}
-    assert [{key: value for key, value in event.items() if key not in debug_keys} for event in traces[1]] == traces[0]
-    assert all(len(json.dumps(event, separators=(',', ':')).encode()) + 1 <= MAX_EVENT_BYTES for event in traces[1])
-    if case in {'out_of_scope', 'missing_applicable', 'disabled_applicable'}:
-        event = next(event for event in traces[0] if event['reason_code'] == 'storage_record_out_of_scope')
-        assert event == {'sequence': event['sequence'], 'stage': 'storage_status', 'result': 'skipped',
-                         'reason_code': 'storage_record_out_of_scope', 'record_count': 1, 'object_class': 'proxmox.storage',
-                         'external_id': 'storage/local-zfs', 'parent_external_id': 'node/pve3'}
-        detail = next(event for event in traces[1] if event['reason_code'] == 'storage_record_out_of_scope')
-        assert detail['validation_rule'] == 'inactive_disabled_without_applicable_definition'
-        assert detail['expected'] == 'out_of_scope' and detail['action'] == 'skip'
-    else:
-        assert not any(event['reason_code'] == 'storage_record_out_of_scope' for event in traces[0])
-    if expected == 'complete':
-        assert not any(event['result'] in {'warning', 'error'} for event in traces[0])
-
-
 @pytest.mark.parametrize('mutation,reason', [
     ('interface', 'guest_interface_invalid'), ('ip', 'guest_ip_invalid'), ('tag', 'vlan_tag_invalid'),
     ('cidr', 'bridge_cidr_invalid'), ('inactive', 'bridge_inactive'), ('boolean', 'source_boolean_invalid'),
-    ('storage', 'storage_definition_missing'), ('power', 'guest_power_state_invalid'),
+    ('power', 'guest_power_state_invalid'),
 ])
 def test_independent_normalization_failures_have_specific_rule_and_identity(mutation, reason):
     data, source = fixture(), inputs()
@@ -102,7 +61,6 @@ def test_independent_normalization_failures_have_specific_rule_and_identity(muta
     elif mutation == 'cidr': data['responses']['/nodes/node-a/network'][0]['cidr'] = 'invalid'
     elif mutation == 'inactive': data['responses']['/nodes/node-a/network'][0]['active'] = 0
     elif mutation == 'boolean': data['responses']['/nodes/node-a/network'][0]['active'] = 2
-    elif mutation == 'storage': data['responses']['/storage'] = []
     elif mutation == 'power':
         data['responses']['/cluster/resources?type=vm'][0]['status'] = 'invalid'
         data['responses']['/nodes/node-a/qemu'][0]['status'] = 'invalid'

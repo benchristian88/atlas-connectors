@@ -18,14 +18,19 @@ EXPECTED_FILES = {
     "module_utils/atlas_transport.py", "module_utils/atlas_diagnostics.py",
 }
 COLLECTION_DIGEST = "77e02e0d1e341c6b064900fe58484ad8880cee4832f5fd65d09834ed068216f6"
+CANDIDATE_OVERRIDES = {
+    "manifest.json", "sbom.spdx.json", "test_connection.yml", "README.md",
+    "docs/capability-matrix.md", "docs/discovery.md", "docs/permissions.md",
+    "docs/qualification.md", "docs/i4b-completion-report.md",
+}
 
 
 def verify(directory, expected_digest, *, source_commit=None):
     manifest = json.loads((directory / "manifest.json").read_bytes())
     validate_manifest(manifest)
-    if manifest["id"] != "proxmox" or manifest["version"] != "0.2.0-i4b.4":
+    if manifest["id"] != "proxmox" or manifest["version"] != "0.2.0-i4b.5":
         raise ValueError("candidate_identity_mismatch")
-    archive_path = directory / "proxmox-0.2.0-i4b.4.tar.gz"
+    archive_path = directory / "proxmox-0.2.0-i4b.5.tar.gz"
     if archive_path.stat().st_size > 20 * 1024 * 1024:
         raise ValueError("candidate_archive_limit")
     actual = "sha256:" + hashlib.sha256(archive_path.read_bytes()).hexdigest()
@@ -43,7 +48,7 @@ def verify(directory, expected_digest, *, source_commit=None):
                 raise ValueError("candidate_noncanonical_member")
             if member.name == "LICENSE":
                 path = ROOT / "LICENSE"
-            elif member.name in {"manifest.json", "sbom.spdx.json", "test_connection.yml"}:
+            elif member.name in CANDIDATE_OVERRIDES:
                 path = ROOT / "connectors/proxmox/candidate" / member.name
             else:
                 path = ROOT / "connectors/proxmox" / member.name
@@ -61,7 +66,7 @@ def verify(directory, expected_digest, *, source_commit=None):
             or manifest["compatibility"]["runtime"]["baseline"] != {"minimum": "1.2.0", "exclusive_maximum": "2.0.0"}
             or manifest["implementation"]["dependencies"] != [{"kind": "collection", "name": "community.proxmox",
                 "version": "2.0.0", "digest": "sha256:" + COLLECTION_DIGEST, "licence": "GPL-3.0-or-later"}]
-            or sbom["packages"][0]["versionInfo"] != "0.2.0-i4b.4"
+            or sbom["packages"][0]["versionInfo"] != "0.2.0-i4b.5"
             or sbom["packages"][1]["versionInfo"] != "2.0.0"
             or sbom["packages"][1]["checksums"] != [{"algorithm": "SHA256", "checksumValue": COLLECTION_DIGEST}]):
         raise ValueError("candidate_contract_mismatch")

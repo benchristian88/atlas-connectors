@@ -22,8 +22,8 @@ MAX_CALLS = 4096
 MAX_TOTAL_BYTES = 24 * 1024 * 1024
 TIMEOUT = 6
 SEGMENT = r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}'
-ROUTES = re.compile(r'/api2/json/(?:version|access/(?:permissions|acl)|cluster/(?:status|resources)|nodes|storage|nodes/'
-                    + SEGMENT + r'/(?:network|storage|(?:qemu|lxc)(?:/[1-9][0-9]{0,8}/config)?))')
+ROUTES = re.compile(r'/api2/json/(?:version|access/(?:permissions|acl)|cluster/(?:status|resources)|nodes|nodes/'
+                    + SEGMENT + r'/(?:network|(?:qemu|lxc)(?:/[1-9][0-9]{0,8}/config)?))')
 
 
 class SourceError(ValueError):
@@ -36,12 +36,10 @@ class SourceError(ValueError):
 def diagnostic_object(category, parts, row):
     """Only explicit durable identities; never names/comments/config values."""
     result = {}
-    name = row.get('iface') if category == 'network' else row.get('storage') if category.startswith('storage') else row.get('node') or row.get('name')
+    name = row.get('iface') if category == 'network' else row.get('node') or row.get('name')
     if isinstance(name, str) and re.fullmatch(SEGMENT, name):
         if category == 'network' and len(parts) > 4:
             result = {'object_class': 'proxmox.bridge', 'external_id': 'bridge/' + parts[4] + '/' + name}
-        elif category.startswith('storage'):
-            result = {'object_class': 'proxmox.storage', 'external_id': 'storage/' + name}
         elif category in {'nodes', 'deployment'}:
             result = {'object_class': 'proxmox.node', 'external_id': 'node/' + name}
     kind = row.get('type') if category == 'guest_resources' else parts[5] if len(parts) > 5 else None
@@ -143,7 +141,6 @@ class PinnedAdapter(BaseAdapter):
             category = ('version' if url.path.endswith('/version') else 'authorization' if '/access/' in url.path else
                         'deployment' if url.path.endswith('/cluster/status') else 'guest_resources' if '/cluster/' in url.path else
                         'guest_config' if url.path.endswith('/config') else 'network' if url.path.endswith('/network') else
-                        'storage_definition' if url.path == '/api2/json/storage' else 'storage_status' if url.path.endswith('/storage') else
                         'nodes' if url.path == '/api2/json/nodes' else 'guest_list')
             if diagnostics:
                 diagnostics.at('source_read', source_category=category)
@@ -210,8 +207,6 @@ class PinnedAdapter(BaseAdapter):
             flags = set()
             if url.path.endswith('/cluster/status'):
                 flags = {'online', 'local', 'quorate'}
-            elif url.path.endswith('/storage'):
-                flags = {'shared', 'active', 'enabled'}
             elif url.path.endswith('/cluster/resources') or re.search(r'/(qemu|lxc)$', url.path):
                 flags = {'template'}
             elif url.path.endswith('/network'):

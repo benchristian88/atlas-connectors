@@ -1,10 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from copy import deepcopy
 
-import pytest
-
-from ansible.module_utils.atlas_diagnostics import Diagnostics
-from ansible.module_utils.atlas_normalization import node_id, guest_id, storage_id, Inventory
+from ansible.module_utils.atlas_normalization import node_id, guest_id, Inventory
 from test_proxmox_discovery import inputs, run
 from proxmox_fixture_transport import fixture
 
@@ -31,10 +28,8 @@ def test_rename_migration_endpoint_edit_and_order_preserve_guest_identity(inputs
     assert domains(run(inputs, data=data)[0]) == original
 
 
-def test_shared_and_local_storage_and_duplicate_mac_identity(inputs):
+def test_existing_network_interface_and_duplicate_mac_identity(inputs):
     output = domains(run(inputs)[0])
-    assert all(key in output['assets'] for key in [storage_id('node-a','local',False), storage_id('node-b','local',False), storage_id('node-a','shared',True)])
-    assert sum(key.startswith('storage/shared/') for key in output['assets']) == 1
     interfaces = [row for row in output['interfaces'].values() if row.get('mac_address') == '02:00:00:00:00:01']
     assert len(interfaces) == len({row['external_id'] for row in interfaces}) == 3
     assert len(output['networks']) == 2  # same name AND CIDR do not merge node segments
@@ -42,44 +37,6 @@ def test_shared_and_local_storage_and_duplicate_mac_identity(inputs):
     assert 'network_external_id' not in tagged
     assert tagged['facts'][0]['value'] == 22
     assert output['interfaces']['guest/lxc/102/interface/net0']['network_external_id'] == 'network/node-a/vmbr0'
-
-
-@pytest.mark.parametrize('defined_elsewhere', [False, True])
-@pytest.mark.parametrize('disabled,inactive', [(0, 0), (False, False)])
-def test_storage_without_applicable_definition_is_skipped_only_when_explicitly_disabled_and_inactive(defined_elsewhere, disabled, inactive):
-    diagnostic = Diagnostics(debug=True)
-    inventory = Inventory(diagnostics=diagnostic)
-    definitions = {'local-zfs': {'type': 'zfspool', 'shared': 0, 'nodes': ['pve1', 'pve2']}} if defined_elsewhere else {}
-    inventory.storage(definitions, 'pve3', [
-        {'storage': 'local-zfs', 'type': 'zfspool', 'shared': 0, 'enabled': disabled, 'active': inactive}])
-    assert not inventory.warnings
-    assert not inventory.domains['assets'] and not inventory.storages
-    assert [(row['result'], row['reason_code']) for row in diagnostic.events] == [
-        ('skipped', 'storage_record_out_of_scope')]
-
-
-@pytest.mark.parametrize('field', ['active', 'enabled'])
-@pytest.mark.parametrize('value', [None, '0', 'false', 2, -1, 0.0, [], {}, 'missing'])
-def test_out_of_scope_storage_requires_both_present_strict_boolean_flags(field, value):
-    inventory = Inventory()
-    row = {'storage': 'local-zfs', 'enabled': 0, 'active': 0}
-    if value == 'missing':
-        row.pop(field)
-    else:
-        row[field] = value
-    inventory.storage({}, 'pve3', [row])
-    assert inventory.warnings == {'invalid_source_record'}
-    assert not any(event['reason_code'] == 'storage_record_out_of_scope' for event in inventory.diagnostics.events)
-    reason = 'storage_definition_missing' if value == 'missing' else 'storage_status_invalid'
-    assert any(event['reason_code'] == reason for event in inventory.diagnostics.events)
-
-
-def test_duplicate_out_of_scope_storage_still_warns():
-    inventory = Inventory()
-    row = {'storage': 'local-zfs', 'enabled': 0, 'active': 0}
-    inventory.storage({}, 'pve3', [row, deepcopy(row)])
-    assert inventory.warnings == {'invalid_source_record'}
-    assert any(event['reason_code'] == 'duplicate_source_record' for event in inventory.diagnostics.events)
 
 
 def test_standalone_has_no_fake_cluster_and_node_rename_limitation_is_explicit(inputs):

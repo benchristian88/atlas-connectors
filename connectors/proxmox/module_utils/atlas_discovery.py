@@ -19,9 +19,9 @@ MAX_ROWS = 1000
 MAX_NODES = 32
 MAX_ACL_PATHS = 256
 ROOTS = {'/': 'Sys.Audit', '/nodes': 'Sys.Audit', '/vms': 'VM.Audit',
-         '/storage': 'Datastore.Audit', '/sdn/zones/localnetwork': 'SDN.Audit'}
+         '/sdn/zones/localnetwork': 'SDN.Audit'}
 CAPABILITIES = {'/': ('deployment', 'root'), '/nodes': ('inventory.nodes', 'inventory'),
-                '/vms': ('inventory.guests', 'inventory'), '/storage': ('inventory.storage', 'inventory'),
+                '/vms': ('inventory.guests', 'inventory'),
                 '/sdn/zones/localnetwork': ('topology.bridges', 'topology')}
 
 
@@ -97,7 +97,7 @@ def acl_proof(api):
     """Prove propagated scope visibility AND inspect otherwise hidden ACL overrides.
 
     The unscoped effective-permission dump omits paths with zero permissions.
-    It cannot alone rule out a hidden NoAccess guest/storage/bridge subtree.
+    It cannot alone rule out a hidden NoAccess guest/node/bridge subtree.
     Sys.Audit on /access proves the ACL read is unfiltered; no write privilege.
     Raw ACL data is retained only transiently and never emitted.
     """
@@ -188,35 +188,9 @@ def discover(inputs, *, adapter_factory=PinnedAdapter, diagnostics=None):
         diagnostics.at('guest_resources')
         resources = rows(vm_reader.get_vms_from_cluster_resources())
         initial = signature(resources)
-        storage_reader = reader('proxmox_storage_info', 'ProxmoxStorageInfoAnsible', api, module)
-        definitions = {}
-        try:
-            diagnostics.at('storage_definition')
-            definitions_list = storage_reader.get_storages()
-            if len(definitions_list) > MAX_ROWS:
-                raise SourceError('invalid_source_record', reason='source_response_limit')
-            for item in definitions_list:
-                row = item.storage
-                diagnostics.at('storage_definition', object_class='proxmox.storage', external_id='storage/' + str(row.get('storage', '')))
-                diagnostics.rule('storage', row.get('storage'), 'storage_definition', 'identifier')
-                name = identifier(row['storage'])
-                if name in definitions:
-                    raise SourceError('invalid_source_record', reason='duplicate_source_record')
-                if row.get('nodes') and (not isinstance(row['nodes'], list)
-                        or any(identifier(node) not in inventory.nodes for node in row['nodes'])):
-                    raise SourceError('invalid_source_record', reason='storage_node_unresolved')
-                definitions[name] = row
-        except (SourceError, ValueError, KeyError, TypeError) as error:
-            inventory.warning('invalid_source_record', reason=getattr(error, 'reason', None) or 'storage_definition_invalid')
         for node in sorted(inventory.nodes):
             if not inventory.nodes[node]:
                 continue
-            try:
-                diagnostics.at('storage_status', parent_external_id='node/' + node)
-                storage = rows(api.nodes(node).storage.get())  # permitted collection gap, same session
-                inventory.storage(definitions, node, storage)
-            except SourceError as error:
-                inventory.warning(error.code, reason=error.reason or 'storage_read_failed')
             try:
                 diagnostics.at('network', parent_external_id='node/' + node)
                 network_reader = reader('proxmox_node_network_info', 'ProxmoxNodeNetworkInfoAnsible', api, module)

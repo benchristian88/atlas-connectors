@@ -13,7 +13,7 @@ from atlas_connector_sdk.aip import validate_example_stream
 from atlas_connector_sdk.contracts import validate_manifest
 from ansible.module_utils.atlas_discovery import discover
 from ansible.module_utils.atlas_diagnostics import Diagnostics
-from ansible.module_utils.atlas_normalization import CLASSES, relationship, storage_id
+from ansible.module_utils.atlas_normalization import CLASSES, relationship
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from build_bundle import build
@@ -39,17 +39,16 @@ def run(inputs, scenario='complete', data=None):
 @pytest.mark.parametrize('scenario,completeness', [
     ('complete','complete'), ('standalone','complete'), ('empty_authorized','complete'),
     ('empty_unproven','partial'), ('permission_filtered','partial'), ('acl_audit_missing','partial'),
-    ('offline','partial'), ('source_failure','failed'), ('storage_failure','partial'),
+    ('offline','partial'), ('source_failure','failed'), ('storage_failure','complete'),
     ('config_failure','partial'), ('pending','partial'), ('malformed','partial'), ('limits','failed')])
 def test_coverage_requires_executed_calls_acl_consistency_and_valid_records(inputs, scenario, completeness):
     result, calls = run(inputs, scenario)
     assert result[-1]['completeness'] == completeness
     assert result[-1]['coverage'] == inputs['coverage']
     if completeness == 'complete':
-        for node in ['node-a'] if scenario != 'complete' else ['node-a', 'node-b']:
+        for node in ['node-a'] if scenario in {'standalone', 'empty_authorized'} else ['node-a', 'node-b']:
             assert '/nodes/' + node + '/qemu' in calls
             assert '/nodes/' + node + '/lxc' in calls
-            assert '/nodes/' + node + '/storage' in calls
             assert '/nodes/' + node + '/network' in calls
         assert calls.count('/access/acl') == 2
     serialized = json.dumps(result)
@@ -119,7 +118,7 @@ def test_malformed_required_identity_and_inventory_consistency_prevent_complete(
 
 
 def test_lossy_collection_boolean_normalization_cannot_hide_malformed_source_flags(inputs):
-    for path,field in [('/storage','shared'),('/nodes/node-a/qemu','template'),
+    for path,field in [('/cluster/status','online'),('/nodes/node-a/qemu','template'),
                        ('/nodes/node-a/network','bridge_vlan_aware'),
                        ('/nodes/node-a/network','active'), ('/nodes/node-a/network','autostart')]:
         data=fixture(); data['responses'][path][0][field]=2
@@ -152,7 +151,7 @@ def test_test_bundle_is_reproducible_and_runtime_fixtures_are_test_only(tmp_path
 
 
 def test_malformed_empty_mapping_is_never_an_authorized_empty_inventory_list(inputs):
-    for path in ['/storage','/nodes/node-a/network']:
+    for path in ['/nodes/node-a/qemu','/nodes/node-a/network']:
         for malformed in [{}, [{}]]:
             data=fixture(); data['responses'][path]=malformed
             result,_=run(inputs,data=data)
@@ -173,105 +172,101 @@ def test_inactive_bridge_preserves_identity_without_current_topology_or_complete
     assert not any(row['target']['external_id']=='bridge/node-a/vmbr0' for batch in result[:-1] for row in batch['relationships'])
 
 
-def test_three_node_storage_scope_preserves_complete_and_local_shared_and_guest_identities(inputs):
-    data = fixture('heterogeneous_storage')
-    result, calls = run(inputs, data=data)
+def without_time(messages):
+    return [{key: value for key, value in message.items() if key != 'observed_at'} for message in messages]
+
+
+def test_mvp_keeps_exact_cluster_node_guest_bridge_network_and_interface_inventory(inputs):
+    result, _ = run(inputs)
+    assets = {row['external_id']: row['object_class'] for batch in result[:-1] for row in batch['assets']}
+    assert assets == {
+        'cluster/deployment': 'proxmox.cluster', 'node/node-a': 'proxmox.node', 'node/node-b': 'proxmox.node',
+        'guest/qemu/100': 'proxmox.qemu', 'guest/qemu/101': 'proxmox.qemu', 'guest/lxc/102': 'proxmox.lxc',
+        'bridge/node-a/vmbr0': 'proxmox.bridge', 'bridge/node-b/vmbr0': 'proxmox.bridge',
+    }
+    links = [row for batch in result[:-1] for row in batch['relationships']]
+    expected = [relationship('member_of', 'node/' + node, 'cluster/deployment') for node in ['node-a', 'node-b']]
+    for node, guests in [('node-a', ['guest/qemu/100', 'guest/lxc/102']), ('node-b', ['guest/qemu/101'])]:
+        expected.append(relationship('connected_to', 'node/' + node, 'bridge/' + node + '/vmbr0'))
+        for guest in guests:
+            expected.extend([relationship('runs_on', guest, 'node/' + node),
+                             relationship('connected_to', guest, 'bridge/' + node + '/vmbr0')])
+    assert sorted(links, key=lambda row: row['external_id']) == sorted(expected, key=lambda row: row['external_id'])
+    assert sum(len(batch['networks']) for batch in result[:-1]) == 2
+    assert sum(len(batch['interfaces']) for batch in result[:-1]) == 5
     assert result[-1]['completeness'] == 'complete' and 'warnings' not in result[-1]
-    assets = {row['external_id']: row for batch in result[:-1] for row in batch['assets']}
-    links = [row for batch in result[:-1] for row in batch['relationships']]
-    for index, node in enumerate(['pve1', 'pve2', 'pve3'], 1):
-        local = 'local-lvm' if node == 'pve3' else 'local-zfs'
-        external = storage_id(node, local, False)
-        assert external in assets
-        assert {'key': 'proxmox.shared', 'value_type': 'boolean', 'class': 'configuration',
-                'cardinality': 'single', 'value': False} in assets[external]['facts']
-        assert relationship('uses_storage', f'guest/qemu/{100 + index}', external) in links
-        assert relationship('uses_storage', f'guest/qemu/{100 + index}', 'storage/shared/synology-vmdata') in links
-    assert 'storage/local/pve3/local-zfs' not in assets
-    assert len([key for key in assets if key.startswith('storage/shared/')]) == 4
-    assert len([key for key in assets if key.startswith('storage/local/')]) == 6
-    # Removing only the irrelevant row has no effect on AIP or source requests.
-    data['responses']['/nodes/pve3/storage'].pop()
+
+
+@pytest.mark.parametrize('scenario', ['complete', 'heterogeneous_storage'])
+@pytest.mark.parametrize('condition', ['absent', 'denied', 'unavailable', 'malformed'])
+def test_storage_is_not_read_required_emitted_or_diagnosed(inputs, scenario, condition):
+    data = fixture(scenario)
     baseline, baseline_calls = run(inputs, data=data)
-    assert [{k: v for k, v in row.items() if k != 'observed_at'} for row in result] == [
-        {k: v for k, v in row.items() if k != 'observed_at'} for row in baseline]
-    assert calls == baseline_calls
+    storage_paths = [path for path in data['responses'] if path == '/storage' or path.endswith('/storage')]
+    for path in storage_paths:
+        if condition == 'absent':
+            del data['responses'][path]
+        elif condition in {'denied', 'unavailable'}:
+            data['failures'][path] = 403 if condition == 'denied' else 500
+        else:
+            data['responses'][path] = {'arbitrary': 'not-an-inventory-list'}
+    # Neither missing Datastore.Audit nor a hidden storage-only NoAccess needs
+    # storage-specific visibility proof for the reduced declared scope.
+    data['permissions']['/storage'] = {}
+    data['permissions']['/storage/hidden'] = {}
+    data['acl'].append({'path': '/storage/hidden', 'roleid': 'NoAccess', 'type': 'user',
+                        'ugid': 'fixture-account', 'propagate': 1})
+    diagnostics = Diagnostics(debug=True)
+    factory = adapter_factory(data)
+    result = discover(inputs, adapter_factory=factory, diagnostics=diagnostics)
+    validate_example_stream(result, build(candidate=True)[1])
+    assert without_time(result) == without_time(baseline)
+    assert factory.calls == baseline_calls
+    assert result[-1]['completeness'] == 'complete' and 'warnings' not in result[-1]
+    assert not any('storage' in path for path in factory.calls)
+    assert not any(row['object_class'] == 'proxmox.storage' for batch in result[:-1] for row in batch['assets'])
+    assert not any(row['relationship_class'] == 'proxmox.uses_storage' for batch in result[:-1] for row in batch['relationships'])
+    assert not any('storage' in json.dumps(event) for event in diagnostics.events)
 
 
-@pytest.mark.parametrize('enabled,active', [(1, 0), (0, 1), (1, 1)])
-@pytest.mark.parametrize('defined_elsewhere', [False, True])
-def test_non_applicable_enabled_or_active_storage_prevents_complete(inputs, enabled, active, defined_elsewhere):
-    data = fixture('heterogeneous_storage')
-    if not defined_elsewhere:
-        # Other nodes also now lack a definition: all such rows must fail closed.
-        data['responses']['/storage'].pop()
-    data['responses']['/nodes/pve3/storage'][-1].update(enabled=enabled, active=active)
-    diagnostics = Diagnostics()
-    result = discover(inputs, adapter_factory=adapter_factory(data), diagnostics=diagnostics)
-    assert result[-1]['completeness'] == 'partial'
-    assert result[-1]['warnings'] == [{'code': 'invalid_source_record'}]
-    assert 'storage/local/pve3/local-zfs' not in {row['external_id'] for batch in result[:-1] for row in batch['assets']}
-    assert any(event['reason_code'] == 'storage_definition_missing' and event['parent_external_id'] == 'node/pve3'
-               for event in diagnostics.events)
+@pytest.mark.parametrize('slot', ['ide0', 'sata1', 'scsi0', 'virtio2', 'rootfs', 'mp0'])
+@pytest.mark.parametrize('value', ['unresolved:private-volume,size=8G', '/mnt/private,mp=/private',
+                                  '', None, {'arbitrary': 'ignored'}, 'x' * 8193])
+def test_guest_disk_rootfs_mount_config_is_ignored_without_changing_networks_or_warnings(inputs, slot, value):
+    baseline, expected_calls = run(inputs)
+    data = fixture()
+    for path, config in data['responses'].items():
+        if path.endswith('/config?current=1'):
+            config[slot] = value
+    diagnostics = Diagnostics(debug=True)
+    factory = adapter_factory(data)
+    result = discover(inputs, adapter_factory=factory, diagnostics=diagnostics)
+    validate_example_stream(result, build(candidate=True)[1])
+    assert without_time(result) == without_time(baseline)
+    assert factory.calls == expected_calls
+    assert not any('storage' in json.dumps(event) for event in diagnostics.events)
+    assert 'private-volume' not in json.dumps(result) + json.dumps(diagnostics.events)
+    assert '/mnt/private' not in json.dumps(result) + json.dumps(diagnostics.events)
 
 
-@pytest.mark.parametrize('field', ['active', 'enabled', 'shared'])
-@pytest.mark.parametrize('value', [None, '0', 'false', 2, -1, 0.0, [], {}])
-def test_malformed_storage_boolean_never_becomes_out_of_scope_or_complete(inputs, field, value):
-    data = fixture('heterogeneous_storage')
-    data['responses']['/nodes/pve3/storage'][-1][field] = value
-    result, _ = run(inputs, data=data)
-    assert result[-1]['completeness'] == 'partial'
-    assert {'code': 'invalid_source_record'} in result[-1]['warnings']
-
-
-def test_missing_applicable_storage_status_preserves_partial_mismatch(inputs):
-    data = fixture('heterogeneous_storage')
-    data['responses']['/nodes/pve3/storage'] = [
-        row for row in data['responses']['/nodes/pve3/storage'] if row['storage'] != 'pbs-backup']
-    diagnostics = Diagnostics()
-    result = discover(inputs, adapter_factory=adapter_factory(data), diagnostics=diagnostics)
-    assert result[-1]['completeness'] == 'partial'
-    assert any(event['reason_code'] == 'storage_inventory_mismatch' and event['parent_external_id'] == 'node/pve3'
-               for event in diagnostics.events)
-
-
-def test_applicable_disabled_inactive_storage_remains_inventory_and_resolves_guest_links(inputs):
-    data = fixture('heterogeneous_storage')
-    data['responses']['/storage'][-1]['disable'] = 1
-    for node in ['pve1', 'pve2']:
-        data['responses']['/nodes/' + node + '/storage'][-1].update(enabled=0, active=0)
-    result, _ = run(inputs, data=data)
+@pytest.mark.parametrize('scenario,count', [('complete', 40), ('heterogeneous_storage', 46)])
+def test_actual_mvp_source_request_sequence_has_only_declared_capability_reads(inputs, scenario, count):
+    result, calls = run(inputs, scenario)
+    proof = ['/access/permissions?path=%2Faccess', '/access/permissions', '/access/acl',
+             '/access/permissions?path=%2F', '/access/permissions?path=%2Fnodes',
+             '/access/permissions?path=%2Fsdn%2Fzones%2Flocalnetwork', '/access/permissions?path=%2Fvms']
+    expected = ['/version', '/version', *proof, '/cluster/status', '/nodes', '/cluster/resources?type=vm']
+    guests = [('node-a', [100], [102]), ('node-b', [101], [])] if scenario == 'complete' else [
+        ('pve1', [101], []), ('pve2', [102], []), ('pve3', [103], [])]
+    for node, qemu, lxc in guests:
+        network = '/nodes/' + node + '/network'
+        expected.extend([network, '/nodes', network, network])
+        for kind, ids in [('qemu', qemu), ('lxc', lxc)]:
+            listing = '/nodes/' + node + '/' + kind
+            expected.append(listing)
+            if ids:
+                expected.extend([listing, *[listing + '/' + str(vmid) + '/config?current=1' for vmid in ids]])
+    expected.extend(['/cluster/resources?type=vm', '/nodes', '/cluster/status', *proof])
+    assert calls == expected and len(calls) == count
+    assert not any('storage' in path for path in calls)
     assert result[-1]['completeness'] == 'complete'
-    assets = {row['external_id']: row for batch in result[:-1] for row in batch['assets']}
-    links = [row for batch in result[:-1] for row in batch['relationships']]
-    for index, node in enumerate(['pve1', 'pve2'], 1):
-        external = 'storage/local/' + node + '/local-zfs'
-        assert external in assets
-        assert {fact['key'] for fact in assets[external]['facts']} == {'proxmox.shared', 'proxmox.storage_type'}
-        assert relationship('uses_storage', f'guest/qemu/{100 + index}', external) in links
-
-
-@pytest.mark.parametrize('field,value', [('shared', 1), ('type', 'dir')])
-def test_applicable_storage_definition_status_inconsistency_remains_partial(inputs, field, value):
-    data = fixture('heterogeneous_storage')
-    data['responses']['/nodes/pve1/storage'][-1][field] = value
-    result, _ = run(inputs, data=data)
-    assert result[-1]['completeness'] == 'partial'
-
-
-@pytest.mark.parametrize('field,value', [('avail', -1), ('avail', 100001), ('total', '100000'), ('total', None)])
-def test_active_local_storage_capacity_validation_remains_partial(inputs, field, value):
-    data = fixture('heterogeneous_storage')
-    data['responses']['/nodes/pve1/storage'][-1][field] = value
-    result, _ = run(inputs, data=data)
-    assert result[-1]['completeness'] == 'partial'
-
-
-def test_guest_reference_to_out_of_scope_storage_still_prevents_complete(inputs):
-    data = fixture('heterogeneous_storage')
-    data['responses']['/nodes/pve3/qemu/103/config?current=1']['scsi0'] = 'local-zfs:fixture-disk'
-    diagnostics = Diagnostics()
-    result = discover(inputs, adapter_factory=adapter_factory(data), diagnostics=diagnostics)
-    assert result[-1]['completeness'] == 'partial'
-    assert any(event['reason_code'] == 'guest_storage_unresolved' for event in diagnostics.events)

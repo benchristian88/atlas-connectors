@@ -55,12 +55,15 @@ def test_successor_candidate_uses_new_identity_and_preserves_existing_original_a
     second.write_bytes(b"immutable second candidate fixture")
     third = tmp_path / "proxmox-0.2.0-i4b.3.tar.gz"
     third.write_bytes(b"immutable diagnostic candidate fixture")
+    fourth = tmp_path / "proxmox-0.2.0-i4b.4.tar.gz"
+    fourth.write_bytes(b"immutable storage-normalization candidate fixture")
     payload, manifest = build(output=tmp_path, candidate=True)
-    assert manifest["version"] == "0.2.0-i4b.4"
-    assert (tmp_path / "proxmox-0.2.0-i4b.4.tar.gz").read_bytes() == payload
+    assert manifest["version"] == "0.2.0-i4b.5"
+    assert (tmp_path / "proxmox-0.2.0-i4b.5.tar.gz").read_bytes() == payload
     assert original.read_bytes() == b"immutable prior candidate fixture"
     assert second.read_bytes() == b"immutable second candidate fixture"
     assert third.read_bytes() == b"immutable diagnostic candidate fixture"
+    assert fourth.read_bytes() == b"immutable storage-normalization candidate fixture"
     assert manifest["source_versions"]["qualification"] == "unqualified"
     assert manifest["source_versions"]["qualified_versions"] == []
 
@@ -78,3 +81,34 @@ def test_candidate_recommends_existing_lxc_type_and_retains_vm_mapping():
     mappings = {row["key"]: row.get("recommended_asset_type_key") for row in manifest["object_classes"]}
     assert mappings["proxmox.lxc"] == "lxc_container"
     assert mappings["proxmox.qemu"] == "virtual_machine"
+
+
+def test_qualification_mapping_plan_requires_only_five_assets_and_three_relationships():
+    _, manifest = build(candidate=True)
+    assets = {row['key']: row['recommended_asset_type_key'] for row in manifest['object_classes'] if row['kind'] == 'asset'}
+    relationships = {row['key']: row['recommended_relationship_type_key'] for row in manifest['relationship_classes']}
+    assert assets == {'proxmox.cluster': 'cluster', 'proxmox.node': 'hypervisor_node',
+                      'proxmox.qemu': 'virtual_machine', 'proxmox.lxc': 'lxc_container',
+                      'proxmox.bridge': 'network_device'}
+    assert relationships == {'proxmox.member_of': 'member_of', 'proxmox.runs_on': 'runs_on',
+                             'proxmox.connected_to': 'connected_to'}
+    assert all(row['required'] for row in manifest['object_classes'] + manifest['relationship_classes'])
+    assert {row['key']: row['kind'] for row in manifest['object_classes'] if row['kind'] != 'asset'} == {
+        'proxmox.network': 'network', 'proxmox.interface': 'interface'}
+    assert set(manifest['discovery_scopes'][0]['object_classes']) == {row['key'] for row in manifest['object_classes']}
+    assert {row['key'] for row in manifest['facts']} == {'proxmox.vmid', 'proxmox.template', 'proxmox.deployment_mode',
+        'proxmox.power_state', 'proxmox.online', 'proxmox.vlan_aware', 'proxmox.vlan_tag'}
+    assert 'proxmox.storage' not in json.dumps(manifest) and 'proxmox.uses_storage' not in json.dumps(manifest)
+
+
+def test_candidate_packages_current_mvp_docs_without_changing_frozen_production_docs():
+    import io
+    import tarfile
+    candidate, _ = build(candidate=True)
+    production, _ = build()
+    with tarfile.open(fileobj=io.BytesIO(candidate)) as archive:
+        assert b'0.2.0-i4b.5' in archive.extractfile('README.md').read()
+        assert b'Not called or allowlisted in .5' in archive.extractfile('docs/discovery.md').read()
+        assert b'lxc_container' in archive.extractfile('docs/discovery.md').read()
+    with tarfile.open(fileobj=io.BytesIO(production)) as archive:
+        assert archive.extractfile('README.md').read() == (ROOT / 'connectors/proxmox/README.md').read_bytes()

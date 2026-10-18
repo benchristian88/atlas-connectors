@@ -12,11 +12,12 @@ import uuid
 import pytest
 from atlas_connector_sdk.aip import validate_example_stream
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from build_acceptance_fixture import build_fixture
 
 
 @pytest.mark.skipif(not os.getenv('ATLAS_TEST_RUN_ANSIBLE'),reason='enable with pinned Ansible Runner installed')
-@pytest.mark.parametrize('scenario,expected',[('complete','complete'),('permission_filtered','partial'),('source_failure','failed'),('limits','failed'),('heterogeneous_storage','complete')])
+@pytest.mark.parametrize('scenario,expected',[('complete','complete'),('permission_filtered','partial'),('source_failure','failed'),('limits','failed'),('heterogeneous_storage','complete'),('storage_failure','complete'),('config_failure','partial'),('malformed','partial'),('pending','partial')])
 @pytest.mark.parametrize('debug', [False, True])
 def test_fixed_candidate_playbook_real_runner_and_sdk_stream(tmp_path,scenario,expected,debug):
     import ansible_runner
@@ -49,8 +50,11 @@ def test_fixed_candidate_playbook_real_runner_and_sdk_stream(tmp_path,scenario,e
     events=[json.loads(line) for line in trace.read_text().splitlines()]
     assert events[0]['reason_code']=='discovery_started' and events[-1]['reason_code']=='discovery_finished'
     assert all(value not in trace.read_text() for value in values.values())
-    if scenario == 'heterogeneous_storage':
-        assert 'storage/local/pve3/local-zfs' not in {row['external_id'] for batch in messages[:-1] for row in batch['assets']}
-        event = next(event for event in events if event['reason_code'] == 'storage_record_out_of_scope')
-        assert event['result'] == 'skipped' and event['parent_external_id'] == 'node/pve3'
+    assets = [row for batch in messages[:-1] for row in batch['assets']]
+    links = [row for batch in messages[:-1] for row in batch['relationships']]
+    assert not any(row['object_class'] == 'proxmox.storage' for row in assets)
+    assert not any(row['relationship_class'] == 'proxmox.uses_storage' for row in links)
+    assert not any('storage' in event.get('stage', '') or 'storage' in event.get('source_category', '')
+                   or 'storage' in event['reason_code'] for event in events)
+    if expected == 'complete':
         assert not any(event['result'] in {'warning', 'error'} for event in events)

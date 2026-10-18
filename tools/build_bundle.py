@@ -27,6 +27,13 @@ CANDIDATE_FILES = (
     "module_utils/atlas_transport.py",
     "module_utils/atlas_diagnostics.py",
 )
+# Candidate documentation follows its contract; the shared 0.1.0 package files
+# remain frozen so rebuilding the production probe preserves its exact bytes.
+CANDIDATE_OVERRIDES = (
+    "manifest.json", "sbom.spdx.json", "test_connection.yml", "README.md",
+    "docs/capability-matrix.md", "docs/discovery.md", "docs/permissions.md",
+    "docs/qualification.md", "docs/i4b-completion-report.md",
+)
 
 
 def build(connector="proxmox", output=None, *, candidate=False):
@@ -37,10 +44,9 @@ def build(connector="proxmox", output=None, *, candidate=False):
     manifest = json.loads((metadata / "manifest.json").read_bytes())
     names = COMMON_FILES + (CANDIDATE_FILES if candidate else ())
     files = {name: (source / name).read_bytes() for name in names}
-    for name in ["manifest.json", "sbom.spdx.json"]:
-        files[name] = (metadata / name).read_bytes()
     if candidate:
-        files["test_connection.yml"] = (metadata / "test_connection.yml").read_bytes()
+        for name in CANDIDATE_OVERRIDES:
+            files[name] = (metadata / name).read_bytes()
     files["LICENSE"] = (ROOT / "LICENSE").read_bytes()
     stream = io.BytesIO()
     with tarfile.open(fileobj=stream, mode="w", format=tarfile.USTAR_FORMAT) as archive:
@@ -75,5 +81,12 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path)
     parser.add_argument("--candidate", action="store_true", help="Build unqualified I4B candidate; never publish or activate")
     args = parser.parse_args()
-    payload, manifest = build(output=args.output or ROOT / ("dist/proxmox-candidate" if args.candidate else "dist/proxmox"), candidate=args.candidate)
+    output = args.output
+    if output is None:
+        if args.candidate:
+            version = json.loads((ROOT / "connectors/proxmox/candidate/manifest.json").read_bytes())["version"]
+            output = ROOT / "dist" / ("proxmox-candidate-" + version)
+        else:
+            output = ROOT / "dist/proxmox"
+    payload, manifest = build(output=output, candidate=args.candidate)
     print(manifest["distribution"]["bundle_digest"])
