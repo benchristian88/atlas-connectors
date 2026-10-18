@@ -116,6 +116,14 @@ Build twice and compare bytes. A local dirty-tree candidate has no authenticated
 remote provenance; its recorded source HEAD is contextual, not a claim that the
 uncommitted implementation exists at that commit.
 
+The per-release `index.json` is immutable detached metadata, not the aggregate
+global catalogue. [Official catalogue maintenance](catalogue/README.md) documents
+the separate checked-in release registry, deterministic catalogue builder and
+manual protected preparation/attestation workflow. Stage A prepares
+`dist/catalogue/catalogue.json` and an identical numbered audit snapshot for the
+eventual `catalogue-v1` channel; publication remains a separate operator step.
+This does not implement Atlas remote catalogue consumption or installation.
+
 The test collection archive above is the exact I4A artefact from a sibling Atlas
 checkout. CI downloads the same archive and verifies its reviewed SHA-256 before
 test installation. This tooling never installs dependencies into a production

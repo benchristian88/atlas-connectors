@@ -1,0 +1,41 @@
+name: Official Connector catalogue preparation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.repository == 'benchristian88/atlas-connectors'
+    runs-on: ubuntu-24.04
+    environment: connector-release
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
+      # Same reviewed contract/test versions as requirements-dev.txt; no
+      # discovery runtime, collection, or Ansible dependencies are needed here.
+      - run: python -m pip install 'jsonschema[format-nongpl]==4.25.1' pytest==8.4.1
+      - name: Validate catalogue and maintainer documentation
+        # Connector-only conftest provisions Ansible imports, so omit it for
+        # this independent, offline catalogue suite.
+        run: python -m pytest --noconftest -q tests/test_catalogue.py tests/test_documentation.py
+      - run: python tools/build_catalogue.py
+      - uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: dist/catalogue/*.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: official-connector-catalogue-candidate
+          path: dist/catalogue/*.json
+          if-no-files-found: error
+      # Preparation and attestation only. Publishing the current alias and
+      # retaining numbered snapshots is a separate protected operator step.
