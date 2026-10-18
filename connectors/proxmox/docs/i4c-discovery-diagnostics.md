@@ -19,7 +19,7 @@ definition. `.3` remains failed/unqualified evidence. The historical
 **0.2.0-i4b.4** correctly fixed that precise condition; its artifact and
 normalization remain immutable. It was valid qualification work under that scope.
 
-The active **0.2.0-i4b.5** is a subsequent MVP product scope decision. Proxmox
+The historical **0.2.0-i4b.5** made a subsequent storage MVP scope decision. Proxmox
 storage definitions are configuration/resources exposed by the virtualisation
 platform. Atlas MVP does not model them as standalone Assets. Backing storage
 infrastructure should be discovered by the integration responsible for that
@@ -33,7 +33,21 @@ mount entries are ignored without storage warnings; bounded guest network parsin
 is retained. All remaining validation and generic diagnostic behavior is unchanged.
 See the [active live runbook](i4c-live-qualification.md) and
 [current discovery specification/source call matrix](../candidate/docs/discovery.md).
-`.5` and Proxmox 9.2.11 remain unqualified, with qualified_versions empty.
+The operator subsequently reported two `.5` COMPLETE runs: 136 observations,
+one batch and zero warnings/errors each, with no storage operations. `.5` and
+Proxmox 9.2.11 remain unqualified, with qualified_versions empty.
+
+The active **0.2.0-i4b.6** is a separate product scope decision removing bridge
+Assets and connected_to Asset relationships while retaining host bridge Interfaces,
+validated guest `proxmox.bridge_name`, explicit `proxmox.vlan_tag` (including 99),
+bounded trunk VLANs, canonical MAC/static IP and conservatively proven Networks.
+Network enumeration, ACL, bridge/VLAN/reference and pending/current validation
+remain mandatory. No DHCP IPs are inferred; no storage Assets/dependencies return.
+Host network source/normalization contexts now use `proxmox.interface` with
+`node/{node}/interface/{iface}`, never `proxmox.bridge` or bridge Asset IDs.
+No generic diagnostic schema or UI is changed. Source-call order/count remains
+identical to `.5`, and normal/debug still differ only in safe diagnostic detail.
+`.6` has no live result and remains unqualified with qualified_versions empty.
 
 ## Structured trace
 
@@ -60,16 +74,16 @@ Processed/accepted/skipped counts concern classified inventory rows/interface
 subrecords, independently of the number of AIP observations.
 Accepted counts describe normalization, not operator acceptance of Atlas knowledge.
 
-## Active `.5` stages and reason vocabulary
+## Active `.6` stages and reason vocabulary
 
 | Stage | Representative stable reasons |
 | --- | --- |
 | Source read | source_response_invalid, source_response_limit, source_total_bytes_limit, source_call_limit, source_json_invalid, source_boolean_invalid |
 | Authorization | permission_response_invalid, permission_flag_invalid, acl_path_invalid, acl_path_limit, authorization_unproven, authorization_changed_during_discovery |
 | Deployment/node | deployment_record_unknown, duplicate_source_record, node_membership_mismatch, node_status_invalid, node_not_visible |
-| Network/bridge | network_changes_pending, bridge_duplicate, bridge_inactive, bridge_cidr_invalid, bridge_status_invalid |
+| Network/bridge | network_changes_pending, bridge_identity_invalid, bridge_duplicate, bridge_inactive, bridge_cidr_invalid, bridge_status_invalid |
 | Guest/config | guest_identity_invalid, guest_node_unresolved, guest_power_state_invalid, guest_config_missing, guest_config_read_failed, guest_inventory_mismatch |
-| Guest interface | guest_interface_invalid, guest_mac_invalid, guest_ip_invalid, vlan_tag_invalid, guest_bridge_invalid, guest_bridge_unresolved |
+| Guest interface | guest_interface_invalid, guest_mac_invalid, guest_ip_invalid, vlan_tag_invalid, vlan_trunks_invalid, guest_bridge_invalid, guest_bridge_unresolved |
 | Consistency/limits | inventory_changed_during_discovery, observation_limit, sensitive_material_rejected, duplicate_observation |
 
 The existing outward warning invalid_source_record remains compatible. The trace
@@ -80,7 +94,7 @@ from human display names and accepted canonical knowledge.
 Historical `.4` traces can still contain Skipped / `storage_record_out_of_scope`
 for the proven inactive/disabled non-applicable row, and storage-specific warnings
 for real uncertainty under `.4`'s broader scope. Those records are not rewritten.
-`.5` has no storage stage, storage source category or guest-storage resolution;
+`.6`, like `.5`, has no storage stage, storage source category or guest-storage resolution;
 normal/debug tests require none to appear. The generic sidecar format and reason
 validation do not change, so historical traces remain interpretable.
 
@@ -108,8 +122,11 @@ verify from the reviewed committed source before staging a new exact authorizati
 Tests exercise diagnostic visibility, secret/body/config exclusions, destination
 tricks, bounded flush/overflow, actual Runner, and identical AIP/source calls for
 debug off/on. They do not qualify an actual Proxmox deployment. Do not accept live
-reconciliation automatically or promote 0.2.0. The next `.5` live run should
-confirm there are no storage observations/calls/diagnostics and retained guest/network
-topology is correct, then inspect all remaining normal reasons before any COMPLETE
-claim. One-shot debug detail remains optional.
+reconciliation automatically or promote 0.2.0. The next `.6` live run should
+confirm no bridge/storage Assets or connected_to/uses_storage links, with host
+bridge Interfaces, guest bridge_name/MAC/VLAN 99/static IP and bounded trunks
+retained. Verify justified Network membership and all normal reasons before any
+COMPLETE claim. Compare the observation count to `.5` by removing only bridge
+Assets/connected_to links or recording actual source changes. Repeat with Debug Off.
+One-shot debug detail remains optional outside this qualification comparison.
 Any further source-shape change is a separate reviewed fix.

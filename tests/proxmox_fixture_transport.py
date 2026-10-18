@@ -50,6 +50,10 @@ def fixture(scenario='complete'):
         responses['/nodes/node-b/qemu/100/config?current=1'] = responses.pop('/nodes/node-a/qemu/100/config?current=1')
     if changes.get('heterogeneous_storage'):
         storage_cluster(data)
+    if changes.get('network_topology'):
+        responses['/nodes/node-a/qemu/100/config?current=1']['net0'] += ',trunks=100;99'
+        path = '/nodes/node-b/qemu/101/config?current=1'
+        responses[path]['net0'] = responses[path]['net0'].replace('tag=22', 'tag=99')
     data['slow'] = changes.get('slow', False)
     return data
 

@@ -1,14 +1,98 @@
 # I4C — Proxmox live qualification
 
-Updated **18 October 2026** for the deliberate MVP product scope decision.
+Updated **18 October 2026** for the subsequent bridge Asset product scope decision.
 
-The active successor is **0.2.0-i4b.5**, still **UNQUALIFIED** with
-`qualified_versions: []`. Proxmox VE **9.2.11 remains UNQUALIFIED**. The current
-candidate archive digest is `sha256:bff4a3c9c4b824ed46622153b52c433c3bf03d926bc47d8249ae8831f68fa69b`; no live `.5`
-qualification, source qualification, production promotion or publication is claimed.
+The active successor is **0.2.0-i4b.6**, still **UNQUALIFIED**, unpublished and with
+`qualified_versions: []`. Proxmox VE **9.2.11 remains UNQUALIFIED**. The candidate
+archive digest is `sha256:dd3b7fa5ebc7e47dd3c4607d631d87f50ef3eef3f6add7fff63e10fe721bea97`. `.6` has no live results yet.
 Production/default **0.1.0** remains probe-only and byte-identical.
 
-## Current `.5` product boundary
+## Operator-reported `.5` live baseline
+
+Connector `.5` was committed at `a153d8804c89f5184e151cef51b5f9a961f20705`, with
+bundle `sha256:bff4a3c9c4b824ed46622153b52c433c3bf03d926bc47d8249ae8831f68fa69b`.
+Against Proxmox **9.2.11**, cluster **pve1/pve2/pve3**, Test Connection succeeded,
+source version was 9.2.11 and inventory capability was Ready. The first live
+manual discovery completed with **Coverage Complete, 136 observations, one batch,
+zero warnings/errors**. Diagnostics classified **75 processed, 66 accepted,
+9 skipped, zero warning/error**; its debug trace contained no storage operations.
+A second unchanged run with **Debug Off** again completed COMPLETE with **136
+observations, one batch and zero warnings/errors**. These are operator-reported
+positive-path results, not execution performed by this implementation pass.
+
+This is a repeatable COMPLETE baseline for `.5`'s declared contract. `.5` and
+9.2.11 remain UNQUALIFIED, with no production promotion. `.3` diagnosed the storage
+mismatch; `.4` correctly handled legitimate node-scoped disabled/inactive status;
+`.5` deliberately removed storage definitions/pools from the MVP Asset model.
+Those historical artifacts and explanations remain intact.
+
+## Current `.6` product boundary
+
+Proxmox bridges are host networking constructs used to describe Interface and
+Network topology. Atlas MVP does not model them as standalone Assets. Guest bridge
+attachment remains bounded topology context on the guest Interface, and explicit
+VLAN/static-network evidence is retained.
+
+Only `proxmox.cluster`, `proxmox.node`, `proxmox.qemu` and `proxmox.lxc` remain
+Asset classes. Only `proxmox.member_of` and `proxmox.runs_on` remain relationship
+classes. There are no `proxmox.bridge` Assets or `proxmox.connected_to` Asset links,
+no replacement pseudo-Assets/resources, no storage Assets and no storage dependencies.
+Qualification requires **four Asset / two relationship mappings**. With current
+Atlas taxonomy, the only deliberate override remains cluster→proxmox_cluster;
+node/QEMU/LXC and member_of/runs_on exact-auto-map. No bridge/network_bridge or
+connected_to/connected_via choice is required or accepted.
+
+An active `vmbr0` becomes canonical host Interface
+`node/{node}/interface/vmbr0`, owned by `node/{node}`, with source name, VLAN-aware
+boolean fact and explicit CIDR-derived current IP/Network link where available.
+Guest Interface `guest/{kind}/{vmid}/interface/net0` retains configured name/MAC,
+explicit static IP and validated attachment as single string configuration fact
+`proxmox.bridge_name=vmbr0`. `proxmox.vlan_tag=99` remains an integer configuration
+fact when explicitly configured. `proxmox.vlan_trunks` safely retains at most 128
+unique VLANs as a sorted semicolon-separated string, with the same 1–4094 bounds.
+No coercion, default VLAN 0, inferred DHCP address or guest-agent call is allowed.
+Tagged/trunk Interfaces cannot inherit the bridge subnet; untagged membership
+requires the unchanged explicit static-subnet match.
+
+`/nodes/{node}/network` remains required for host topology, bridge-reference
+validation, subnet evidence, pending/current safety and completeness. The source
+sequence/count is unchanged from `.5`: **46 three-node / 40 two-node requests**.
+All ACL, malformed-record, placement, offline, pending, limits and before/after
+consistency checks remain fail-closed. Missing/unresolved attachment still warns
+and prevents COMPLETE. PARTIAL/failed still prohibits absence processing.
+
+Atlas's existing generic scope identity includes the selected object classes;
+removing `proxmox.bridge` changes the coverage key. Its baseline selector requires
+an equal key plus the same DataSource/Customer/Site. Thus a `.5` COMPLETE run cannot
+cause absence/deletion of historical bridge knowledge under `.6`. No Atlas or SDK
+change, migration, new taxonomy, source endpoint/privilege or licensing change is
+required. The existing normal/debug sidecar architecture is unchanged; host network
+diagnostics now identify Interfaces rather than bridge Assets.
+
+Candidate-specific [README](../candidate/README.md),
+[discovery/source calls](../candidate/docs/discovery.md),
+[capabilities](../candidate/docs/capability-matrix.md),
+[permissions](../candidate/docs/permissions.md),
+[qualification](../candidate/docs/qualification.md) and
+[packaged completion report](../candidate/docs/i4b-completion-report.md) describe `.6`.
+The [local implementation/validation report](i4c-network-scope-report.md) records
+actual commands, fixture counts, exact digest and immutable-byte proof.
+Shared production documents and prior archives remain frozen.
+
+Next live action after separate review and a clean committed-source checkpoint:
+rebuild twice and verify this exact `.6` identity, preview only the four/two mapping
+plan, stage/activate in the isolated qualification instance, run Test Connection,
+then one manual Debug On discovery. Inspect vmbr0 host topology, guest bridge/MAC/
+VLAN 99/static IP and conservative membership, explain count changes from `.5`,
+then repeat unchanged with Debug Off. No commit/push/staging/activation/live source
+call or production promotion occurs in this implementation pass.
+
+## Historical `.5` product boundary and preparation
+
+The following records `.5`'s original local preparation before the operator
+reported the positive live runs above. Its original digest and validation evidence
+are retained; the current live procedure below targets `.6`.
+
 
 Proxmox storage definitions are configuration/resources exposed by the
 virtualisation platform. Atlas MVP does not model them as standalone Assets.
@@ -58,9 +142,9 @@ The generic diagnostics architecture, licences, SDK/AIP and Atlas code are uncha
 `active=0/enabled=0` and no applicable node definition. `.5` is a later product
 scope decision, not a replacement explanation for that `.4` defect. The `.4`
 normalizer and every prior artifact remain byte-identical. The following records
-that history; the current live procedure later in this document targets `.5`.
+that history; the current live procedure later in this document now targets `.6`.
 
-## Local `.5` validation — fixtures, not live qualification
+## Historical local `.5` validation — fixtures, not live qualification
 
 The pinned Python 3.14.7 / SDK 1.1.0 / Ansible 2.19.7 / Runner 2.4.3 /
 proxmoxer 2.3.0 / requests 2.34.2 environment and reviewed collection were reused.
@@ -276,7 +360,7 @@ Logs, compatibility evidence and hash audits are under
 `/private/tmp/atlas-i4c-storage-fix/`. Nothing was committed, staged or pushed.
 The only remaining step for this fix is operator review followed by a separate
 clean-checkpoint `.4` live qualification. The later product decision now directs
-the current procedure below to `.5` instead.
+the current procedure below to `.6` instead.
 
 ## Live review findings and qualification limits
 
@@ -334,7 +418,7 @@ the [I4C-A preparation report](i4c-a-preparation.md).
 Review the Connector feature-branch diff and the historical Atlas
 `docs/architecture/integrations/i4c-live-qualification-fixes.md` acceptance report.
 Clean starting checkpoints for this contained MVP scope change are Connector
-`f411b533c3eda0a20d6441cdef47929b1c83780b` and read-only Atlas
+`a153d8804c89f5184e151cef51b5f9a961f20705` and read-only Atlas
 `85d750b626cdfe772706a92d1f9678f26c5f4e97`. Atlas and atlas-connector-sdk are
 unchanged. No new committed Connector checkpoint exists until the operator
 separately reviews/authorizes it. Local builds carry contextual HEAD only and are
@@ -397,7 +481,7 @@ procedure to production.
    .venv/bin/python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
    .venv/bin/python tools/build_bundle.py --candidate --output /tmp/i4c-candidate-a
    .venv/bin/python tools/build_bundle.py --candidate --output /tmp/i4c-candidate-b
-   cmp /tmp/i4c-candidate-a/proxmox-0.2.0-i4b.5.tar.gz /tmp/i4c-candidate-b/proxmox-0.2.0-i4b.5.tar.gz
+   cmp /tmp/i4c-candidate-a/proxmox-0.2.0-i4b.6.tar.gz /tmp/i4c-candidate-b/proxmox-0.2.0-i4b.6.tar.gz
    cmp /tmp/i4c-candidate-a/manifest.json /tmp/i4c-candidate-b/manifest.json
    cmp /tmp/i4c-candidate-a/SHA256SUMS /tmp/i4c-candidate-b/SHA256SUMS
    cmp /tmp/i4c-candidate-a/index.json /tmp/i4c-candidate-b/index.json
@@ -407,16 +491,16 @@ procedure to production.
 
    ```bash
    export CONNECTOR_ID=proxmox
-   export CANDIDATE_VERSION=0.2.0-i4b.5
-   export CANDIDATE_FILE=proxmox-0.2.0-i4b.5.tar.gz
-   export CANDIDATE_DIGEST=sha256:bff4a3c9c4b824ed46622153b52c433c3bf03d926bc47d8249ae8831f68fa69b
+   export CANDIDATE_VERSION=0.2.0-i4b.6
+   export CANDIDATE_FILE=proxmox-0.2.0-i4b.6.tar.gz
+   export CANDIDATE_DIGEST=sha256:dd3b7fa5ebc7e47dd3c4607d631d87f50ef3eef3f6add7fff63e10fe721bea97
    export CANDIDATE_DIR=/tmp/i4c-candidate-a
    .venv/bin/python tools/verify_candidate.py --directory "$CANDIDATE_DIR" --expected-digest "$CANDIDATE_DIGEST" --source-commit "$CONNECTOR_COMMIT"
    cd "$CANDIDATE_DIR"
    sha256sum -c SHA256SUMS
    ```
 
-   Require all comparisons/checks to pass. This is the new `.5` archive digest;
+   Require all comparisons/checks to pass. This is the new `.6` archive digest;
    detached provenance must identify the separately reviewed new Connector SHA.
    Its release URLs are schema descriptors, not published assets/attestations.
    Do not use an uncommitted Mac bundle or overwrite a mismatch with a new digest.
@@ -432,11 +516,12 @@ no production bootstrap/catalogue file is edited. Use the separate test store.
 
 Before activation, preview with `--scope inventory`. Resolve required mappings
 through explicit managed reference choices and `--mappings` as described there.
-Require exactly five Asset and three relationship mappings from the current
-Manifest; no storage_pool/uses_storage choices. Do not alter global taxonomy.
+Require exactly four Asset and two relationship mappings from the current
+Manifest; no bridge/network_bridge, connected_to/connected_via or storage choices. Do not alter global taxonomy.
 Seed labels are not stable semantics: inspect actual active target keys and
-relationship directions/allowed types. In particular cluster/bridge recommended
-keys may need deliberate selection of existing local taxonomy. Never ignore a
+relationship directions/allowed types. With current unchanged taxonomy, only
+`proxmox.cluster → proxmox_cluster` needs an explicit override; node/QEMU/LXC and
+member_of/runs_on exact-auto-map. Inspect the actual preview before activation. Never ignore a
 required class or change relationship meaning to force activation. Repeat the
 read-only plan until all required mappings resolve and configuration is ready.
 Then activate using those same reviewed scope/mapping arguments. Retain saved
@@ -472,7 +557,7 @@ Record (no source credentials/raw ACLs):
 | --- | --- |
 | Atlas commit | Full reviewed Mac/pushed/LXC SHA; API build identity matches |
 | Connector commit | Full reviewed Mac/pushed/LXC SHA; detached manifest agrees |
-| Candidate | `0.2.0-i4b.5`, exact SHA-256 above, still unqualified |
+| Candidate | `0.2.0-i4b.6`, exact SHA-256 above, still unqualified |
 | Runtime | healthy `atlas-ansible-i4a-v1` / `1.2.0`, runtime `0.3.1` |
 | Ansible | core `2.19.7`, Runner `2.4.3` |
 | Client | proxmoxer `2.3.0` |
@@ -507,7 +592,11 @@ print runtime-control credentials or call source APIs from Atlas core.
    raw source/ACL/Ansible event logging or expose tokens to prove execution.
    Confirm no storage-pool Assets, uses_storage relationships, storage capacity
    facts or storage diagnostics are emitted on any node, and no storage inventory
-   calls execute. Guest network interfaces and bridge links must still be present.
+   calls execute. Host bridge Interfaces and guest Interfaces must remain. Verify guest bridge_name,
+   MAC and explicit VLAN 99/static IP evidence; require no bridge Assets or connected_to
+   Asset relationships. Tagged/trunk Interfaces must not inherit a bridge Network.
+   Compare against `.5`'s 136 only by counting removed bridge Assets/connected_to
+   links or recording genuine live source changes; never hard-code 136 for `.6`.
    COMPLETE requires every remaining declared capability/proof; retain real warnings.
 4. Review observations/evidence/reconciliation in the correct Customer/Site before
    accepting any new knowledge. Acceptance remains an explicit operator action.
@@ -518,9 +607,11 @@ print runtime-control credentials or call source APIs from Atlas core.
 Compare with the operator's read-only source view and record present/absent/not
 applicable/untested for each class. An environment lacking a class does not qualify
 that class. Check cluster versus standalone (no fake standalone cluster), nodes,
-QEMU, LXC, templates, bridges and supported Networks/Interfaces.
-Check node→cluster `member_of`, guest→node `runs_on`,
-node/guest→bridge `connected_to`, direction and target identity. Review VLAN/trunk
+QEMU, LXC, templates, host bridge Interfaces and explicit Networks.
+Check node→cluster `member_of`, guest→node `runs_on`, direction and target identity.
+Check guest `proxmox.bridge_name` against an active bridge on its own node,
+`proxmox.vlan_tag` against configured VLAN (including 99), and canonical MAC/static IP.
+There must be no bridge Assets or connected_to Asset relationships. Review VLAN/trunk
 and subnet exclusions; do not infer unsupported logical membership or unknown IPs.
 Record node-renaming, source-replacement and VMID-reuse identity limitations.
 
@@ -546,7 +637,7 @@ there are no absence-based reconciliation conclusions. No actual removal require
 
 ## 7. Repeatability and safe negatives
 
-Repeat unchanged discovery. Compare retained object/link IDs, relationship
+Repeat unchanged discovery with **Debug Off** after the first Debug On run. Compare retained object/link IDs, relationship
 identities/endpoints, stable membership/topology and duplicate counts; volatile
 metrics may change. Review evidence/history continuity. No automatic acceptance.
 

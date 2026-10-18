@@ -101,8 +101,10 @@ def test_failed_enrichment_retains_base_inventory_and_aggregate_is_partial(input
 
 def test_inactive_or_pending_bridge_configuration_never_becomes_topology(inputs):
     result, _ = run(inputs, 'pending')
-    assert 'bridge/node-a/vmbr0' not in {row['external_id'] for row in result[0]['assets']}
-    assert not any(row['target']['external_id'] == 'bridge/node-a/vmbr0' for row in result[0]['relationships'])
+    assert result[-1]['completeness'] == 'partial'
+    assert 'node/node-a/interface/vmbr0' not in {row['external_id'] for batch in result[:-1] for row in batch['interfaces']}
+    assert not any(fact['key'] == 'proxmox.bridge_name' for batch in result[:-1] for row in batch['interfaces']
+                   if row['asset_external_id'] in {'guest/qemu/100', 'guest/lxc/102'} for fact in row['facts'])
 
 
 def test_malformed_required_identity_and_inventory_consistency_prevent_complete(inputs):
@@ -136,9 +138,8 @@ def test_proxmox_9_2_11_vlan_exists_null_does_not_poison_bridge_discovery(inputs
     })
     result, _ = run(inputs, data=data)
     assert result[-1]['completeness'] == 'complete'
-    assert 'bridge/node-a/vmbr0' in {row['external_id'] for batch in result[:-1] for row in batch['assets']}
-    assert any(row['target']['external_id'] == 'bridge/node-a/vmbr0'
-               for batch in result[:-1] for row in batch['relationships'])
+    assert 'node/node-a/interface/vmbr0' in {row['external_id'] for batch in result[:-1] for row in batch['interfaces']}
+    assert not any(row['object_class'] == 'proxmox.bridge' for batch in result[:-1] for row in batch['assets'])
 
 
 def test_test_bundle_is_reproducible_and_runtime_fixtures_are_test_only(tmp_path):
@@ -164,33 +165,30 @@ def test_empty_acl_cannot_be_visibility_proof(inputs):
     assert result[-1]['completeness']=='partial'
 
 
-def test_inactive_bridge_preserves_identity_without_current_topology_or_complete_absence(inputs):
+def test_inactive_bridge_has_no_current_topology_or_complete_absence(inputs):
     data=fixture('empty_authorized'); data['responses']['/nodes/node-a/network'][0]['active']=0
     result,_=run(inputs,data=data)
     assert result[-1]['completeness']=='partial'
-    assert 'bridge/node-a/vmbr0' in {row['external_id'] for batch in result[:-1] for row in batch['assets']}
-    assert not any(row['target']['external_id']=='bridge/node-a/vmbr0' for batch in result[:-1] for row in batch['relationships'])
+    assert 'node/node-a/interface/vmbr0' not in {row['external_id'] for batch in result[:-1] for row in batch['interfaces']}
+    assert not any(row['object_class'] == 'proxmox.bridge' for batch in result[:-1] for row in batch['assets'])
 
 
 def without_time(messages):
     return [{key: value for key, value in message.items() if key != 'observed_at'} for message in messages]
 
 
-def test_mvp_keeps_exact_cluster_node_guest_bridge_network_and_interface_inventory(inputs):
+def test_mvp_keeps_exact_cluster_node_guest_network_and_interface_inventory(inputs):
     result, _ = run(inputs)
     assets = {row['external_id']: row['object_class'] for batch in result[:-1] for row in batch['assets']}
     assert assets == {
         'cluster/deployment': 'proxmox.cluster', 'node/node-a': 'proxmox.node', 'node/node-b': 'proxmox.node',
         'guest/qemu/100': 'proxmox.qemu', 'guest/qemu/101': 'proxmox.qemu', 'guest/lxc/102': 'proxmox.lxc',
-        'bridge/node-a/vmbr0': 'proxmox.bridge', 'bridge/node-b/vmbr0': 'proxmox.bridge',
     }
     links = [row for batch in result[:-1] for row in batch['relationships']]
     expected = [relationship('member_of', 'node/' + node, 'cluster/deployment') for node in ['node-a', 'node-b']]
     for node, guests in [('node-a', ['guest/qemu/100', 'guest/lxc/102']), ('node-b', ['guest/qemu/101'])]:
-        expected.append(relationship('connected_to', 'node/' + node, 'bridge/' + node + '/vmbr0'))
         for guest in guests:
-            expected.extend([relationship('runs_on', guest, 'node/' + node),
-                             relationship('connected_to', guest, 'bridge/' + node + '/vmbr0')])
+            expected.append(relationship('runs_on', guest, 'node/' + node))
     assert sorted(links, key=lambda row: row['external_id']) == sorted(expected, key=lambda row: row['external_id'])
     assert sum(len(batch['networks']) for batch in result[:-1]) == 2
     assert sum(len(batch['interfaces']) for batch in result[:-1]) == 5

@@ -10,8 +10,20 @@ entry-point playbooks, `library/`, README, NOTICE and SPDX SBOM. Repository-leve
 LICENSE is included in every bundle. Fixtures/unit tests live in `tests/`.
 Production [Proxmox 0.1.0](connectors/proxmox/README.md) is Test Connection-only.
 The separate [MVP candidate](connectors/proxmox/candidate/README.md),
-**0.2.0-i4b.5**, discovers cluster, node, QEMU, LXC and bridge Assets with
-canonical Networks/Interfaces and member_of, runs_on and connected_to relationships.
+**0.2.0-i4b.6**, discovers only cluster, node, QEMU and LXC Assets, with canonical
+Networks/Interfaces and member_of/runs_on relationships. There are no bridge
+Assets or connected_to Asset relationships.
+
+Proxmox bridges are host networking constructs used to describe Interface and
+Network topology. Atlas MVP does not model them as standalone Assets. Guest bridge
+attachment remains bounded topology context on the guest Interface, and explicit
+VLAN/static-network evidence is retained.
+
+Host bridge Interfaces remain node-owned; guest Interfaces retain validated
+`proxmox.bridge_name`, MAC, explicit VLAN tags, bounded trunk VLANs and known
+static IP/subnet evidence. Canonical Networks require explicit subnet proof;
+tagged/trunk interfaces never inherit the bridge subnet. No DHCP or guest-agent
+addresses are inferred. The node network endpoint remains mandatory.
 The [discovery specification and source call matrix](connectors/proxmox/candidate/docs/discovery.md)
 describe its exact scope and unchanged fail-closed COMPLETE/PARTIAL rules.
 
@@ -20,7 +32,7 @@ virtualisation platform. Atlas MVP does not model them as standalone Assets.
 Backing storage infrastructure should be discovered by the integration responsible
 for that infrastructure where available.
 
-`.5` emits no storage-pool Assets, uses_storage relationships, storage capacity
+`.6`, like `.5`, emits no storage-pool Assets, uses_storage relationships, storage capacity
 telemetry or workload storage facts. No storage dependencies are represented;
 Atlas may introduce a richer resource/dependency model later. Both storage
 inventory endpoints and storage-specific permission checks are removed. Guest
@@ -31,17 +43,22 @@ The operator-reported .1/.2 9.2.11 runs were PARTIAL (140/179 observations).
 The .3 trace isolated storage_inventory_mismatch on pve3: an inactive/disabled
 local-zfs status row without an applicable definition. The valid **.4** fix
 handled exactly that condition under its historical scope. `.5` is a later product
-scope decision. Production **0.1.0** and **.1/.2/.3/.4** artifacts remain immutable.
+scope decision and achieved repeatable operator-reported live COMPLETE against
+9.2.11: two runs, 136 observations/one batch/zero warnings or errors each, the second
+with Debug Off. `.6` makes a subsequent product scope decision about bridges.
+Production **0.1.0** and **.1/.2/.3/.4/.5** artifacts remain immutable.
 All candidates and Proxmox **9.2.11** remain unqualified; no candidate is published.
 Docker/UniFi implementations remain absent.
 
 [I4C-A preparation](connectors/proxmox/docs/i4c-a-preparation.md) preserves the exact
 original candidate bytes. The [active live runbook](connectors/proxmox/docs/i4c-live-qualification.md)
-records the PARTIAL results and the next candidate checkpoint.
+records historical PARTIAL results, the positive `.5` baseline and the next `.6` checkpoint.
 [Discovery diagnostics](connectors/proxmox/docs/i4c-discovery-diagnostics.md) describes
 always-on safe reasons and administrator-only next-run debug, with 48-hour retention,
-no raw source logging and debug-independent behavior. `.5` removes storage-specific
-stages/calls only; every remaining declared capability retains its safety rules.
+no raw source logging and debug-independent behavior. `.6` retains all network
+source reads, validation and diagnostics, identifying host Interfaces in place of
+bridge Assets. The representative three-node sequence remains 46 requests, the
+same as `.5`; every remaining declared capability retains its safety rules.
 Qualification documents/checkpoints and incidental files are excluded by the
 reviewed bundle file list. Neither local preparation nor fixture tests qualify a source.
 
@@ -76,7 +93,7 @@ test installation. This tooling never installs dependencies into a production
 Connector bundle. Candidate metadata and executable helpers are excluded from the
 normal 0.1.0 build. Current candidate README/docs are explicit overrides under
 `connectors/proxmox/candidate/`; shared production package docs remain frozen.
-Candidate output goes to `dist/proxmox-candidate-0.2.0-i4b.5/`, so the legacy
+Candidate output goes to `dist/proxmox-candidate-0.2.0-i4b.6/`, so the legacy
 `.1` output directory and earlier candidate descriptors are not overwritten.
 `tools/build_acceptance_fixture.py --output <test-directory>` creates a separate
 deterministic `i4b-fixture` harness for Atlas tests. Its source adapter and embedded

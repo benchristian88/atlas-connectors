@@ -1,4 +1,4 @@
-# Proxmox MVP permissions — 0.2.0-i4b.5, unqualified
+# Proxmox MVP permissions — 0.2.0-i4b.6, unqualified
 
 Reviewed **18 October 2026**. The existing source-derived proof applies to the
 reduced declared MVP scope. **Proxmox VE 9.2.11 remains UNQUALIFIED**; this is
@@ -14,6 +14,10 @@ not a qualified installation procedure or authorization to change source ACLs.
 `Datastore.Audit` and targeted `/storage` permission checks are no longer required.
 There are no storage inventory/status calls, storage Assets, capacity telemetry or
 uses_storage relationships. No new privileges or endpoints are introduced.
+`/nodes/{node}/network` remains mandatory for host Interfaces, explicit CIDR Networks,
+guest bridge validation, pending/current safety and completeness. `SDN.Audit` and
+relevant bridge ACL proof remain required although bridges are no longer Assets.
+The three-node request sequence/count remains identical to `.5`: 46 GETs.
 Guest-agent/runtime IP enrichment remains outside scope and requires no new grant.
 
 Effective permissions remain the backing-user/privilege-separated-token

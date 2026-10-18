@@ -23,7 +23,7 @@ def inputs():
             'timeout_seconds': 120, 'coverage': {'key': 'fixture:inventory', 'snapshot_mode': 'full', 'domains': ['assets', 'networks', 'interfaces', 'relationships']}}
 
 
-@pytest.mark.parametrize('scenario', ['complete', 'standalone', 'empty_authorized', 'empty_unproven', 'permission_filtered',
+@pytest.mark.parametrize('scenario', ['complete', 'network_topology', 'standalone', 'empty_authorized', 'empty_unproven', 'permission_filtered',
     'offline', 'source_failure', 'storage_failure', 'config_failure', 'pending', 'malformed', 'limits', 'heterogeneous_storage'])
 def test_debug_only_changes_diagnostic_detail_not_aip_or_source_calls(scenario):
     source = inputs()
@@ -39,6 +39,7 @@ def test_debug_only_changes_diagnostic_detail_not_aip_or_source_calls(scenario):
     assert calls[0] == calls[1]
     assert not any('storage' in path for path in calls[0])
     assert not any('storage' in json.dumps(event) for trace in traces for event in trace)
+    assert not any(event.get('object_class') == 'proxmox.bridge' for trace in traces for event in trace)
     assert all(row['reason_code'] != 'invalid_source_record' for row in traces[0])
     assert [{k: v for k, v in row.items() if k not in {'field', 'encountered_type', 'validation_rule', 'expected', 'action'}}
             for row in traces[1]] == traces[0]
@@ -50,14 +51,16 @@ def test_debug_only_changes_diagnostic_detail_not_aip_or_source_calls(scenario):
 @pytest.mark.parametrize('mutation,reason', [
     ('interface', 'guest_interface_invalid'), ('ip', 'guest_ip_invalid'), ('tag', 'vlan_tag_invalid'),
     ('cidr', 'bridge_cidr_invalid'), ('inactive', 'bridge_inactive'), ('boolean', 'source_boolean_invalid'),
-    ('power', 'guest_power_state_invalid'),
+    ('power', 'guest_power_state_invalid'), ('bridge', 'guest_bridge_invalid'),
+    ('missing_bridge', 'guest_bridge_unresolved'), ('trunks', 'vlan_trunks_invalid'),
 ])
 def test_independent_normalization_failures_have_specific_rule_and_identity(mutation, reason):
     data, source = fixture(), inputs()
-    if mutation in {'interface', 'ip', 'tag'}:
+    if mutation in {'interface', 'ip', 'tag', 'bridge', 'missing_bridge', 'trunks'}:
         data['responses']['/nodes/node-a/qemu/100/config?current=1']['net0'] = {
             'interface': 'invalid', 'ip': 'name=eth0,bridge=vmbr0,ip=invalid',
-            'tag': 'name=eth0,bridge=vmbr0,tag=4095'}[mutation]
+            'tag': 'name=eth0,bridge=vmbr0,tag=4095', 'bridge': 'bridge=../vmbr0',
+            'missing_bridge': 'bridge=vmbr9', 'trunks': 'bridge=vmbr0,trunks=99;invalid'}[mutation]
     elif mutation == 'cidr': data['responses']['/nodes/node-a/network'][0]['cidr'] = 'invalid'
     elif mutation == 'inactive': data['responses']['/nodes/node-a/network'][0]['active'] = 0
     elif mutation == 'boolean': data['responses']['/nodes/node-a/network'][0]['active'] = 2
@@ -69,7 +72,7 @@ def test_independent_normalization_failures_have_specific_rule_and_identity(muta
     assert result[-1]['completeness'] in {'partial', 'failed'}
     event = next(row for row in diagnostic.events if row['reason_code'] == reason)
     assert event.get('external_id') or event.get('parent_external_id')
-    if mutation in {'interface', 'ip', 'tag', 'boolean'}:
+    if mutation in {'interface', 'ip', 'tag', 'boolean', 'bridge', 'trunks'}:
         assert event['field'] and event['validation_rule'] and event['encountered_type']
 
 

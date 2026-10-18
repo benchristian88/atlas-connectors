@@ -39,7 +39,7 @@ def diagnostic_object(category, parts, row):
     name = row.get('iface') if category == 'network' else row.get('node') or row.get('name')
     if isinstance(name, str) and re.fullmatch(SEGMENT, name):
         if category == 'network' and len(parts) > 4:
-            result = {'object_class': 'proxmox.bridge', 'external_id': 'bridge/' + parts[4] + '/' + name}
+            result = {'object_class': 'proxmox.interface', 'external_id': 'node/' + parts[4] + '/interface/' + name}
         elif category in {'nodes', 'deployment'}:
             result = {'object_class': 'proxmox.node', 'external_id': 'node/' + name}
     kind = row.get('type') if category == 'guest_resources' else parts[5] if len(parts) > 5 else None

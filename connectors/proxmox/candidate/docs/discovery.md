@@ -1,10 +1,20 @@
-# Proxmox MVP discovery specification — 0.2.0-i4b.5
+# Proxmox MVP discovery specification — 0.2.0-i4b.6
 
 Reviewed **18 October 2026**. This candidate is **unqualified and unpublished**;
 **Proxmox VE 9.2.11 remains UNQUALIFIED**, with no qualified source versions.
 Production/default 0.1.0 remains byte-identical and probe-only.
 
 ## Product model
+
+Proxmox bridges are host networking constructs used to describe Interface and
+Network topology. Atlas MVP does not model them as standalone Assets. Guest bridge
+attachment remains bounded topology context on the guest Interface, and explicit
+VLAN/static-network evidence is retained.
+
+`.6` removes only the bridge Asset and connected_to Asset relationship contract.
+Host bridge Interfaces and validated guest attachment remain; explicit VLAN,
+trunk and static-subnet evidence is preserved through the existing AIP domains
+and declared facts. It introduces no pseudo-Asset, Resource or taxonomy key.
 
 Proxmox storage definitions are configuration/resources exposed by the
 virtualisation platform. Atlas MVP does not model them as standalone Assets.
@@ -20,7 +30,12 @@ are not represented. Atlas may introduce a richer resource/dependency model late
 
 The `.4` fix correctly excluded the non-applicable disabled/inactive local-zfs
 status row on pve3 under its then-declared storage scope. `.5` deliberately removes
-that entire capability. `.4` and all previous artifacts remain immutable.
+that entire storage capability and achieved repeatable operator-reported live
+COMPLETE (136 observations, one batch, zero warnings/errors on each of two runs).
+`.6` is a subsequent product decision about bridges. `.3` diagnosed the storage
+mismatch; `.4` correctly handled its legitimate inactive/non-applicable row;
+`.5` removed storage Assets. Production 0.1.0 and `.1`–`.5` remain immutable and
+unqualified. Their historical explanations remain valid.
 
 ## Source access and collection reuse
 
@@ -41,9 +56,12 @@ No storage info module is loaded. Upstream exception strings/bodies are discarde
 ## Source call matrix
 
 All routes have prefix `/api2/json`, use GET, and stay on the configured endpoint.
-The actual representative three-node fixture performs **46 requests**, compared
-with `.4`'s 52. The removed requests are one `/storage`, three per-node storage
-lists and two targeted storage-root ACL checks. No new source endpoint is added.
+The actual representative three-node fixture performs **46 requests**, identical
+to `.5` in count and order. The ordinary two-node fixture still performs **40**.
+Network enumeration remains three reads per online node; bridge validation and
+all ACL/consistency proofs remain required. `.5` previously removed storage
+inventory/status and targeted storage-root ACL reads (52 → 46 for three nodes).
+`.6` adds/removes no source calls, endpoints or privileges.
 
 | Read | Execution / retained proof |
 | --- | --- |
@@ -58,7 +76,7 @@ lists and two targeted storage-root ACL checks. No new source endpoint is added.
 | `/nodes/{node}/network` | Three reads per online node: pending-change check, collection list, pending-change recheck. |
 | `/nodes/{node}/qemu` and `/nodes/{node}/lxc` | Explicit lists for every online node/kind including authorized empties; collection enrichment repeats each nonempty seeded list. |
 | `/nodes/{node}/{qemu-or-lxc}/{vmid}/config?current=1` | Bounded current config read for each expected guest, required for interface parsing/topology. |
-| `/storage`, `/nodes/{node}/storage` | **Not called or allowlisted in .5.** Definitions/status/availability/capacity are outside its declared scope. |
+| `/storage`, `/nodes/{node}/storage` | **Not called or allowlisted in .6.** Definitions/status/availability/capacity are outside its declared scope. |
 
 Before/after ACL snapshots retain the existing generic consistency protection.
 Storage-specific visibility is not required. Existing list/ACL/request bounds
@@ -89,7 +107,6 @@ are logged, serialized into facts or retained in diagnostic detail.
 | `proxmox.node` | `node/{source-node-name}` | `hypervisor_node` |
 | `proxmox.qemu` | `guest/qemu/{vmid}` | `virtual_machine` |
 | `proxmox.lxc` | `guest/lxc/{vmid}` | `lxc_container` |
-| `proxmox.bridge` | `bridge/{node}/{iface}` | `network_device` |
 
 Networks (`proxmox.network`, `network/{node}/{bridge}`) and Interfaces
 (`proxmox.interface`, owner external ID plus interface slot/name) remain canonical
@@ -100,12 +117,14 @@ different nodes does not merge Networks; duplicate MACs do not merge Interfaces.
 | --- | --- | --- |
 | `proxmox.member_of` | node → cluster | `member_of` |
 | `proxmox.runs_on` | QEMU/LXC guest → node | `runs_on` |
-| `proxmox.connected_to` | node/QEMU/LXC guest → bridge | `connected_to` |
 
 Every mapping is required; recommendations use stable keys and never create or
-delete global taxonomy. Qualification plans require exactly five Asset mappings
-and three relationship mappings. No `proxmox.storage → storage_pool` or
-`proxmox.uses_storage → uses_storage` mapping is declared or required.
+delete global taxonomy. Qualification plans require exactly **four Asset mappings
+and two relationship mappings**. No bridge/network_bridge, connected_to/connected_via,
+storage/storage_pool or uses_storage mapping is declared or required. With the
+current Atlas taxonomy, only `proxmox.cluster → proxmox_cluster` needs an explicit
+override; node/QEMU/LXC and member_of/runs_on exact-auto-map. Inspect active keys
+and relationship applicability in the real qualification instance before activation.
 
 Identities remain local to the retained Atlas DataSource, independent of endpoint,
 display names and list order. Guest rename/migration preserve identity; VMID reuse
@@ -125,20 +144,43 @@ PARTIAL result solely because a storage identifier cannot be resolved.
 Bridge CIDRs provide explicit source-local Networks. Only an untagged, non-trunk
 guest interface with a matching explicit static subnet gains Network membership.
 DHCP/unknown IPs, tagged/trunk links and different subnets do not infer membership.
-Inactive bridges retain identity, force PARTIAL and assert no running topology;
-pending configuration is excluded from current topology. Guest/node→bridge
-connectivity and guest placement keep their existing semantics.
+Active Linux/OVS bridges produce a host Interface at `node/{node}/interface/{iface}`,
+owned by `node/{node}`, with its source name and explicit CIDR-derived IP/Network
+link. `proxmox.vlan_aware` is now a configuration fact on that host Interface.
+Inactive bridges force PARTIAL and emit no current Interface or validated guest
+attachment; pending configuration is excluded from current topology.
+
+Guest Interface identity remains `guest/{qemu-or-lxc}/{vmid}/interface/{net-slot}`;
+its name is configured `name` or the slot, and MAC remains a canonical field.
+There is no canonical bridge-attachment field in AIP 1.0. The existing declared
+scalar fact mechanism therefore carries `proxmox.bridge_name`: a configuration,
+single string, at most 64 identifier characters, emitted only after resolving an
+active valid bridge on the guest's own node. Missing/unresolved attachment still
+warns `guest_bridge_unresolved` and prevents COMPLETE. Empty or malformed explicit
+bridge names are invalid evidence; a same-name bridge on another node is insufficient.
+
+An explicit VLAN tag is the existing single integer configuration fact
+`proxmox.vlan_tag`, strictly 1–4094. No tag means no tag fact; VLAN 0 remains invalid.
+Booleans, floats, signs, whitespace, Unicode digits and malformed source text are
+never coerced. Explicit trunks use `proxmox.vlan_trunks`, a single configuration
+string of sorted semicolon-separated VLAN integers, with at most 128 distinct
+values in the same range (maximum 639 characters). Empty, duplicate, malformed or
+oversized lists are invalid and force PARTIAL. This avoids new multi-value assertion
+semantics and excludes arbitrary config. Neither tag nor trunk list creates a
+Network or Asset, and neither permits inheriting the bridge subnet.
 
 The only declared facts are `proxmox.vmid` (integer), `proxmox.template` (boolean),
 `proxmox.deployment_mode` (clustered/standalone), `proxmox.power_state`
-(running/stopped/paused), `proxmox.online` (boolean), `proxmox.vlan_aware`
-(boolean) and `proxmox.vlan_tag` (1–4094). No storage-specific fact remains.
+(running/stopped/paused), `proxmox.online` (boolean), and Interface configuration
+facts `proxmox.vlan_aware` (boolean), `proxmox.vlan_tag` (1–4094),
+`proxmox.bridge_name` (bounded identifier) and `proxmox.vlan_trunks` (bounded VLAN
+list string). No storage-specific fact remains.
 Source power/online state is an operational fact, never an Atlas lifecycle status
 or impact conclusion. Source version remains in the canonical AIP envelope.
 
 ## COMPLETE and PARTIAL
 
-COMPLETE means complete for every class/domain `.5` actually declares and
+COMPLETE means complete for every class/domain `.6` actually declares and
 dispatches in its required `inventory` scope. All mandatory reads, ACL proof,
 unique source identities, coherent cluster/node/guest membership and placement,
 guest config/interface parsing, bridge/applicable network topology, before/after
@@ -160,18 +202,24 @@ No ACL dump is emitted. HTTP 200/empty lists alone cannot prove completeness.
 Only Atlas's successful COMPLETE seal can invoke existing absence processing.
 PARTIAL/failed seals preserve validated evidence and prohibit absence processing
 exactly as before. The Connector has no deletion, reconciliation or acceptance
-policy. No database, tenancy, API/UI, SDK/AIP or licensing change is needed.
+policy. Atlas's generic `scope_encoding` hashes sorted scope keys, domains,
+object classes, filters and ignored classes. Removing `proxmox.bridge` changes
+that identity even though the four domains remain. `.6` cannot use a `.5`
+COMPLETE baseline: `_previous_complete_run` requires equal coverage key,
+DataSource, Customer and Site. Historical bridge observations/accepted knowledge
+are preserved, with no Proxmox-specific absence rule. No database, tenancy,
+API/UI, SDK/AIP or licensing change is needed.
 
 ## Diagnostics and live gates
 
 Normal/debug discovery produces identical observations, relationships, warnings,
 completeness and ordered source calls; only bounded safe diagnostic detail differs.
-There are no storage-definition/status/guest-storage diagnostic stages in `.5`.
+There are no storage-definition/status/guest-storage diagnostic stages in `.6`. Network diagnostics identify host Interfaces, never bridge Assets.
 The generic sidecar architecture, redaction, one-shot admin debug and retention
 remain unchanged. Historical `.3`/`.4` storage diagnostics remain historical evidence.
 
 Fixture/Runner validation does not qualify a source. Live qualification must
-separately verify the exact `.5` digest, mappings, token/backing-user intersection,
+separately verify the exact `.6` digest, mappings, token/backing-user intersection,
 NoAccess handling, TLS/fingerprint/DNS protections, cluster/standalone inventory,
 VM/LXC/templates and retained topology, offline/pending/partial behavior,
 identity/repeatability and limits. Native Debian/systemd LIVE acceptance remains

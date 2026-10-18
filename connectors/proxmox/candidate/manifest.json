@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1",
   "id": "proxmox",
-  "version": "0.2.0-i4b.5",
+  "version": "0.2.0-i4b.6",
   "publisher": {
     "id": "atlas-official",
     "name": "Atlas Impact"
@@ -160,13 +160,6 @@
       "recommended_asset_type_key": "lxc_container"
     },
     {
-      "key": "proxmox.bridge",
-      "kind": "asset",
-      "label": "Bridge",
-      "required": true,
-      "recommended_asset_type_key": "network_device"
-    },
-    {
       "key": "proxmox.network",
       "kind": "network",
       "label": "Network",
@@ -196,7 +189,6 @@
         "proxmox.node",
         "proxmox.qemu",
         "proxmox.lxc",
-        "proxmox.bridge",
         "proxmox.network",
         "proxmox.interface"
       ]
@@ -227,21 +219,6 @@
       ],
       "target_object_classes": [
         "proxmox.node"
-      ],
-      "direction": "source_to_target"
-    },
-    {
-      "key": "proxmox.connected_to",
-      "label": "Connected To",
-      "required": true,
-      "recommended_relationship_type_key": "connected_to",
-      "source_object_classes": [
-        "proxmox.node",
-        "proxmox.qemu",
-        "proxmox.lxc"
-      ],
-      "target_object_classes": [
-        "proxmox.bridge"
       ],
       "direction": "source_to_target"
     }
@@ -308,13 +285,33 @@
       "class": "configuration",
       "cardinality": "single",
       "object_classes": [
-        "proxmox.bridge"
+        "proxmox.interface"
       ]
     },
     {
       "key": "proxmox.vlan_tag",
       "label": "Vlan Tag",
       "value_type": "integer",
+      "class": "configuration",
+      "cardinality": "single",
+      "object_classes": [
+        "proxmox.interface"
+      ]
+    },
+    {
+      "key": "proxmox.bridge_name",
+      "label": "Bridge Name",
+      "value_type": "string",
+      "class": "configuration",
+      "cardinality": "single",
+      "object_classes": [
+        "proxmox.interface"
+      ]
+    },
+    {
+      "key": "proxmox.vlan_trunks",
+      "label": "VLAN Trunks",
+      "value_type": "string",
       "class": "configuration",
       "cardinality": "single",
       "object_classes": [

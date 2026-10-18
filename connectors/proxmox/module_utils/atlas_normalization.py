@@ -8,12 +8,13 @@ import re
 from ansible.module_utils.atlas_transport import SourceError, SEGMENT
 from ansible.module_utils.atlas_diagnostics import Diagnostics
 
-CLASSES = ['proxmox.' + name for name in ['cluster', 'node', 'qemu', 'lxc', 'bridge', 'network', 'interface']]
+CLASSES = ['proxmox.' + name for name in ['cluster', 'node', 'qemu', 'lxc', 'network', 'interface']]
 FACTS = {
     'vmid': ('integer', 'identity'), 'template': ('boolean', 'configuration'),
     'deployment_mode': ('string', 'informational'), 'power_state': ('string', 'operational'),
     'online': ('boolean', 'operational'), 'vlan_aware': ('boolean', 'configuration'),
-    'vlan_tag': ('integer', 'configuration'),
+    'vlan_tag': ('integer', 'configuration'), 'bridge_name': ('string', 'configuration'),
+    'vlan_trunks': ('string', 'configuration'),
 }
 
 
@@ -50,8 +51,16 @@ def guest_id(kind, vmid):
     return 'guest/' + kind + '/' + str(vmid)
 
 
-def bridge_id(node, name):
-    return 'bridge/' + identifier(node) + '/' + identifier(name)
+def vlan_tag(value):
+    # Config values are decimal strings; never coerce booleans, floats,
+    # whitespace, signs or Unicode numerals into topology evidence.
+    if isinstance(value, str):
+        if not re.fullmatch(r'[0-9]{1,4}', value):
+            raise SourceError('invalid_source_record', reason='vlan_tag_invalid')
+        value = int(value)
+    if integer(value, 4094) < 1:
+        raise SourceError('invalid_source_record', reason='vlan_tag_invalid')
+    return value
 
 
 def relationship(kind, source, target):
@@ -68,7 +77,7 @@ class Inventory:
         self.warnings = set()
         self.sensitive = tuple(value for value in sensitive if value)
         self.maximum = maximum
-        self.nodes, self.bridges, self.networks = {}, {}, {}
+        self.nodes, self.bridges, self.networks = {}, set(), {}
         self.mode = 'standalone'
         self.diagnostics = diagnostics or Diagnostics(sensitive=sensitive)
         self.reason = 'normalization_invalid'
@@ -156,11 +165,12 @@ class Inventory:
             return  # list configuration can be staged even if device is active
         seen = set()
         for row in rows:
-            self.at('network', object_class='proxmox.bridge', parent_external_id=node_id(node),
-                    external_id='bridge/' + node + '/' + str(row.get('iface', '')))
+            self.at('network', object_class='proxmox.interface', parent_external_id=node_id(node),
+                    external_id=node_id(node) + '/interface/' + str(row.get('iface', '')))
             try:
                 self.check('network_identity_invalid', 'type', row.get('type'), 'identifier')
                 kind = identifier(row['type'])
+                self.check('bridge_identity_invalid', 'iface', row.get('iface'), 'identifier')
                 name = identifier(row['iface'])
                 if kind == 'unknown':
                     self.warning(reason='network_type_unknown')
@@ -173,19 +183,15 @@ class Inventory:
                 seen.add(name)
                 self.check('bridge_status_invalid', 'active', row.get('active', False), 'boolean')
                 active = flag(row.get('active', False))
-                external = bridge_id(node, name)
                 facts = [fact('vlan_aware', flag(row['bridge_vlan_aware']))] if 'bridge_vlan_aware' in row else []
-                self.asset(external, 'bridge', name, facts)
                 if not active:
-                    # Keep the known configured identity; unavailable current
-                    # device topology cannot justify a complete absence scan.
+                    # Unavailable current device topology cannot justify a
+                    # complete absence scan or a validated guest attachment.
                     self.warning('source_unavailable', reason='bridge_inactive')
                     self.accepted()
                     continue
-                self.bridges[(node, name)] = external
-                self.link('connected_to', node_id(node), external)
                 interface = {'external_id': node_id(node) + '/interface/' + name, 'object_class': 'proxmox.interface',
-                             'asset_external_id': node_id(node), 'name': name, 'is_primary': False, 'facts': []}
+                             'asset_external_id': node_id(node), 'name': name, 'is_primary': False, 'facts': facts}
                 # A currently configured subnet is explicit evidence. Identity remains
                 # source/node/bridge local; never merge across nodes by name or CIDR.
                 if row.get('cidr'):
@@ -197,6 +203,7 @@ class Inventory:
                     self.networks[(node, name)] = network
                     interface.update(network_external_id=network, ip_address=str(address.ip))
                 self.add('interfaces', interface)
+                self.bridges.add((node, name))
                 self.accepted()
             except (SourceError, KeyError, TypeError, ValueError):
                 self.warning(reason=self.reason)
@@ -268,18 +275,27 @@ class Inventory:
             tag = fields.get('tag')
             if tag is not None:
                 self.check('vlan_tag_invalid', 'tag', tag, 'vlan_1_4094')
-                if not tag.isdigit() or not 1 <= int(tag) <= 4094:
+                result['facts'].append(fact('vlan_tag', vlan_tag(tag)))
+            trunks = fields.get('trunks')
+            if trunks is not None:
+                self.check('vlan_trunks_invalid', 'trunks', trunks, 'vlan_list_1_4094_max128')
+                values = trunks.split(';')
+                if len(values) > 128:
                     raise SourceError('invalid_source_record')
-                result['facts'].append(fact('vlan_tag', int(tag)))
+                vlans = [vlan_tag(value) for value in values]
+                if len(vlans) != len(set(vlans)):
+                    raise SourceError('invalid_source_record')
+                # A single bounded scalar avoids introducing multi-value
+                # assertion semantics; never retain arbitrary config text.
+                result['facts'].append(fact('vlan_trunks', ';'.join(str(value) for value in sorted(vlans))))
             bridge = fields.get('bridge')
-            if bridge:
+            if bridge is not None:
                 self.check('guest_bridge_invalid', 'bridge', bridge, 'identifier')
                 bridge = identifier(bridge)
-                target = self.bridges.get((node, bridge))
-                if target:
-                    self.link('connected_to', owner, target)
+                if (node, bridge) in self.bridges:
+                    result['facts'].append(fact('bridge_name', bridge))
                     network = self.networks.get((node, bridge))
-                    if (tag is None and not fields.get('trunks') and network and guest_subnet
+                    if (tag is None and trunks is None and network and guest_subnet
                             and self.domains['networks'][network]['cidr'] == guest_subnet):
                         result['network_external_id'] = network
                 else:

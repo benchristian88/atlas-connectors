@@ -17,7 +17,7 @@ from build_acceptance_fixture import build_fixture
 
 
 @pytest.mark.skipif(not os.getenv('ATLAS_TEST_RUN_ANSIBLE'),reason='enable with pinned Ansible Runner installed')
-@pytest.mark.parametrize('scenario,expected',[('complete','complete'),('permission_filtered','partial'),('source_failure','failed'),('limits','failed'),('heterogeneous_storage','complete'),('storage_failure','complete'),('config_failure','partial'),('malformed','partial'),('pending','partial')])
+@pytest.mark.parametrize('scenario,expected',[('complete','complete'),('network_topology','complete'),('permission_filtered','partial'),('source_failure','failed'),('limits','failed'),('heterogeneous_storage','complete'),('storage_failure','complete'),('config_failure','partial'),('malformed','partial'),('pending','partial')])
 @pytest.mark.parametrize('debug', [False, True])
 def test_fixed_candidate_playbook_real_runner_and_sdk_stream(tmp_path,scenario,expected,debug):
     import ansible_runner
@@ -52,9 +52,26 @@ def test_fixed_candidate_playbook_real_runner_and_sdk_stream(tmp_path,scenario,e
     assert all(value not in trace.read_text() for value in values.values())
     assets = [row for batch in messages[:-1] for row in batch['assets']]
     links = [row for batch in messages[:-1] for row in batch['relationships']]
-    assert not any(row['object_class'] == 'proxmox.storage' for row in assets)
-    assert not any(row['relationship_class'] == 'proxmox.uses_storage' for row in links)
+    assert not any(row['object_class'] in {'proxmox.storage', 'proxmox.bridge'} for row in assets)
+    assert not any(row['relationship_class'] in {'proxmox.uses_storage', 'proxmox.connected_to'} for row in links)
     assert not any('storage' in event.get('stage', '') or 'storage' in event.get('source_category', '')
                    or 'storage' in event['reason_code'] for event in events)
     if expected == 'complete':
         assert not any(event['result'] in {'warning', 'error'} for event in events)
+    if scenario in {'complete', 'network_topology'}:
+        interfaces = {row['external_id']: row for batch in messages[:-1] for row in batch['interfaces']}
+        host = interfaces['node/node-a/interface/vmbr0']
+        assert host['asset_external_id'] == 'node/node-a'
+        assert (host['ip_address'], host['network_external_id']) == ('10.20.0.1', 'network/node-a/vmbr0')
+        tagged = interfaces['guest/qemu/101/interface/net0']
+        facts = {row['key']: row['value'] for row in tagged['facts']}
+        assert facts == {'proxmox.vlan_tag': 99 if scenario == 'network_topology' else 22,
+                         'proxmox.bridge_name': 'vmbr0'}
+        assert tagged['mac_address'] == '02:00:00:00:00:01' and 'network_external_id' not in tagged
+        static = interfaces['guest/lxc/102/interface/net0']
+        assert (static['ip_address'], static['network_external_id']) == ('10.20.0.10', 'network/node-a/vmbr0')
+        if scenario == 'network_topology':
+            trunk = interfaces['guest/qemu/100/interface/net0']
+            assert {row['key']: row['value'] for row in trunk['facts']} == {
+                'proxmox.vlan_trunks': '99;100', 'proxmox.bridge_name': 'vmbr0'}
+            assert 'network_external_id' not in trunk

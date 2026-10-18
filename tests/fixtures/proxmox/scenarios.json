@@ -1,5 +1,6 @@
 {
   "complete": {},
+  "network_topology": {"network_topology": true},
   "heterogeneous_storage": {"heterogeneous_storage": true},
   "standalone": {"standalone": true},
   "empty_authorized": {"standalone": true, "empty_guests": true},
