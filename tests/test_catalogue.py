@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Offline catalogue contract tests, independent of mutable Connector source."""
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -128,10 +128,23 @@ def test_git_failure_fails_closed(monkeypatch):
         catalogue.commit_timestamp()
 
 
-def test_times_are_utc_seconds_and_exactly_seven_days(document):
+def test_v1_document_has_exact_fields_without_expiry(document):
+    assert document.keys() == {
+        "schema_version", "sequence", "generated_at", "publisher_id", "repository", "entries",
+    }
+    assert document["schema_version"] == "1.0"
+    assert document["sequence"] == 1
+
+
+def test_generated_at_is_utc_seconds(document):
     assert document["generated_at"] == "2026-10-18T06:45:01Z"
-    assert document["expires_at"] == "2026-10-25T06:45:01Z"
-    assert catalogue.parse_timestamp(document["expires_at"]) - GENERATED == timedelta(days=7)
+    assert catalogue.parse_timestamp(document["generated_at"]) == GENERATED
+
+
+def test_expires_at_is_rejected_as_an_unexpected_field(document):
+    document["expires_at"] = "2026-10-25T06:45:01Z"
+    with pytest.raises(ValueError, match="^invalid_catalogue_fields$"):
+        catalogue.validate_catalogue(document)
 
 
 def test_build_uses_only_historical_registry_not_current_connector_source(tmp_path, monkeypatch, fixed_commit):
@@ -341,7 +354,6 @@ def test_omission_does_not_generate_a_withdrawal_from_previous_output(tmp_path, 
     ("generated_at", "2026-10-18T06:45:01+00:00"), ("generated_at", "2026-10-18T06:45:01.0Z"),
     ("generated_at", "2026-02-30T06:45:01Z"), ("generated_at", None),
     ("generated_at", "2026-10-18T06:45:01Z\n"),
-    ("expires_at", "2026-10-25T06:45:02Z"), ("expires_at", "2026-10-24T06:45:01Z"),
     ("entries", {}),
 ])
 def test_strict_catalogue_document_contract(document, field, value):

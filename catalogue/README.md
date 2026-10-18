@@ -4,6 +4,10 @@ Stage A prepares and attests aggregate catalogue artifacts. It does not publish
 them, change Connector discovery/runtime behavior, or make Atlas consume a remote
 catalogue or install/update/roll back remote Connectors.
 
+The aggregate v1 contract has never been published. Earlier sequence-1 workflow
+artifacts and attestations were preparation evidence only, so `sequence.txt`
+remains at `1` for the first publication.
+
 Each Connector release's `index.json` remains an immutable, detached per-release
 descriptor. It is **not** the aggregate global catalogue. Connector bundles and
 their combined Manifests retain their independent release identities.
@@ -20,15 +24,21 @@ The eventual fixed aggregate distribution channel is the GitHub Release/tag
 Publication remains a separate operator/protected step outside Stage A. This
 repository change neither creates that Release/tag nor replaces remote assets.
 An unverified local file or workflow artifact alone is not authenticated catalogue
-state. Future consumers must verify the catalogue attestation, approved repository
-and catalogue workflow identity, freshness and increasing sequence before trusting
-it. Bundle attestations retain their separate release workflow identity.
+state. Future consumers must authenticate catalogue refreshes by verifying the
+catalogue attestation, approved repository and catalogue workflow identity, and
+enforce monotonic sequence checking before trusting the document. Bundle
+attestations retain their separate release workflow identity.
 
 ## Checked-in registry and policy
 
-`sequence.txt` starts at `1`. Maintainers must increase it for every publication,
-including expiry refreshes and withdrawals; never decrease or reuse a published
-sequence. Sequence and asset IDs must be literal positive integers no larger than
+The catalogue has no calendar expiry and requires no periodic regeneration while
+its state is unchanged. Publication occurs when catalogue state changes, such as a
+Connector release, explicit withdrawal or other authenticated catalogue-policy
+change.
+
+`sequence.txt` starts at `1`. Every newly published catalogue document must use a
+strictly increasing sequence; sequence numbers must never be decreased or reused.
+Sequence and asset IDs must be literal positive integers no larger than
 `2^53 - 1`, avoiding rounding in JSON consumers. Snapshot numbers use at least six
 digits. The builder reads the checked-in sequence; it does not allocate numbers
 or consult remote state to enforce publication history.
@@ -53,12 +63,12 @@ Connector source and without requiring old Git objects in CI's shallow checkout.
 Releases remain in the catalogue for rollback unless explicitly withdrawn. Keep
 older active entries when adding new versions. A withdrawal changes `status` from
 `active` to `withdrawn`, retaining the entire release as an explicit tombstone in a
-new authenticated catalogue sequence. Withdrawal must be explicit and
-authenticated; **absence is not revocation**. The builder does not convert an
-omission into withdrawal or infer status from previous output.
+new authenticated catalogue sequence. Explicit authenticated withdrawal controls
+future install/activation eligibility; **absence is not revocation**. The builder
+does not convert an omission into withdrawal or infer status from previous output.
 
 The v1 document has exactly `schema_version`, `sequence`, `generated_at`,
-`expires_at`, `publisher_id`, `repository` and `entries`. Schema version is `1.0`;
+`publisher_id`, `repository` and `entries`. Schema version is `1.0`;
 publisher is exclusively `atlas-official`, repository exclusively
 `benchristian88/atlas-connectors`. Entries sort lexically by Connector ID and
 literal version, with unique Connector/version and release asset identities, and
@@ -77,12 +87,24 @@ apply independently.
 Duplicate JSON keys, non-finite numbers, malformed JSON, unexpected fields,
 symlinks and inconsistent identity filenames fail closed. Deterministic output is
 UTF-8 JSON with sorted object keys, two-space indentation and a final newline.
-`generated_at` is the current repository Git commit's committer timestamp, formatted
-as UTC seconds; `expires_at` is exactly seven days later. There is no wall-clock or
-environment-variable timestamp override. An old commit can yield an already
-expired catalogue: refresh with a new reviewed commit and sequence before
-publication. Local uncommitted changes still use HEAD's time and carry no claim of
+`generated_at` is an audit/provenance timestamp derived deterministically from the
+publication source commit's committer timestamp (the current repository Git HEAD),
+formatted as UTC seconds. There is no wall-clock or environment-variable timestamp
+override. Local uncommitted changes still use HEAD's time and carry no claim of
 authenticated provenance.
+
+## Consumer freshness boundary
+
+Future Atlas Stage B will attempt authenticated catalogue refresh daily, remember
+the highest authenticated sequence accepted, and reject sequence rollback. A
+successful authenticated refresh can confirm the unchanged document at that same
+sequence; this does not require a newly published document.
+
+Stage B will impose its own local install/update freshness policy independently of
+catalogue document expiry: after 72 hours without a successful authenticated
+refresh, Atlas will block new remote Connector install/update operations. An
+unavailable catalogue must not disable already-installed Connectors; they continue
+operating offline. These consumer policies are not implemented by Stage A.
 
 ## Prepare and validate
 
