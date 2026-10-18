@@ -1,6 +1,22 @@
 # I4C — Proxmox live qualification
 
-Updated **13 October 2026** after the operator-reported first live run.
+Updated **18 October 2026** after the operator-reported second live run.
+
+The `.2` run, digest
+`sha256:3dcf374e487a65a4398fe3ec2b3c0158c9fbdeaa5c8f885b85d8c3361904ffb5`,
+was COMPLETED/PARTIAL: **179 observations**, **48 reconciliation items created**,
+`invalid_source_record`. Its exists:null fix worked, but another independent
+condition remains. Source flag shapes and guest active bridge/storage references
+have already been checked by the operator. Do not guess another relaxation.
+
+The diagnostic successor is **0.2.0-i4b.3**, still UNQUALIFIED with no qualified
+source versions. Enable **debug for next discovery run** only as an administrator;
+it is consumed when the run is created and expires within 48 hours. Normal safe
+diagnostics are always enabled. Neither mode logs raw source bodies/config values
+or changes calls, privileges, validation or completeness. See the
+[diagnostic contract and checks](i4c-discovery-diagnostics.md).
+
+The following preserves the original `.1` finding and the contained `.2` fix.
 Proxmox **9.2.11 remains UNQUALIFIED**. Candidate **0.2.0-i4b.1** produced a
 **PARTIAL** run (140 observations, `invalid_source_record`, no Bridge Assets).
 No absence processing occurred. Source version was 9.2.11; runtime was
@@ -13,7 +29,7 @@ the entire response before the valid `vmbr0` bridge could be normalized. The fix
 removes only `exists` from that set; `active`, `autostart`, `bridge_vlan_aware`
 remain strict. A regression preserves vmbr0 and adds the separate VLAN row.
 
-The next artifact is **0.2.0-i4b.2**, still unqualified/unpublished. Version truth
+The `.2` artifact remains failed live qualification evidence, still unqualified/unpublished. Version truth
 is stored in the existing candidate Manifest/SPDX metadata, not a second build
 configuration. The immutable `.1` artifact remains unchanged at
 `sha256:d283441dfa70d8e589fd3da868075bdb795a8cda938a78931437432b572166c8`.
@@ -38,7 +54,7 @@ outstanding. No commit/push/merge/tag/publication is performed in this fix pass.
   guest-to-bridge connectivity must be reassessed after bridge discovery succeeds.
 - The apparent five `uses_storage` relationships for roughly 30 LXCs are
   **unverified**, because All Open was truncated. Storage discovery is unchanged.
-  Reassess source coverage after paging and a COMPLETE `.2` run.
+  Reassess source coverage using `.3` diagnostics; COMPLETE is still a live gate.
 - Operator review changes `.2`'s recommended mapping for `proxmox.lxc` to the
   existing managed **LXC Container** key `lxc_container` (verified in Atlas's
   reference-data migration). `proxmox.qemu` still recommends `virtual_machine`.
@@ -136,7 +152,7 @@ procedure to production.
    .venv/bin/python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
    .venv/bin/python tools/build_bundle.py --candidate --output /tmp/i4c-candidate-a
    .venv/bin/python tools/build_bundle.py --candidate --output /tmp/i4c-candidate-b
-   cmp /tmp/i4c-candidate-a/proxmox-0.2.0-i4b.2.tar.gz /tmp/i4c-candidate-b/proxmox-0.2.0-i4b.2.tar.gz
+   cmp /tmp/i4c-candidate-a/proxmox-0.2.0-i4b.3.tar.gz /tmp/i4c-candidate-b/proxmox-0.2.0-i4b.3.tar.gz
    cmp /tmp/i4c-candidate-a/manifest.json /tmp/i4c-candidate-b/manifest.json
    ```
 
@@ -144,9 +160,9 @@ procedure to production.
 
    ```bash
    export CONNECTOR_ID=proxmox
-   export CANDIDATE_VERSION=0.2.0-i4b.2
-   export CANDIDATE_FILE=proxmox-0.2.0-i4b.2.tar.gz
-   export CANDIDATE_DIGEST=sha256:3dcf374e487a65a4398fe3ec2b3c0158c9fbdeaa5c8f885b85d8c3361904ffb5
+   export CANDIDATE_VERSION=0.2.0-i4b.3
+   export CANDIDATE_FILE=proxmox-0.2.0-i4b.3.tar.gz
+   export CANDIDATE_DIGEST=sha256:05c8ccb44b3964b780d3ffcef9a71a89b80ed2a5b7f4de22806ea7b0f62cf626
    export CANDIDATE_DIR=/tmp/i4c-candidate-a
    .venv/bin/python tools/verify_candidate.py --directory "$CANDIDATE_DIR" --expected-digest "$CANDIDATE_DIGEST" --source-commit "$CONNECTOR_COMMIT"
    cd "$CANDIDATE_DIR"
@@ -207,7 +223,7 @@ Record (no source credentials/raw ACLs):
 | --- | --- |
 | Atlas commit | Full reviewed Mac/pushed/LXC SHA; API build identity matches |
 | Connector commit | Full reviewed Mac/pushed/LXC SHA; detached manifest agrees |
-| Candidate | `0.2.0-i4b.2`, exact SHA-256 above, still unqualified |
+| Candidate | `0.2.0-i4b.3`, exact SHA-256 above, still unqualified |
 | Runtime | healthy `atlas-ansible-i4a-v1` / `1.2.0`, runtime `0.3.1` |
 | Ansible | core `2.19.7`, Runner `2.4.3` |
 | Client | proxmoxer `2.3.0` |

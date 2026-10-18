@@ -25,6 +25,7 @@ CANDIDATE_FILES = (
     "discover.yml", "library/atlas_discover.py", "library/atlas_readiness.py",
     "module_utils/atlas_discovery.py", "module_utils/atlas_normalization.py",
     "module_utils/atlas_transport.py",
+    "module_utils/atlas_diagnostics.py",
 )
 
 

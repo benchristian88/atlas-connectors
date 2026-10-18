@@ -11,12 +11,16 @@ LICENSE is included in every bundle. Fixtures/unit tests live in `tests/`.
 Production [Proxmox 0.1.0](connectors/proxmox/README.md) is Test Connection-only.
 The separate [I4B candidate](connectors/proxmox/docs/discovery.md),
 0.2.0-i4b.1, implements fixture-proven discovery. The first operator-reported
-9.2.11 run was PARTIAL; the next qualification candidate is 0.2.0-i4b.2. Both
-remain unqualified and unpublished. Docker/UniFi implementations remain absent.
+9.2.11 runs of .1 and .2 were PARTIAL (140 and 179 observations). The next
+qualification candidate is **0.2.0-i4b.3**, adding structured discovery diagnostics.
+All remain unqualified and unpublished. Docker/UniFi implementations remain absent.
 
 [I4C-A preparation](connectors/proxmox/docs/i4c-a-preparation.md) preserves the exact
 original candidate bytes. The [active live runbook](connectors/proxmox/docs/i4c-live-qualification.md)
-records the PARTIAL result and next candidate checkpoint.
+records both PARTIAL results and the next candidate checkpoint.
+[Discovery diagnostics](connectors/proxmox/docs/i4c-discovery-diagnostics.md) describes
+always-on safe reasons and administrator-only next-run debug, with 48-hour retention,
+no raw source logging and unchanged source/COMPLETE semantics.
 Qualification documents/checkpoints and incidental files are excluded by the
 reviewed bundle file list. Neither local preparation nor fixture tests qualify a source.
 

@@ -37,7 +37,7 @@ def test_independent_candidate_verification_and_digest_failure(tmp_path):
     second, _ = build(candidate=True)
     assert first == second
     digest = manifest["distribution"]["bundle_digest"]
-    assert verifier.verify(tmp_path, digest)["files"] == 18
+    assert verifier.verify(tmp_path, digest)["files"] == 19
     with pytest.raises(ValueError, match="candidate_digest_mismatch"):
         verifier.verify(tmp_path, "sha256:" + "0" * 64)
     detached = json.loads((tmp_path / "manifest.json").read_text())
@@ -51,10 +51,13 @@ def test_independent_candidate_verification_and_digest_failure(tmp_path):
 def test_successor_candidate_uses_new_identity_and_preserves_existing_original_archive(tmp_path):
     original = tmp_path / "proxmox-0.2.0-i4b.1.tar.gz"
     original.write_bytes(b"immutable prior candidate fixture")
+    second = tmp_path / "proxmox-0.2.0-i4b.2.tar.gz"
+    second.write_bytes(b"immutable second candidate fixture")
     payload, manifest = build(output=tmp_path, candidate=True)
-    assert manifest["version"] == "0.2.0-i4b.2"
-    assert (tmp_path / "proxmox-0.2.0-i4b.2.tar.gz").read_bytes() == payload
+    assert manifest["version"] == "0.2.0-i4b.3"
+    assert (tmp_path / "proxmox-0.2.0-i4b.3.tar.gz").read_bytes() == payload
     assert original.read_bytes() == b"immutable prior candidate fixture"
+    assert second.read_bytes() == b"immutable second candidate fixture"
     assert manifest["source_versions"]["qualification"] == "unqualified"
     assert manifest["source_versions"]["qualified_versions"] == []
 
