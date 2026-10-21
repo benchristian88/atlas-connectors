@@ -4,19 +4,22 @@ Stage A prepares and attests aggregate catalogue artifacts. It does not publish
 them, change Connector discovery/runtime behavior, or make Atlas consume a remote
 catalogue or install/update/roll back remote Connectors.
 
-The aggregate v1 contract has never been published. Earlier sequence-1 workflow
-artifacts and attestations were preparation evidence only, so `sequence.txt`
-remains at `1` for the first publication.
+The aggregate v1 sequence 1 has been published at the
+[official release](https://github.com/benchristian88/atlas-connectors/releases/tag/catalogue-v1).
+The [frozen publication fixture](../tests/fixtures/official_catalogue/README.md)
+preserves its 10,585 bytes and expected SHA-256 independently of current HEAD.
+Do not rebuild or republish sequence 1. `sequence.txt` still records that published
+sequence; a future state-changing publication must increment it.
 
 Each Connector release's `index.json` remains an immutable, detached per-release
 descriptor. It is **not** the aggregate global catalogue. Connector bundles and
 their combined Manifests retain their independent release identities.
 
-The eventual fixed aggregate distribution channel is the GitHub Release/tag
+The published aggregate distribution channel is the GitHub Release/tag
 `catalogue-v1` in `benchristian88/atlas-connectors`:
 
-- `catalogue.json` is the current authenticated catalogue document, once published
-  with verifiable GitHub Artifact Attestation / Sigstore provenance.
+- `catalogue.json` identifies the current catalogue document; consumers must
+  authenticate it with GitHub Artifact Attestation / Sigstore provenance.
 - `catalogue-000001.json`, `catalogue-000002.json`, etc. are immutable numbered
   historical/audit copies. For any sequence, the current alias and that sequence's
   snapshot must have identical document bytes.
@@ -78,12 +81,23 @@ digest, the matching release tag/filename/asset URI, a 40-character lowercase he
 source commit, and `github-artifact-attestation-sigstore` provenance from
 `.github/workflows/release.yml` in the approved repository.
 
-Only UTF-8, bounded, regular JSON registry files are accepted (256 KiB per entry).
-The complete serialized aggregate catalogue has a separate 4 MiB (4,194,304-byte)
-bound, inclusive. This deliberately limits the total catalogue payload independently
-of the SDK's 256 KiB bound for each release descriptor/Manifest; it is not derived
-by multiplying that per-entry allowance by the 200-entry ceiling. All three bounds
-apply independently.
+Only UTF-8, bounded, regular JSON registry files are accepted (256 KiB raw bytes
+per file, unchanged). In addition, `validate_entry` independently limits the
+canonical standalone entry to **262,144 bytes**, including when called through
+`validate_catalogue` with an in-memory aggregate. `entry_size` measures exactly
+`(json.dumps(entry, sort_keys=True, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")`.
+This includes the complete four-field envelope, Manifest, whitespace and one final
+newline at root indentation. Indentation added by placement inside the aggregate
+array is excluded from entry sizing. Compact files must satisfy this canonical
+entry bound as well as the original raw file bound.
+
+The complete canonical aggregate uses the same serialization and has a separate
+**4,194,304-byte** (4 MiB) bound. Atlas B1.1 also enforces 4 MiB on received raw
+bytes before decoding. These bounds and the 200-entry ceiling are inclusive and
+independent; the aggregate allowance is not derived by multiplying entry limits.
+Hashing and future attestation verification use original publication bytes, never
+reconstructed JSON. Producer and consumer tests cover below, at and above the
+limits; the frozen published sequence 1 remains valid.
 Duplicate JSON keys, non-finite numbers, malformed JSON, unexpected fields,
 symlinks and inconsistent identity filenames fail closed. Deterministic output is
 UTF-8 JSON with sorted object keys, two-space indentation and a final newline.
@@ -92,6 +106,21 @@ publication source commit's committer timestamp (the current repository Git HEAD
 formatted as UTC seconds. There is no wall-clock or environment-variable timestamp
 override. Local uncommitted changes still use HEAD's time and carry no claim of
 authenticated provenance.
+
+`generated_at` must be exactly `YYYY-MM-DDTHH:MM:SSZ`, without offsets or
+fractional seconds. Entry status is exactly `active` or `withdrawn`; unknown or
+missing fields in either envelope fail. Lexical entry ordering is not semantic
+version precedence and must not be used for future update selection.
+
+Atlas B1.1 only validates structure and official identity declarations with the
+pinned SDK 1.1.0. No SDK release or dependency on this checkout is required. It
+does not verify attestations or label packages trusted. Its existing three-field
+release-packaged bootstrap format (`catalogue_version`, `release_identity`,
+`entries`) remains separate from this six-field aggregate; bundled installation
+and fail-closed remote verification are unchanged. Catalogue provenance uses
+`.github/workflows/catalogue.yml`, distinct from package provenance's
+`.github/workflows/release.yml`. Declared publisher IDs are not authenticated
+identities. B1.2 must qualify the cryptographic verifier before remote trust.
 
 ## Consumer freshness boundary
 

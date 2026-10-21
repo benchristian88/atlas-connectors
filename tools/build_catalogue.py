@@ -60,6 +60,11 @@ def canonical_json(value):
         raise ValueError("invalid_catalogue_json") from None
 
 
+def entry_size(entry):
+    """Standalone registry representation, including envelope and final newline."""
+    return len(canonical_json(entry))
+
+
 def validate_entry(entry):
     """Strict catalogue envelope plus the canonical SDK's complete Manifest."""
     if not isinstance(entry, dict) or entry.keys() != ENTRY_FIELDS:
@@ -68,6 +73,8 @@ def validate_entry(entry):
         raise ValueError("invalid_release_status")
     if not positive_integer(entry["release_asset_id"]):
         raise ValueError("invalid_release_asset_id")
+    if entry_size(entry) > MAX_METADATA_BYTES:
+        raise ValueError("release_entry_too_large")
     manifest = entry["manifest"]
     if not isinstance(manifest, dict):
         raise ValueError("invalid_manifest")
