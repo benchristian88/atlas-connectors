@@ -512,3 +512,63 @@ def test_builder_needs_no_network_or_commands_other_than_fixed_git(monkeypatch):
     monkeypatch.setattr(catalogue.subprocess, "check_output", only_git)
     payload, document = catalogue.build()
     assert calls and payload and document["entries"]
+
+
+@pytest.mark.parametrize("delta", [-1, 0, 1])
+def test_canonical_entry_limit_applies_to_aggregate_and_registry(document, tmp_path, delta):
+    entry = document["entries"][0]
+    entry["manifest"]["display"]["description"] = 'Unicode é and escaped "text"'
+    entry["manifest"]["display"]["documentation_uri"] += "a" * (
+        262_144 + delta - len(catalogue.canonical_json(entry)))
+    assert catalogue.entry_size(entry) == 262_144 + delta
+    source = write_registry(tmp_path, [])
+    # A compact registry file is below the raw limit but must also satisfy the
+    # same canonical entry measurement used by aggregate object validation.
+    raw = json.dumps(entry, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    assert len(raw) < 262_144
+    (source / "releases/proxmox-0.2.0.json").write_bytes(raw)
+    if delta > 0:
+        for validate in (lambda: catalogue.validate_entry(entry),
+                         lambda: catalogue.validate_catalogue(document),
+                         lambda: catalogue.load_registry(source)):
+            with pytest.raises(ValueError, match="^release_entry_too_large$"):
+                validate()
+    else:
+        catalogue.validate_catalogue(document)
+        assert catalogue.load_registry(source) == (1, [entry])
+
+
+@pytest.mark.parametrize("count", [199, 200, 201])
+def test_entry_count_boundary(document, count):
+    entry = document["entries"][0]
+    document["entries"] = [release(entry, f"0.3.{i}", i + 1) for i in range(count)]
+    document["entries"].sort(key=lambda row: (row["manifest"]["id"], row["manifest"]["version"]))
+    if count > 200:
+        with pytest.raises(ValueError, match="invalid_catalogue_entry_count"):
+            catalogue.validate_catalogue(document)
+    else:
+        catalogue.validate_catalogue(document)
+
+
+def test_frozen_published_sequence_one_remains_valid():
+    # Downloaded publication bytes, never rebuilt from current HEAD or source.
+    fixture = ROOT / "tests/fixtures/official_catalogue/catalogue-000001.json"
+    raw = fixture.read_bytes()
+    digest = "55533ca67e7e9a14f82961e0a8c34ad78e2596049b3db02fde787494e3975afd"
+    assert len(raw) == 10585
+    assert hashlib.sha256(raw).hexdigest() == digest
+    document = catalogue.validate_catalogue(strict_json(raw, maximum=catalogue.MAX_CATALOGUE_BYTES))
+    assert document["sequence"] == 1
+    assert document["schema_version"] == "1.0"
+    assert document["generated_at"] == "2026-10-18T16:04:26Z"
+    assert "expires_at" not in document
+    entry, = document["entries"]
+    assert entry["status"] == "active"
+    assert (entry["manifest"]["id"], entry["manifest"]["version"]) == ("proxmox", "0.2.0")
+    assert catalogue.entry_size(entry) <= catalogue.MAX_METADATA_BYTES
+    assert catalogue.canonical_json(document) == raw
+    expectations = json.loads(fixture.with_name("publication.json").read_bytes())
+    assert set(expectations["assets"]) == {"catalogue.json", "catalogue-000001.json"}
+    for asset in expectations["assets"].values():
+        assert asset["bytes"] == len(raw)
+        assert asset["sha256"] == digest
