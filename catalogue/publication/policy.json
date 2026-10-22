@@ -1,0 +1,15 @@
+{
+  "enabled": false,
+  "authorization_mode": "single-maintainer-v1",
+  "allowed_maintainer_id": null,
+  "environment_id": null,
+  "package_environment_id": null,
+  "app_id": null,
+  "app_slug": null,
+  "app_installation_id": null,
+  "app_bot_user_id": null,
+  "bootstrap": {
+    "sequence": null,
+    "pointer_sha256": null
+  }
+}

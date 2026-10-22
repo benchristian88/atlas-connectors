@@ -1,36 +1,30 @@
 # Official Connector Catalogue maintenance
 
-Stage A prepares and attests aggregate catalogue artifacts. It does not publish
-them, change Connector discovery/runtime behavior, or make Atlas consume a remote
-catalogue or install/update/roll back remote Connectors.
+The [P1 publication contract](publication/README.md) defines separate immutable
+numbered releases and a separately authenticated current-pointer branch. Local
+foundations use explicit single-maintainer authorization behind disabled policy. Owner settings, bootstrap
+migration, package-history decisions and Atlas consumer support remain required;
+no live publication or settings changes were performed by this implementation.
 
-The aggregate v1 sequence 1 has been published at the
+The legacy aggregate v1 sequence 1 remains at the
 [official release](https://github.com/benchristian88/atlas-connectors/releases/tag/catalogue-v1).
 The [frozen publication fixture](../tests/fixtures/official_catalogue/README.md)
-preserves its 10,585 bytes and expected SHA-256 independently of current HEAD.
-Do not rebuild or republish sequence 1. `sequence.txt` still records that published
-sequence; a future state-changing publication must increment it.
+preserves its 10,585 bytes and SHA-256 independently of HEAD. **The legacy release
+and the Proxmox 0.2.0 package release both report immutable=false.** Earlier
+references to immutable assets described an intended publication policy, not
+actual GitHub enforcement. Do not rebuild, replace or republish sequence 1.
 
-Each Connector release's `index.json` remains an immutable, detached per-release
-descriptor. It is **not** the aggregate global catalogue. Connector bundles and
-their combined Manifests retain their independent release identities.
+The legacy catalogue.json alias and catalogue-000001.json assets stay unchanged.
+Their build attestations authenticate bytes but do not establish release approval,
+immutable publication or currentness. Atlas B1.3 correctly rejects that channel.
+The proposed P1 source adapter is a separate reviewed consumer change; no fallback
+to unauthenticated legacy discovery is introduced.
 
-The published aggregate distribution channel is the GitHub Release/tag
-`catalogue-v1` in `benchristian88/atlas-connectors`:
-
-- `catalogue.json` identifies the current catalogue document; consumers must
-  authenticate it with GitHub Artifact Attestation / Sigstore provenance.
-- `catalogue-000001.json`, `catalogue-000002.json`, etc. are immutable numbered
-  historical/audit copies. For any sequence, the current alias and that sequence's
-  snapshot must have identical document bytes.
-
-Publication remains a separate operator/protected step outside Stage A. This
-repository change neither creates that Release/tag nor replaces remote assets.
-An unverified local file or workflow artifact alone is not authenticated catalogue
-state. Future consumers must authenticate catalogue refreshes by verifying the
-catalogue attestation, approved repository and catalogue workflow identity, and
-enforce monotonic sequence checking before trusting the document. Bundle
-attestations retain their separate release workflow identity.
+Per-package index.json remains detached release metadata, not the aggregate
+catalogue. See [the investigation](publication/investigation.md) for verified code
+and provider state, [the ADR](../docs/decisions/0001-github-catalogue-publication.md)
+for storage, [single-maintainer policy](../docs/decisions/0002-single-maintainer-publication.md)
+for authorization, and [consumer handoff](publication/consumer-handoff.md).
 
 ## Checked-in registry and policy
 
@@ -58,7 +52,7 @@ The initial `proxmox-0.2.0.json` preserves the production Manifest at source com
 and the released distribution identity. The original bundle build at that commit
 reproduced SHA-256
 `a14fec5ab485c980688ff5907e8835ddd3e9cecd1a6989ef252cbcb1b1dc4ef8`.
-Its immutable release is `proxmox-v0.2.0` (release ID `416290807`), with asset ID
+Its legacy release is `proxmox-v0.2.0` (release ID `416290807`), with asset ID
 `652745908` and filename `proxmox-0.2.0.tar.gz`. No historical release files need
 modification. Tests pin the entire combined Manifest independently of current
 Connector source and without requiring old Git objects in CI's shallow checkout.
@@ -120,7 +114,8 @@ release-packaged bootstrap format (`catalogue_version`, `release_identity`,
 and fail-closed remote verification are unchanged. Catalogue provenance uses
 `.github/workflows/catalogue.yml`, distinct from package provenance's
 `.github/workflows/release.yml`. Declared publisher IDs are not authenticated
-identities. B1.2 must qualify the cryptographic verifier before remote trust.
+identities. B1.2 has qualified cryptographic verification in Atlas; P1 publication authority
+and B1.3 source-policy acceptance remain separate requirements.
 
 ## Consumer freshness boundary
 
@@ -165,8 +160,8 @@ The CLI prints the sequence, entry count and document SHA-256; it does not print
 the full Manifests. Validation failures occur before writing catalogue documents.
 
 The manual-only [catalogue workflow](../.github/workflows/catalogue.yml) restricts
-execution to the official repository, uses Python 3.12 on Ubuntu 24.04 and the
-protected `connector-release` environment, validates and builds, attests both JSON
+execution to the official repository and main, uses Python 3.12 on Ubuntu 24.04,
+validates and builds without a publication environment, attests both JSON
 files with pinned `actions/attest`, then uploads them as a workflow artifact.
 Artifact upload fails when files are absent. Its token has only `contents: read`,
 `id-token: write` and `attestations: write`; it uses no PAT. It has no Release

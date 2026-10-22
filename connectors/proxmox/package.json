@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "files": [
+    "NOTICE",
+    "README.md",
+    "discover.yml",
+    "docs/capability-matrix.md",
+    "docs/discovery.md",
+    "docs/i4b-completion-report.md",
+    "docs/permissions.md",
+    "docs/qualification.md",
+    "library/atlas_discover.py",
+    "library/atlas_probe.py",
+    "library/atlas_readiness.py",
+    "manifest.json",
+    "module_utils/atlas_diagnostics.py",
+    "module_utils/atlas_discovery.py",
+    "module_utils/atlas_normalization.py",
+    "module_utils/atlas_transport.py",
+    "sbom.spdx.json",
+    "test_connection.yml"
+  ],
+  "candidate_overrides": [
+    "README.md",
+    "docs/capability-matrix.md",
+    "docs/discovery.md",
+    "docs/i4b-completion-report.md",
+    "docs/permissions.md",
+    "docs/qualification.md",
+    "manifest.json",
+    "sbom.spdx.json",
+    "test_connection.yml"
+  ]
+}

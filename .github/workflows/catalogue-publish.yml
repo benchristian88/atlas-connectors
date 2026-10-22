@@ -1,0 +1,104 @@
+name: Single-maintainer immutable catalogue publication
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Publish the reviewed candidate or recover its immutable successor
+        type: choice
+        options: [publish, recover]
+        default: publish
+permissions:
+  contents: read
+concurrency:
+  group: official-catalogue-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'benchristian88/atlas-connectors' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    environment: catalogue-publication
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
+      - run: python -m pip install 'jsonschema[format-nongpl]==4.25.1'
+      - name: Require reviewed owner activation before issuing write credentials
+        env:
+          APP_ID: ${{ vars.PUBLICATION_APP_ID }}
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          sys.path.insert(0, 'tools')
+          from publication_contract import check_policy
+          policy = json.load(open('catalogue/publication/policy.json'))
+          check_policy(policy)
+          if str(policy['app_id']) != os.environ['APP_ID']:
+              raise SystemExit('publication_disabled_or_app_mismatch')
+          PY
+      - name: Verify first-attempt maintainer dispatch through independent GitHub API observations
+        env:
+          ATLAS_PUBLICATION_TOKEN: ${{ github.token }}
+        run: python tools/publish_catalogue.py authorize
+      - run: python tools/prepare_publication_verifier.py
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        id: app
+        with:
+          app-id: ${{ vars.PUBLICATION_APP_ID }}
+          private-key: ${{ secrets.PUBLICATION_APP_PRIVATE_KEY }}
+          owner: benchristian88
+          repositories: atlas-connectors
+          permission-contents: write
+          permission-actions: read
+          permission-administration: read
+      - name: Authenticate candidate, authority, packages and history; stage exact assets
+        if: inputs.operation == 'publish'
+        id: stage
+        env:
+          ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
+          ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
+        run: python tools/publish_catalogue.py stage
+      - uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        if: steps.stage.outputs.needs_attestation == 'true'
+        id: attest
+        with:
+          subject-path: dist/publication/current.json
+      - name: Retain authenticated pointer bundle
+        if: steps.stage.outputs.needs_attestation == 'true'
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          python - <<'PY'
+          import os, shutil
+          shutil.copyfile(os.environ['BUNDLE_PATH'], 'dist/publication/current.sigstore.json')
+          PY
+      - name: Verify, lock snapshot, verify immutability, then compare-and-swap current
+        if: inputs.operation == 'publish'
+        env:
+          ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
+          ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
+        run: python tools/publish_catalogue.py finish
+      - name: Recover only the authenticated immutable immediate successor
+        if: inputs.operation == 'recover'
+        env:
+          ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
+          ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
+        run: python tools/publish_catalogue.py recover
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: catalogue-publication-receipt
+          path: dist/publication/*.json
+          if-no-files-found: ignore
