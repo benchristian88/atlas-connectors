@@ -1,0 +1,62 @@
+name: Ruleset bypass visibility experiment
+
+on:
+  workflow_dispatch:
+
+# Used only to GET the helper at the exact dispatched commit; no checkout/Git.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.repository == 'benchristian88/atlas-connectors' && github.ref == 'refs/heads/main'
+    environment: catalogue-verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Read experiment helper at the dispatched commit
+        env:
+          SOURCE_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, sys, urllib.request
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *args, **kwargs):
+                  raise ValueError()
+
+          try:
+              sha = os.environ['GITHUB_SHA']
+              if not re.fullmatch(r'[0-9a-f]{40}', sha):
+                  raise ValueError()
+              url = ('https://api.github.com/repos/benchristian88/atlas-connectors/'
+                     'contents/tools/ruleset_visibility.py?ref=' + sha)
+              request = urllib.request.Request(url, method='GET', headers={
+                  'Accept': 'application/vnd.github.raw+json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+                  'Authorization': 'Bearer ' + os.environ['SOURCE_TOKEN'],
+                  'Accept-Encoding': 'identity',
+                  'User-Agent': 'atlas-ruleset-visibility-experiment',
+              })
+              with urllib.request.build_opener(NoRedirect()).open(request, timeout=20) as response:
+                  if response.status != 200 or response.headers.get_all('Link') is not None:
+                      raise ValueError()
+                  raw = response.read(65537)
+                  if not raw or len(raw) > 65536:
+                      raise ValueError()
+              destination = pathlib.Path(os.environ['RUNNER_TEMP']) / 'ruleset_visibility.py'
+              destination.write_bytes(raw)
+          except Exception:
+              sys.exit(1)
+          PY
+      - name: Mint verifier token and read ruleset evidence
+        # The sole non-GET request is the explicitly approved installation-token
+        # POST. No revocation DELETE; the token expires naturally after one hour.
+        # Administration write is required to see bypass_actors, not used to write.
+        env:
+          VERIFICATION_APP_ID: ${{ vars.VERIFICATION_APP_ID }}
+          VERIFICATION_APP_INSTALLATION_ID: ${{ vars.VERIFICATION_APP_INSTALLATION_ID }}
+          VERIFICATION_APP_PRIVATE_KEY: ${{ secrets.VERIFICATION_APP_PRIVATE_KEY }}
+        shell: bash
+        run: python3 "$RUNNER_TEMP/ruleset_visibility.py"

@@ -1,0 +1,436 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Offline experiment tests: no Git operations, live credentials or network."""
+import base64
+from copy import deepcopy
+from email.message import Message
+import io
+import json
+from pathlib import Path
+import subprocess
+import sys
+import urllib.error
+
+import pytest
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+import ruleset_visibility as visibility
+
+
+def records():
+    return [dict(id=index, name=name, source_type="Repository", source=visibility.REPOSITORY,
+                 target="tag" if name in {"atlas-bootstrap-lock", "atlas-publication-tags"} else "branch",
+                 enforcement="active", conditions={}, rules=[], bypass_actors=deepcopy(actors))
+            for index, (name, actors) in enumerate(visibility.EXPECTED.items(), 1)]
+
+
+class FakeAPI:
+    def __init__(self):
+        self.rules = records()
+        self.calls = []
+
+    def get(self, path, token):
+        self.calls.append(path)
+        if path == visibility.LIST_PATH:
+            return [{key: item[key] for key in ("id", "name", "source", "source_type")}
+                    for item in reversed(self.rules)]
+        return deepcopy(next(item for item in self.rules
+                             if path == visibility.BASE + f'/rulesets/{item["id"]}?includes_parents=true'))
+
+
+def test_exact_success_fetches_every_detail_in_deterministic_order():
+    api = FakeAPI()
+    result = visibility.experiment(api, "synthetic-token")
+    assert len(api.calls) == 6
+    assert [row["name"] for row in result] == list(visibility.EXPECTED)
+    assert [row["bypass_actor_count"] for row in result] == [0, 0, 0, 1, 1]
+    assert all(row["bypass_actors_present"] is True for row in result)
+    assert [row["bypass_actors"] for row in result] == list(visibility.EXPECTED.values())
+
+
+@pytest.mark.parametrize("change", [
+    lambda rows: rows.pop(),
+    lambda rows: rows.append(deepcopy(rows[0])),
+    lambda rows: rows.__setitem__(1, deepcopy(rows[0])),
+    lambda rows: rows[1].update(id=rows[0]["id"]),
+    lambda rows: rows[1].update(name=rows[0]["name"]),
+    lambda rows: rows[0].update(name="unexpected"),
+    lambda rows: rows[0].update(name=[]),
+    lambda rows: rows[0].update(id=True),
+    lambda rows: rows[0].update(id=1.0),
+    lambda rows: rows[0].update(id="1"),
+    lambda rows: rows[0].update(id=0),
+    lambda rows: rows[0].update(id=2**63),
+    lambda rows: rows[0].update(source="another/repository"),
+    lambda rows: rows[0].update(source_type="Organization"),
+    lambda rows: rows.__setitem__(0, None),
+])
+def test_list_fails_closed(change):
+    rows = records()
+    change(rows)
+    with pytest.raises(visibility.EvidenceError):
+        visibility.validate_list(rows)
+
+
+@pytest.mark.parametrize("value", [None, {}, "", True, [], [1] * 6])
+def test_invalid_list_shapes(value):
+    with pytest.raises(visibility.EvidenceError):
+        visibility.validate_list(value)
+
+
+@pytest.mark.parametrize("index", range(5))
+def test_every_detail_requires_explicit_bypass_actors(index):
+    api = FakeAPI()
+    del api.rules[index]["bypass_actors"]
+    with pytest.raises(visibility.EvidenceError):
+        visibility.experiment(api, "synthetic-token")
+    assert len(api.calls) == 6
+
+
+@pytest.mark.parametrize("change", [
+    lambda row: row.update(id=99),
+    lambda row: row.update(id=True),
+    lambda row: row.update(name="atlas-main"),
+    lambda row: row.update(source="other/repo"),
+    lambda row: row.update(source_type="Organization"),
+    lambda row: row.update(target=[]),
+    lambda row: row.update(enforcement={}),
+    lambda row: row.update(conditions=None),
+    lambda row: row.update(rules=None),
+    lambda row: row.update(rules=[{}]),
+    lambda row: row.update(bypass_actors=None),
+    lambda row: row.update(bypass_actors={}),
+    lambda row: row.update(bypass_actors=[]),
+    lambda row: row["bypass_actors"].append(deepcopy(row["bypass_actors"][0])),
+    lambda row: row["bypass_actors"][0].update(actor_id=5424851),
+    lambda row: row["bypass_actors"][0].update(actor_id=5422372.0),
+    lambda row: row["bypass_actors"][0].update(actor_type="Team"),
+    lambda row: row["bypass_actors"][0].update(bypass_mode="pull_request"),
+    lambda row: row["bypass_actors"][0].update(extra="unknown"),
+    lambda row: row["bypass_actors"][0].pop("bypass_mode"),
+    lambda row: row["bypass_actors"].__setitem__(0, None),
+])
+def test_detail_fails_closed(change):
+    row = records()[3]
+    change(row)
+    with pytest.raises(visibility.EvidenceError):
+        visibility.validate_detail(row, "atlas-catalogue-current", 4)
+
+
+@pytest.mark.parametrize("index", range(3))
+def test_empty_bypass_rules_reject_any_actor(index):
+    row = records()[index]
+    row["bypass_actors"] = records()[3]["bypass_actors"]
+    with pytest.raises(visibility.EvidenceError):
+        visibility.validate_detail(row, row["name"], row["id"])
+
+
+class Response(io.BytesIO):
+    def __init__(self, raw=b"[]", *, status=200, headers=()):
+        super().__init__(raw)
+        self.status = status
+        self.headers = Message()
+        self.headers["Content-Type"] = "application/json; charset=utf-8"
+        for key, value in headers:
+            self.headers[key] = value
+
+
+class Opener:
+    def __init__(self, response):
+        self.response = response
+        self.requests = []
+
+    def open(self, request, timeout):
+        self.requests.append(request)
+        assert timeout == 20
+        return self.response
+
+
+def client(response):
+    api = visibility.Transport()
+    api.opener = Opener(response)
+    return api
+
+
+def test_transport_get_headers_and_no_body():
+    api = client(Response())
+    assert api.get(visibility.LIST_PATH, "synthetic-token") == []
+    request = api.opener.requests[0]
+    assert request.get_method() == "GET" and request.data is None
+    assert request.full_url == visibility.API + visibility.LIST_PATH
+    assert request.get_header("X-github-api-version") == "2022-11-28"
+
+
+def test_only_post_is_exact_scoped_token_mint():
+    api = client(Response(b"{}", status=201))
+    api.mint("synthetic-jwt")
+    request = api.opener.requests[0]
+    assert request.get_method() == "POST"
+    assert request.full_url == visibility.API + visibility.TOKEN_PATH
+    assert json.loads(request.data) == {
+        "repositories": ["atlas-connectors"],
+        "permissions": {"administration": "write", "metadata": "read"},
+    }
+    assert request.get_header("X-github-api-version") == "2022-11-28"
+
+
+@pytest.mark.parametrize("path", ["/releases", visibility.BASE + "/git/refs",
+    visibility.TOKEN_PATH, "https://evil.example", visibility.BASE + "/rulesets/1",
+    visibility.LIST_PATH + "&page=2", visibility.BASE + "/rulesets/../1?includes_parents=true"])
+def test_evidence_transport_rejects_unapproved_endpoints(path):
+    api = client(Response())
+    with pytest.raises(visibility.EvidenceError):
+        api.get(path, "synthetic-token")
+    assert not api.opener.requests
+    with pytest.raises(visibility.EvidenceError):
+        api._json(visibility.LIST_PATH, "synthetic-jwt", mint=True)
+
+
+@pytest.mark.parametrize("raw,headers,status", [
+    (b"[]", [("Link", '<https://api.github.com/next>; rel="next"')], 200),
+    (b"[]", [("Link", "malformed")], 200),
+    (b"[]", [("Link", "")], 200),
+    (b"[]", [("Link", 'anything; rel="prev"')], 200),
+    (b"[]", [("Content-Encoding", "gzip")], 200),
+    (b"[]", [("Content-Length", "1")], 200),
+    (b"[]", [("Content-Length", "9999999")], 200),
+    (b"[]", [("Content-Length", "invalid")], 200),
+    (b"[]", [("Content-Length", "2"), ("Content-Length", "2")], 200),
+    (b"x" * (visibility.MAX_BYTES + 1), [], 200),
+    (b"[]", [], 201), (b"[]", [], 302), (b"[]", [], 403),
+    (b'{"id":1,"id":2}', [], 200), (b'{"nested":{"x":1,"x":2}}', [], 200),
+    (b"NaN", [], 200), (b"Infinity", [], 200), (b"-Infinity", [], 200),
+    (b"\xff", [], 200), (b"<html>error</html>", [], 200), (b"[", [], 200),
+])
+def test_response_failures_are_sanitized(raw, headers, status):
+    with pytest.raises(visibility.EvidenceError) as error:
+        client(Response(raw, status=status, headers=headers)).get(visibility.LIST_PATH, "synthetic-token")
+    assert str(error.value) == ""
+
+
+def test_redirect_never_followed():
+    with pytest.raises(visibility.EvidenceError):
+        visibility.NoRedirect().redirect_request(None, None, 302, "", {}, "https://evil.example")
+
+
+def test_http_error_never_exposes_remote_content(capsys):
+    api = client(Response())
+    def fail(*args, **kwargs):
+        raise urllib.error.HTTPError("https://example", 403, "sensitive-remote-content", {}, None)
+    api.opener.open = fail
+    with pytest.raises(visibility.EvidenceError) as error:
+        api.get(visibility.LIST_PATH, "synthetic-token")
+    assert str(error.value) == ""
+    assert capsys.readouterr() == ("", "")
+
+
+def auth_fixture(monkeypatch):
+    monkeypatch.setattr(visibility, "app_jwt", lambda key: "synthetic-jwt")
+    class AuthAPI:
+        def __init__(self):
+            self.calls = []
+            self.observed = {"id": 174088125, "app_id": 5424851,
+                             "account": {"login": "benchristian88"},
+                             "repository_selection": "selected", "suspended_at": None}
+            self.issued = {"permissions": deepcopy(visibility.PERMISSIONS), "token": "synthetic_token",
+                           "repositories": [{"full_name": visibility.REPOSITORY}]}
+        def installation(self, jwt):
+            self.calls.append("installation")
+            return self.observed
+        def mint(self, jwt):
+            self.calls.append("mint")
+            return self.issued
+    return AuthAPI(), {"VERIFICATION_APP_ID": "5424851",
+                       "VERIFICATION_APP_INSTALLATION_ID": "174088125",
+                       "VERIFICATION_APP_PRIVATE_KEY": "synthetic-key"}
+
+
+def test_auth_identity_and_token_scope(monkeypatch):
+    api, environ = auth_fixture(monkeypatch)
+    assert visibility.authenticate(api, environ) == "synthetic_token"
+    assert api.calls == ["installation", "mint"]
+
+
+@pytest.mark.parametrize("field", ["VERIFICATION_APP_ID", "VERIFICATION_APP_INSTALLATION_ID", "VERIFICATION_APP_PRIVATE_KEY"])
+def test_bad_configuration_fails_before_auth(monkeypatch, field):
+    api, environ = auth_fixture(monkeypatch)
+    environ[field] = ""
+    with pytest.raises(visibility.EvidenceError):
+        visibility.authenticate(api, environ)
+    assert api.calls == []
+
+
+@pytest.mark.parametrize("change", [
+    lambda value: value.update(id=1), lambda value: value.update(app_id=5422372),
+    lambda value: value.update(account={"login": "other"}),
+    lambda value: value.update(repository_selection="all"),
+    lambda value: value.update(suspended_at="now"), lambda value: value.pop("suspended_at"),
+])
+def test_wrong_installation_never_mints(monkeypatch, change):
+    api, environ = auth_fixture(monkeypatch)
+    change(api.observed)
+    with pytest.raises(visibility.EvidenceError):
+        visibility.authenticate(api, environ)
+    assert api.calls == ["installation"]
+
+
+@pytest.mark.parametrize("change", [
+    lambda value: value["permissions"].update(contents="write"),
+    lambda value: value["permissions"].update(administration="read"),
+    lambda value: value.update(repositories=[]),
+    lambda value: value["repositories"].append({"full_name": "other/repo"}),
+    lambda value: value["repositories"][0].update(full_name="other/repo"),
+    lambda value: value.update(token="bad\ntoken"), lambda value: value.update(token=None),
+])
+def test_bad_token_evidence_rejected(monkeypatch, change):
+    api, environ = auth_fixture(monkeypatch)
+    change(api.issued)
+    with pytest.raises(visibility.EvidenceError):
+        visibility.authenticate(api, environ)
+
+
+def test_jwt_has_expected_identity_lifetime_and_valid_signature(tmp_path, monkeypatch):
+    # Generate an ephemeral test-only key; never store fixtures or use credentials.
+    key = subprocess.run(["openssl", "genrsa", "2048"], capture_output=True, check=True).stdout
+    monkeypatch.setattr(visibility.time, "time", lambda: 1000)
+    jwt = visibility.app_jwt(key.decode())
+    header, payload, signature = jwt.split(".")
+    decode = lambda value: base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    assert json.loads(decode(header)) == {"alg": "RS256", "typ": "JWT"}
+    assert json.loads(decode(payload)) == {"iss": "5424851", "iat": 940, "exp": 1300}
+    public = subprocess.run(["openssl", "rsa", "-pubout"], input=key, capture_output=True, check=True).stdout
+    (tmp_path / "public.pem").write_bytes(public)
+    (tmp_path / "signature").write_bytes(decode(signature))
+    subprocess.run(["openssl", "dgst", "-sha256", "-verify", str(tmp_path / "public.pem"),
+                    "-signature", str(tmp_path / "signature")], input=f"{header}.{payload}".encode(),
+                   capture_output=True, check=True)
+
+
+def context(monkeypatch):
+    for key, value in {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF": "refs/heads/main",
+                       "GITHUB_REPOSITORY": visibility.REPOSITORY}.items():
+        monkeypatch.setenv(key, value)
+
+
+def test_cli_safe_exact_output(monkeypatch, capsys):
+    context(monkeypatch)
+    monkeypatch.setattr(visibility, "Transport", FakeAPI)
+    monkeypatch.setattr(visibility, "authenticate", lambda *args: "synthetic-token")
+    assert visibility.main() == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert out == "".join(json.dumps(row, separators=(",", ":")) + "\n"
+                          for row in visibility.experiment(FakeAPI(), "synthetic-token"))
+    assert "synthetic" not in out
+
+
+def test_cli_suppresses_even_unexpected_exception_details(monkeypatch, capsys):
+    context(monkeypatch)
+    def fail(*args):
+        raise RuntimeError("synthetic-sensitive-error")
+    monkeypatch.setattr(visibility, "authenticate", fail)
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "")
+
+
+def test_missing_bypass_is_visible_but_still_fails(monkeypatch, capsys):
+    context(monkeypatch)
+    api = FakeAPI()
+    del api.rules[0]["bypass_actors"]
+    monkeypatch.setattr(visibility, "Transport", lambda: api)
+    monkeypatch.setattr(visibility, "authenticate", lambda *args: "synthetic-token")
+    assert visibility.main() == 1
+    out, err = capsys.readouterr()
+    rows = [json.loads(line) for line in out.splitlines()]
+    assert len(rows) == 5 and not err
+    assert rows[0] == {"name": "atlas-main", "id": 1, "bypass_actors_present": False,
+                       "bypass_actor_count": None, "bypass_actors": None}
+
+
+def test_unexpected_actor_diagnostic_excludes_untrusted_extra_fields(monkeypatch, capsys):
+    context(monkeypatch)
+    api = FakeAPI()
+    api.rules[3]["bypass_actors"][0].update(actor_id=99, extra="synthetic-sensitive-content")
+    monkeypatch.setattr(visibility, "Transport", lambda: api)
+    monkeypatch.setattr(visibility, "authenticate", lambda *args: "synthetic-token")
+    assert visibility.main() == 1
+    out, err = capsys.readouterr()
+    assert "synthetic-sensitive-content" not in out and not err
+    assert json.loads(out.splitlines()[3])["bypass_actors"] == [
+        {"actor_id": 99, "actor_type": "Integration", "bypass_mode": "always"}]
+
+
+def test_untrusted_actor_strings_never_reach_logs(monkeypatch, capsys):
+    context(monkeypatch)
+    api = FakeAPI()
+    api.rules[3]["bypass_actors"][0]["actor_type"] = "::error::synthetic-sensitive-content"
+    monkeypatch.setattr(visibility, "Transport", lambda: api)
+    monkeypatch.setattr(visibility, "authenticate", lambda *args: "synthetic-token")
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("key,value", [("GITHUB_REF", "refs/heads/dev"),
+    ("GITHUB_REF", "refs/tags/main"), ("GITHUB_EVENT_NAME", "push"), ("GITHUB_REPOSITORY", "fork/repo")])
+def test_cli_rejects_wrong_context_before_credentials(monkeypatch, key, value):
+    context(monkeypatch)
+    monkeypatch.setenv(key, value)
+    monkeypatch.setattr(visibility, "authenticate", lambda *args: pytest.fail("must not authenticate"))
+    assert visibility.main() == 1
+
+
+def test_workflow_contract():
+    path = ROOT / ".github/workflows/ruleset-visibility-experiment.yml"
+    # BaseLoader preserves YAML's 'on' key (SafeLoader interprets YAML 1.1 booleans).
+    workflow = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+    assert workflow["on"] == {"workflow_dispatch": ""}
+    assert workflow["permissions"] == {"contents": "read"}
+    job = workflow["jobs"]["verify"]
+    assert job["if"] == "github.repository == 'benchristian88/atlas-connectors' && github.ref == 'refs/heads/main'"
+    assert job["environment"] == "catalogue-verification"
+    assert len(job["steps"]) == 2
+    assert all("uses" not in step for step in job["steps"])
+    fetch, run = job["steps"]
+    assert fetch["env"] == {"SOURCE_TOKEN": "${{ github.token }}"}
+    assert run["env"] == {
+        "VERIFICATION_APP_ID": "${{ vars.VERIFICATION_APP_ID }}",
+        "VERIFICATION_APP_INSTALLATION_ID": "${{ vars.VERIFICATION_APP_INSTALLATION_ID }}",
+        "VERIFICATION_APP_PRIVATE_KEY": "${{ secrets.VERIFICATION_APP_PRIVATE_KEY }}",
+    }
+    assert run["run"] == 'python3 "$RUNNER_TEMP/ruleset_visibility.py"'
+    assert "2022-11-28" in fetch["run"] and "GITHUB_SHA" in fetch["run"]
+    assert "method='GET'" in fetch["run"]
+
+
+@pytest.mark.parametrize("failure", [None, "sha", "status", "link", "size", "redirect"])
+def test_workflow_helper_download_is_pinned_get_and_silent_on_failure(monkeypatch, tmp_path, capsys, failure):
+    workflow = yaml.load((ROOT / ".github/workflows/ruleset-visibility-experiment.yml").read_text(),
+                         Loader=yaml.BaseLoader)
+    shell = workflow["jobs"]["verify"]["steps"][0]["run"]
+    source = shell.split("\n", 1)[1].rsplit("\nPY", 1)[0]
+    monkeypatch.setenv("GITHUB_SHA", "bad" if failure == "sha" else "a" * 40)
+    monkeypatch.setenv("SOURCE_TOKEN", "synthetic-token")
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    opener = Opener(Response(b"x" * 65537 if failure == "size" else b"# helper\n",
+                            status=403 if failure == "status" else 200,
+                            headers=[("Link", "ambiguous")] if failure == "link" else []))
+    def build(handler):
+        if failure == "redirect":
+            handler.redirect_request(None, None, 302, "", {}, "https://evil.example")
+        return opener
+    monkeypatch.setattr(visibility.urllib.request, "build_opener", build)
+    if failure:
+        with pytest.raises(SystemExit) as error:
+            exec(compile(source, "workflow-bootstrap", "exec"), {})
+        assert error.value.code == 1
+        assert not (tmp_path / "ruleset_visibility.py").exists()
+    else:
+        exec(compile(source, "workflow-bootstrap", "exec"), {})
+        assert (tmp_path / "ruleset_visibility.py").read_bytes() == b"# helper\n"
+        request = opener.requests[0]
+        assert request.get_method() == "GET" and request.data is None
+        assert request.full_url == (visibility.API + visibility.BASE +
+                                    "/contents/tools/ruleset_visibility.py?ref=" + "a" * 40)
+        assert request.get_header("X-github-api-version") == "2022-11-28"
+    assert capsys.readouterr() == ("", "")
