@@ -54,7 +54,9 @@ def test_genuine_bootstrap_source_preflight_and_no_catalogue_as_selection():
     policy = json.loads((ROOT / 'catalogue/publication/policy.json').read_bytes())
     result = local_preflight(policy, verifier)
     assert result['catalogue_bytes'] == 10585 and result['sha256'] == CATALOGUE_SHA256
-    assert result['enabled'] is False and not result['remote_checks_performed']
+    assert result['enabled'] is True and result['bootstrap_operation'] == 'stage'
+    assert policy['bootstrap'] == {'sequence': None, 'pointer_sha256': None}
+    assert result['remote_checks_performed'] is False
     pointer = pointer_bytes({'schema_version': '1.0', 'sequence': 1, 'release_tag': 'catalogue-000001',
                             'release_id': 123, 'asset_id': 456, 'sha256': CATALOGUE_SHA256,
                             'previous_pointer_sha256': None})  # Test-only IDs, never approval.
