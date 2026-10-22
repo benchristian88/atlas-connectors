@@ -65,15 +65,39 @@ Any Link header (including empty/malformed links) is rejected; no pagination is
 followed. JSON bodies are bounded to 256 KiB, duplicate JSON keys and non-finite
 constants are rejected, and status, encoding, length and evidence shape are checked.
 
-The helper fetches all five details, prints only validated diagnostic fields,
-then requires the exact bypass lists. The three lock/main rules require `[]`;
+The helper fetches all five details and requires the exact bypass lists before
+printing any successful diagnostics. The three lock/main rules require `[]`;
 the other two require exactly App **5422372**, type **Integration**, mode **always**,
 matching the existing publication contract. Empty, absent and malformed bypass
-evidence are distinct: an absent field produces `bypass_actors_present:false`
-and null count/actors, then fails. Well-formed unexpected actors can be printed
-as safe IDs/types/modes before failing. Unrecognized actor strings, raw API bodies,
-exception messages, authorization headers, JWTs, tokens and keys are never printed.
-Malformed evidence or transport/authentication failures exit 1 without raw errors.
+evidence are distinct: absence fails with `ruleset_bypass_missing`; malformed or
+unexpected actors fail with `ruleset_bypass_mismatch`. All existing identity,
+permission, repository-selection, count, field-presence and exact-comparison checks
+remain enforced.
+
+On failure the helper exits 1 and writes exactly one allowlisted identifier plus
+a newline to stderr. No ruleset JSON is printed on a validation failure. It never
+prints remote response bodies, exception text, stack traces, authorization headers,
+JWTs, tokens or private keys. Even unexpected exceptions use a fixed fallback code.
+The failure identifiers distinguish stages without exposing remote data:
+
+| Identifier | Failed stage |
+| --- | --- |
+| `verifier_context_failed` | Dispatch event, main ref or repository context |
+| `verifier_configuration_failed` | Configured App/installation IDs or missing private key |
+| `verifier_jwt_failed` | App JWT creation, including OpenSSL signing |
+| `verifier_installation_failed` | Installation lookup, response parsing or identity/selection validation |
+| `verifier_token_failed` | Token minting, response parsing or permission/repository/token validation |
+| `ruleset_list_failed` | List retrieval, response parsing or exact count/name/ID/source validation |
+| `ruleset_detail_failed` | Any individual detail retrieval, response parsing or detail identity/shape validation |
+| `ruleset_bypass_missing` | A detail response lacks the explicit `bypass_actors` field |
+| `ruleset_bypass_mismatch` | Malformed bypass actors or a list that differs from the exact expectation |
+| `verifier_unexpected_failed` | An unexpected failure outside the named stages |
+
+For example, a token HTTP error and an invalid token permission set both produce
+only `verifier_token_failed`, without a status, response body or exception string.
+The workflow's helper-download bootstrap is unchanged; these codes apply once
+execution has reached the helper. This diagnostic change alone does not establish
+which stage failed in an earlier live run.
 
 A successful helper exits 0 and prints these five JSON lines in this order.
 `<..._ID>` denotes the actual numeric ID returned by GitHub, not a literal output
@@ -103,5 +127,7 @@ git diff --check
 Tests use synthetic responses and an ephemeral generated RSA key. They exercise
 the helper download, JWT signature, installation binding, narrowed mint request,
 GET-only evidence client, exact expectations, unsafe/malformed/ambiguous responses,
-safe diagnostics, main-only dispatch context and workflow contract. No live App
+safe stage-specific failures, unchanged successful output, main-only dispatch
+context and workflow contract. Injected subprocess, HTTP, malformed-body and
+unexpected errors prove sensitive error content does not reach diagnostics. No live App
 credentials or network requests are needed. YAML syntax is also parsed locally.
