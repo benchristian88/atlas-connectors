@@ -7,6 +7,7 @@ separately and uses the hash-pinned gh executable and unchanged trust fixtures.
 from copy import deepcopy
 from pathlib import Path
 import sys
+import tempfile
 
 import pytest
 
@@ -99,7 +100,9 @@ def test_synthetic_correct_branch_ref_cannot_substitute_signer_revision(monkeypa
 
 
 def test_genuine_probe_evidence_remains_distinct_from_production_authorization(decision):
-    from verifier_signer_experiment import ProbeVerifier, SIGNER, check_subject, negative_checks
+    from atlas_connector_sdk.contracts import strict_json
+    from publication_verify import Verifier, bounded_run
+    from verifier_signer_experiment import SIGNER, PREDICATE as PROBE_PREDICATE, check_subject, negative_checks
     expected = {"source_commit": "e5287c3229f5b9a1dc4c3dbcda0f4193fe221c3c",
                 "run_id": 39846232008, "run_attempt": 1}
     base = ROOT / "tests/fixtures/verifier_signer_probe"
@@ -107,7 +110,35 @@ def test_genuine_probe_evidence_remains_distinct_from_production_authorization(d
     assert digest(raw) == "75052edaed33fda77502ed2ecac49515f9e22f96f7a009ef6cb4ad3f9041e08a"
     assert digest(bundle) == "02fa47cde8e739dad47dfe8e902b2759f9eb2f1488cd60bebd8865ef5730d199"
     subject = check_subject(raw, expected)
-    verifier = ProbeVerifier()  # Real pinned CLI, unchanged roots. No mocks.
+    class HistoricalProbeVerifier(Verifier):
+        """Explicit archived C = S profile, never the new experiment's verifier."""
+        def verify(self, artifact, bundle, expected):
+            with tempfile.TemporaryDirectory(prefix="atlas-historical-probe-") as work:
+                directory = Path(work)
+                for name, value in (("probe.json", artifact), ("bundle.json", bundle), ("roots.jsonl", self.roots)):
+                    (directory / name).write_bytes(value)
+                command = [str(self.binary), "attestation", "verify", str(directory / "probe.json"),
+                    "--bundle", str(directory / "bundle.json"), "--custom-trusted-root", str(directory / "roots.jsonl"),
+                    "--repo", "benchristian88/atlas-connectors", "--hostname", "github.com",
+                    "--signer-workflow", "benchristian88/atlas-connectors/" + SIGNER,
+                    "--signer-digest", expected["source_commit"], "--source-digest", expected["source_commit"],
+                    "--source-ref", "refs/heads/main", "--cert-oidc-issuer", ISSUER,
+                    "--deny-self-hosted-runners", "--predicate-type", PROBE_PREDICATE,
+                    "--digest-alg", "sha256", "--format", "json"]
+                output = strict_json(bounded_run(command, directory))
+            assert len(output) == 1
+            result = output[0]["verificationResult"]
+            assert result["statement"] == {"_type": "https://in-toto.io/Statement/v1",
+                "subject": [{"name": "probe.json", "digest": {"sha256": digest(artifact)}}],
+                "predicateType": PROBE_PREDICATE, "predicate": {
+                    "schema": "atlas-verifier-signer-probe-predicate/v1",
+                    "probe_sha256": digest(artifact), "not_authorization": True}}
+            assert result["verifiedTimestamps"] and all(t["type"] == "Tlog" and t["uri"] in {
+                "https://rekor.sigstore.dev", "https://log2025-1.rekor.sigstore.dev"}
+                for t in result["verifiedTimestamps"])
+            return {"certificate": result["signature"]["certificate"],
+                    "predicate_type": result["statement"]["predicateType"], "subject": result["statement"]["subject"][0]}
+    verifier = HistoricalProbeVerifier()  # Real pinned CLI, unchanged roots. No mocks.
     verified = verifier.verify(raw, bundle, expected)
     certificate = verified["certificate"]
     assert certificate["subjectAlternativeName"] == certificate["buildSignerURI"] == f"{ORIGIN}/{SIGNER}@refs/heads/main"

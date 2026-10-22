@@ -91,9 +91,10 @@ def test_workflows_have_explicit_security_boundaries():
     for workflow in workflows.values():
         for job in workflow['jobs'].values():
             if 'uses' in job:
-                # The experiment's local reusable call resolves to the caller's
-                # same commit. Continue enforcing full SHAs on action steps.
-                assert job['uses']=='./.github/workflows/verifier-signer-probe.yml'
+                # The experiment pins reviewed signer S independently of caller C.
+                # Continue enforcing full SHAs on action steps.
+                assert job['uses']==('benchristian88/atlas-connectors/.github/workflows/verifier-signer-probe.yml'
+                                     '@260d83d529f89d00646771f8e66f32efd34826a3')
                 assert 'steps' not in job and 'secrets' not in job
                 continue
             for step in job['steps']:

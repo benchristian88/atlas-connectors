@@ -1,18 +1,30 @@
-# Reusable-workflow signer acceptance experiment
+# Pinned reusable-workflow signer experiment (C != S)
 
 This experiment gathers signing evidence and cannot publish a catalogue. Local
-tests do not establish genuine signer acceptance. A real GitHub-hosted run, after both
-experimental workflows reach protected `main`, is required. The production
+tests do not establish genuine C != S signer acceptance. A real GitHub-hosted run,
+after these changes reach protected `main`, is required. The production
 `live_signer_accepted` flag remains false; no trust pins or production validation
 are changed by this experiment.
 
 Genuine run [39846232008](https://github.com/benchristian88/atlas-connectors/actions/runs/39846232008)
-has since succeeded. Its evidence prompted the separately scoped
+previously succeeded with a local reusable call: caller and signer used the same
+commit `e5287c3229f5b9a1dc4c3dbcda0f4193fe221c3c`. Its evidence prompted the separately scoped
 [V1 identity correction](signed-publication-verifier.md#genuine-identity-evidence-and-corrected-representations).
-The experiment inspector and its comparison table retain the original V1 SHA-ref
-assumption as the recorded baseline; they no longer describe the corrected
-production URI checks. No experiment code or workflow is changed by that correction.
-The preserved probe remains distinct from production authorization evidence.
+The [original genuine probe and bundle](../tests/fixtures/verifier_signer_probe/README.md)
+remain byte-for-byte unchanged and retain real offline verification, tampering,
+subject-substitution and production-rejection regression coverage. That historical
+same-commit verification is explicitly test-only; the current inspector has no
+same-commit or historical-profile fallback. The previous successful run does not
+prove the separate revision bindings below.
+
+- **S** is the fixed reviewed signer revision
+  `260d83d529f89d00646771f8e66f32efd34826a3`.
+- **C** is the future protected-main merge commit containing these changes, as
+  reported by the dispatched caller's `GITHUB_SHA` and independently checked
+  against the run API's `head_sha`. Record its actual value from the fresh run;
+  it is unknown during local implementation.
+- **C must differ from S.** S is a literal pin in the workflow and inspector,
+  never derived from C, the current branch, a tag, or latest main.
 
 ## Architecture and boundaries
 
@@ -24,10 +36,17 @@ numeric repository/owner identities, and requires `refs/heads/main`,
 
 Its `sign` job calls
 [verifier-signer-probe.yml](../.github/workflows/verifier-signer-probe.yml) using
-`./.github/workflows/verifier-signer-probe.yml`. GitHub documents that this local
-reference resolves to the caller's **same commit**. This pins implementation
-bytes without presuming that the certificate's textual ref is an `@SHA` ref.
-The probe repeats the caller restrictions and accepts no inputs or secrets.
+the literal immutable reference:
+
+```yaml
+uses: benchristian88/atlas-connectors/.github/workflows/verifier-signer-probe.yml@260d83d529f89d00646771f8e66f32efd34826a3
+```
+
+The former local call resolved to C. The explicit reference selects S even when
+main advances to C, without following later probe changes. The probe at S is
+unchanged. Its caller restriction still requires the exact original
+`verifier-signer-experiment.yml@refs/heads/main` path; a differently named caller
+would not run. The probe repeats the caller restrictions and accepts no inputs or secrets.
 It runs on GitHub-hosted Ubuntu 24.04 with only `id-token: write` and
 `attestations: write`. It has no checkout, caller code execution, artifact
 downloads, environment, App credentials, caches, or repository-content writes.
@@ -65,8 +84,10 @@ never consumes the inspection job's code or artifacts.
 [The inspector](../tools/verifier_signer_experiment.py) uses the unchanged
 Sigstore trusted roots and the existing bounded subprocess runner. The CLI
 receives no ambient tokens, configuration or proxies, and verifies the local
-bundle offline with repository, reusable-workflow path, exact signer/source
-commit, main ref, OIDC issuer, hosted-runner and experiment predicate filters.
+bundle offline with the exact repository and reusable-workflow path,
+`--source-digest C`, `--signer-digest S`, main source ref, exact GitHub OIDC issuer,
+hosted-runner and experiment predicate filters. These independent constraints are
+also checked against the authenticated certificate fields after verification.
 It checks the verified statement's exact subject name, digest and predicate.
 There is no unverified DSSE decoding or synthetic-signature fallback.
 
@@ -83,13 +104,19 @@ and tokens are never exported. No App transport or credentials are involved.
 
 ## Run after merge
 
-1. Merge the reviewed PR containing both workflows and the inspector into
-   protected `main`. Do not run this feature branch as a substitute.
+1. Review and merge these changes into protected `main`, preserving literal S in
+   both the caller and inspector. The probe at S already exists and must remain
+   unchanged. Record the merge commit C and confirm C != S. Do not run this
+   feature branch as a substitute or update S to the new merge commit.
 2. Open the repository's **Actions** tab and select **Reusable signer acceptance
    experiment** (`verifier-signer-experiment.yml`).
 3. Select **Run workflow**, select branch **main**, then **Run workflow**. There
    are no inputs. This is a deliberate live signing experiment, with no release
-   or publication action.
+   or publication action. The equivalent single dispatch command is:
+
+   ```bash
+   gh workflow run verifier-signer-experiment.yml --repo benchristian88/atlas-connectors --ref main
+   ```
 4. Inspect the fresh run's `sign / probe` and `inspect` jobs. Only attempt one
    is permitted. To gather another sample, dispatch a new run from main; do not
    use **Re-run jobs**.
@@ -97,12 +124,20 @@ and tokens are never exported. No App transport or credentials are involved.
    `verifier-signer-probe-<run_id>` and
    `verifier-signer-evidence-<run_id>`. Preserve the public evidence with the
    security review if longer retention is needed.
+6. Compare `evidence.json`'s `context.source_commit` with the run's actual commit
+   C and the recorded merge commit, and `signer_revision` with fixed S. Require
+   the genuine PASS conditions below; a green signing job alone is insufficient.
 
 The probe artifact contains exactly `probe.json`, `probe.sigstore.json` and
 `signer-timing.json`. The evidence artifact contains `evidence.json` and
 `comparison.md`. No `authorization.json` is ever created. Failed cryptographic,
 negative or API checks fail the inspection job without uploading acceptance
 evidence; the already uploaded public probe remains available for diagnosis.
+After successful cryptographic, negative and API checks, identity mismatches or
+missing identity fields produce sanitized diagnostics with `experiment_result:
+BLOCKED` and `identity_accepted: false`, then fail the inspection step. The upload
+step runs after failure to preserve those diagnostics. If no report was produced,
+its required-file upload also fails; it never fabricates evidence.
 The experiment has not been dispatched as part of local implementation.
 
 ## Interpret evidence
@@ -123,27 +158,64 @@ only `path`, `sha` and `ref`; missing fields remain null. A missing top-level
 field is explicitly NOT OBSERVABLE; an empty array is an observed empty array,
 not affirmative evidence of the reusable workflow identity.
 
-The comparison table transcribes the pre-correction V1 expectations in
-[AuthorizationSigstore.verify()](../tools/authorization_sigstore.py). Each row
-contains the V1 expectation, actual observation, and MATCH, MISMATCH or
-NOT OBSERVABLE. V1's unset signer revision is displayed as
-`<PINNED_VERIFIER_SHA>` and cannot match a production pin that does not yet exist.
-Different experimental workflow names, subject and predicate are intentional.
+The current comparison table replaces the historical inspector's V1-assumption
+columns with explicit C/S binding, expectation, actual observation and **MATCH**,
+**MISMATCH** or **NOT OBSERVABLE** columns. It includes:
 
-Additional probe-role columns map the two workflow names to their experimental
-equivalents while retaining V1's **SHA-ref signer identity** assumption. These
-columns expose meaningful identity differences that literal path differences
-could otherwise hide. In particular, compare SAN/buildSignerURI textual refs,
-the independently pinned buildSignerDigest, caller versus callee buildConfigURI,
-buildConfigDigest, source commit/ref, run/attempt and numeric IDs. A mismatching
-or unobservable identity must be investigated using the preserved verified
-evidence. Do not silently relax V1 checks. Any correction requires a separate
-security-reviewed change and genuine evidence for the exact production signer
-configuration; this local-reference experiment is not that production run.
+| Evidence field | Required binding | Authority |
+| --- | --- | --- |
+| `sourceRepositoryDigest` | C | Authenticated certificate; CLI source pin |
+| `buildConfigDigest` | C | Authenticated certificate |
+| `buildConfigURI` | Exact caller workflow at `refs/heads/main` | Authenticated certificate |
+| SAN / `buildSignerURI` | Exact probe workflow path, same URI in both fields | Authenticated certificate; CLI signer-workflow constraint |
+| `buildSignerDigest` | Fixed S | Authenticated certificate; separate CLI signer pin |
+| `job.workflow_ref` | Exact probe workflow path; full textual ref recorded | Signed workflow-reported subject |
+| `job.workflow_sha` | Fixed S | Signed workflow-reported subject |
+| `referenced_workflows.path` | Exactly one reference, probe workflow at literal `@S` | Independent run API; not signed |
+| `referenced_workflows.sha` | Fixed S | Independent run API; not signed |
+| `runInvocationURI` | Exact original run ID and `/attempts/1` | Authenticated certificate |
+| Probe source/run/attempt | C and the original run/attempt | Exact signed subject, separately checked against caller context |
 
-Comparison mismatches do not suppress otherwise valid experimental evidence.
-`production_accepted` is always false, even if every applicable probe-role row
-matches. No action in either workflow changes production trust configuration.
+Signer URI and job-ref rows compare the exact workflow path before `@` and record
+the nonempty textual ref without treating it as a revision pin. The previous
+same-commit run used `@refs/heads/main`; the actual spelling for an explicit `@S`
+call is **unknown until this run**. No suffix spelling is inferred from S, and no
+alternative workflow path or signer digest is accepted. S must independently
+match the certificate digest, job SHA and API reference. Source/caller refs remain
+exactly main. The API's optional `referenced_workflows.ref` is retained verbatim
+as a diagnostic, independently of the required path/SHA checks.
+
+### Genuine PASS and failure conditions
+
+A genuine PASS requires a fresh manual main run, attempt one, C != S, successful
+pinned-CLI verification with independent C/S constraints, the exact experimental
+subject and predicate, trusted verified transparency evidence, both real subject
+rejection tests, complete bounded API reads, and **every comparison row MATCH**.
+`experiment_result` must be `PASS` and `identity_accepted` must be true.
+Missing certificate/job/reference identities, wrong or swapped C/S digests,
+wrong workflow paths, non-main caller/source refs, a different invocation or
+attempt, invalid signatures, absent transparency evidence or failed/inconclusive
+negative checks prevent PASS. A cryptographically valid signature with incorrect
+C/S bindings is **BLOCKED**, never successful identity acceptance.
+
+Unknown/missing platform representations require review of actual evidence. Do
+not change pins, invent fields or introduce a permissive fallback to pass the run.
+`production_accepted` is always false, including on experimental PASS. No action
+in either workflow changes production trust configuration.
+
+### Implications for production V2
+
+If genuine evidence establishes these independent bindings, a literal reusable
+call at reviewed S can support future catalogue changes at newer C without
+changing the accepted verifier implementation. Future verifier changes still
+require explicit security review and signer-pin updates. A caller-local workflow
+or later checkout of S cannot provide that separation.
+
+This experiment is evidence for that design, not a V2 integration or production
+signer acceptance. The exact production signer, its own textual URI profile,
+credential isolation, trust/environment pins and remaining authorization gates
+need separate genuine acceptance and review. Unexpected platform bindings block
+the design's acceptance until understood; the production profile is unchanged.
 
 ## Timing and the 60-second prototype budget
 
@@ -177,8 +249,11 @@ boundaries, the actual inline subject generator, sanitized output, exact CLI
 constraints and fail-closed behavior. Synthetic verified-output policy tests are
 explicitly synthetic. Real local pinned-CLI negative tests reject unsigned data
 and an existing genuine attestation from another workflow. Existing genuine
-P1/P2 fixtures remain unchanged. Neither kind of local test proves a positive
-reusable-workflow signature or GitHub permission/context behavior.
+P1/P2 and genuine same-commit probe fixtures remain unchanged. The historical
+probe test still performs genuine positive and tampering/substitution verification
+with its explicit archived C = S profile; the new C != S verifier rejects that
+old signer revision. Neither synthetic C/S tests nor that historical positive
+prove C != S acceptance or explicit pinned-call GitHub permission/context behavior.
 
 The post-merge run must demonstrate successful OIDC issuance, native attestation
 creation with these minimal permissions, artifact transport and independent
