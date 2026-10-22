@@ -26,9 +26,9 @@ jobs:
       contents: read
       id-token: write
       attestations: write
-    # Inert pre-V2 pin: freeze reviewed V2 as S, then update the call, checkout and implementation SHA in
-    # a separate reviewed caller commit. Trust remains unaccepted until live review.
-    uses: benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@da5562eeb21d5c1cc653cfea7ae8d025d2a9174a
+    # Frozen reviewed Lean V2 implementation S, independent of caller/source C.
+    # Trust remains unaccepted until genuine acceptance evidence is reviewed.
+    uses: benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@d12d47111dec137e4a6af261879f1e49b8db05e2
     with:
       request: ${{ toJSON(inputs) }}
 
@@ -43,7 +43,7 @@ jobs:
     env:
       PUBLICATION_OPERATION: ${{ inputs.operation }}
       ATLAS_SOURCE_DIRECTORY: publication-source
-      ATLAS_IMPLEMENTATION_REVISION: da5562eeb21d5c1cc653cfea7ae8d025d2a9174a
+      ATLAS_IMPLEMENTATION_REVISION: d12d47111dec137e4a6af261879f1e49b8db05e2
     permissions:
       contents: read
       actions: read
@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: benchristian88/atlas-connectors
-          ref: da5562eeb21d5c1cc653cfea7ae8d025d2a9174a
+          ref: d12d47111dec137e4a6af261879f1e49b8db05e2
           persist-credentials: false
       - name: Read advancing source as data only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

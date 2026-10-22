@@ -110,6 +110,12 @@ def test_publisher_depends_on_isolated_preflight_before_credentials_and_executes
     signer, publisher = caller["jobs"]["preflight"], caller["jobs"]["publish"]
     match = re.fullmatch(r"benchristian88/atlas-connectors/\.github/workflows/catalogue-verifier\.yml@([a-f0-9]{40})", signer["uses"])
     assert match and signer["with"] == {"request": "${{ toJSON(inputs) }}"}
+    assert match[1] == "d12d47111dec137e4a6af261879f1e49b8db05e2"
+    trust = json.loads((ROOT / "catalogue/publication/verifier-trust.json").read_text())
+    assert trust["signer_revision"] == match[1] and trust["live_signer_accepted"] is False
+    workflow_source = (ROOT / ".github/workflows/catalogue-publish.yml").read_text()
+    assert workflow_source.count(match[1]) == 3
+    assert "da5562eeb21d5c1cc653cfea7ae8d025d2a9174a" not in workflow_source
     assert "secrets" not in signer and "environment" not in signer
     assert publisher["needs"] == "preflight" and "!inputs.acceptance_only" in publisher["if"]
     steps = publisher["steps"]
