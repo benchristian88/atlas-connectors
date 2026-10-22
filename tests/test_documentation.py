@@ -7,7 +7,9 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def test_repository_markdown_links_whitespace_and_fences():
-    paths=[ROOT/'README.md',*ROOT.glob('connectors/**/*.md'),*ROOT.glob('catalogue/**/*.md')]
+    paths=[ROOT/'README.md',*ROOT.glob('connectors/**/*.md'),*ROOT.glob('catalogue/**/*.md'),
+           *ROOT.glob('docs/**/*.md'), *ROOT.glob('tools/publication_trust/*.md'),
+           *ROOT.glob('tests/fixtures/publication/*.md')]
     for path in paths:
         raw=path.read_bytes()
         assert raw.endswith(b'\n') and not raw.endswith(b'\n\n'),path

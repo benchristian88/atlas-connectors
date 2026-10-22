@@ -5,9 +5,8 @@ permissions:
   contents: read
 jobs:
   prepare:
-    if: github.repository == 'benchristian88/atlas-connectors'
+    if: github.repository == 'benchristian88/atlas-connectors' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    environment: connector-release
     timeout-minutes: 10
     permissions:
       contents: read
@@ -37,5 +36,5 @@ jobs:
           name: official-connector-catalogue-candidate
           path: dist/catalogue/*.json
           if-no-files-found: error
-      # Preparation and attestation only. Publishing the current alias and
-      # retaining numbered snapshots is a separate protected operator step.
+      # Build provenance only. catalogue-publish.yml separately gates publication
+      # and signs current.json after maintainer dispatch and provider policy checks.

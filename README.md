@@ -15,8 +15,8 @@ cluster, node, QEMU and LXC Assets, canonical Networks/Interfaces and
 member_of/runs_on relationships. There are no bridge or storage Assets,
 connected_to or uses_storage relationships. Other source versions remain untested
 with a warning; this does not claim all Proxmox 9.x versions are supported.
-0.2.0 is published as the first production Connector release under the immutable
-tag `proxmox-v0.2.0`. **0.1.0** was an
+0.2.0 is published as the first production Connector release under the
+tag `proxmox-v0.2.0` (its GitHub Release currently reports mutable). **0.1.0** was an
 internal development/probe baseline, never tagged or published as a GitHub Release;
 Git history preserves that state.
 
@@ -97,6 +97,7 @@ Python 3.12+ development:
 ```bash
 python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
 python -m pip install -r requirements-dev.txt
+python tools/prepare_publication_verifier.py
 python tools/test_collection.py --archive ../atlas/vendor/collections/community-proxmox-2.0.0.tar.gz --output /tmp/atlas-connector-test-collections
 export ATLAS_TEST_COLLECTIONS_PATH=/tmp/atlas-connector-test-collections
 export ATLAS_TEST_RUN_ANSIBLE=1
@@ -117,12 +118,14 @@ Build twice and compare bytes. A local dirty-tree candidate has no authenticated
 remote provenance; its recorded source HEAD is contextual, not a claim that the
 uncommitted implementation exists at that commit.
 
-The per-release `index.json` is immutable detached metadata, not the aggregate
-global catalogue. [Official catalogue maintenance](catalogue/README.md) documents
+The per-release `index.json` is detached version metadata governed by the
+historical identity policy, not the aggregate global catalogue. [Official catalogue maintenance](catalogue/README.md) documents
 the separate checked-in release registry, deterministic catalogue builder and
-manual protected preparation/attestation workflow. Stage A prepares
-`dist/catalogue/catalogue.json` and an identical numbered audit snapshot for the
-eventual `catalogue-v1` channel; publication remains a separate operator step.
+preparation/attestation workflow. [P1 publication foundations](catalogue/publication/README.md)
+add immutable numbered snapshots, separately signed selection, explicit single-maintainer authorization
+and failure recovery. Activation remains disabled pending owner configuration,
+approved legacy bootstrap and Atlas consumer changes. Existing catalogue-v1 assets
+are preserved; that mutable legacy channel is not an accepted current source.
 This does not implement Atlas remote catalogue consumption or installation.
 
 The test collection archive above is the exact I4A artefact from a sibling Atlas
@@ -142,12 +145,13 @@ deterministic `i4b-fixture` harness for Atlas tests. Its source adapter and embe
 sanitized fixtures exist only in that test bundle; its `fixture-only` qualification
 does not qualify Proxmox or allow candidate activation.
 
-CI validates contracts, fixtures and build. The protected `proxmox-v<SemVer>`
-release workflow verifies tag/Manifest identity, builds and attests the exact
+CI validates contracts, fixtures and build. The `ID-v<SemVer>` release preparation
+workflow selects an explicitly packaged, qualified Connector, verifies exact
+tag/Manifest identity, builds and attests the exact
 bundle with the pinned GitHub `actions/attest` action, then retains a release
 candidate artifact. The operator publishes those unchanged files as immutable
 GitHub Release assets only after qualification. Production **0.2.0** is published
-under the immutable tag `proxmox-v0.2.0`. Repository identity is **benchristian88/atlas-connectors** and
+under tag `proxmox-v0.2.0`; its existing GitHub Release reports mutable. Repository identity is **benchristian88/atlas-connectors** and
 signer workflow is **.github/workflows/release.yml**; Atlas must bind both, the
 exact digest/source commit and authenticated Sigstore issuer/predicate evidence.
 
