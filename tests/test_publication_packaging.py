@@ -90,6 +90,12 @@ def test_workflows_have_explicit_security_boundaries():
     assert type(json.loads((ROOT/'catalogue/publication/policy.json').read_bytes())['enabled']) is bool
     for workflow in workflows.values():
         for job in workflow['jobs'].values():
+            if 'uses' in job:
+                # The experiment's local reusable call resolves to the caller's
+                # same commit. Continue enforcing full SHAs on action steps.
+                assert job['uses']=='./.github/workflows/verifier-signer-probe.yml'
+                assert 'steps' not in job and 'secrets' not in job
+                continue
             for step in job['steps']:
                 if 'uses' in step:
                     assert len(step['uses'].split('@')[1])==40
