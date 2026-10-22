@@ -124,7 +124,9 @@ the separate checked-in release registry, deterministic catalogue builder and
 preparation/attestation workflow. [P1 publication foundations](catalogue/publication/README.md)
 add immutable numbered snapshots, separately signed selection, explicit single-maintainer authorization
 and failure recovery. Activation remains disabled pending owner configuration,
-approved legacy bootstrap and Atlas consumer changes. Existing catalogue-v1 assets
+separately approved [P2 legacy bootstrap](catalogue/publication/bootstrap.md)
+and Atlas consumer changes. P2 now implements disabled two-dispatch staging and
+activation foundations with exact historical bytes; no live migration is complete. Existing catalogue-v1 assets
 are preserved; that mutable legacy channel is not an accepted current source.
 This does not implement Atlas remote catalogue consumption or installation.
 

@@ -210,3 +210,76 @@ class Github:
         observed, actual = self.channel()
         require(observed == commit["sha"] and actual == files, "channel_changed_after_update")
         return observed
+
+    def bootstrap_absent(self):
+        """A missing branch alone never reopens consumed bootstrap authority."""
+        require(self.json("GET", "/git/ref/heads/catalogue-current", missing=True) is None,
+                "bootstrap_current_exists_review_required")
+        require(self.json("GET", "/git/ref/tags/catalogue-bootstrap-root", missing=True) is None,
+                "bootstrap_consumed_review_required")
+
+    def verify_root(self, sha, files):
+        """Verify a true root with exactly two ordinary blobs, including their bytes."""
+        import hashlib
+        require(hexadecimal(sha, 40), "bootstrap_root_identity")
+        commit = self.json("GET", f"/git/commits/{sha}")
+        require(commit.get("sha") == sha and commit.get("parents") == [], "bootstrap_root_parent")
+        tree_sha = commit.get("tree", {}).get("sha")
+        require(hexadecimal(tree_sha, 40), "bootstrap_root_tree")
+        tree = self.json("GET", f"/git/trees/{tree_sha}")
+        require(tree.get("sha") == tree_sha and tree.get("truncated") is False
+                and isinstance(tree.get("tree"), list) and len(tree["tree"]) == 2, "bootstrap_root_tree")
+        actual = {}
+        for row in tree["tree"]:
+            require(row.get("type") == "blob" and row.get("mode") == "100644"
+                    and row.get("path") not in actual, "bootstrap_root_tree")
+            actual[row["path"]] = row.get("sha")
+        expected = {name: hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+                    for name, raw in files.items()}
+        require(actual == expected, "bootstrap_root_bytes")
+
+    def create_root(self, files, *, reauthorize):
+        """Create-only refs. A durable no-bypass intent tag fences ambiguous retries.
+
+        Marker-without-current requires a separate reviewed recovery, never an
+        automatic retry. A lost current creation response is inspected, not replayed.
+        """
+        require(set(files) == {"current.json", "current.sigstore.json"}, "bootstrap_root_files")
+        require(parse_pointer(files["current.json"])["sequence"] == 1, "bootstrap_root_sequence")
+        require(0 < len(files["current.sigstore.json"]) <= MAX_BUNDLE_BYTES, "attestation_size")
+        self.bootstrap_absent()
+        tree = self.json("POST", "/git/trees", payload={"tree": [
+            {"path": name, "mode": "100644", "type": "blob", "content": raw.decode("utf-8")}
+            for name, raw in sorted(files.items())]})
+        require(hexadecimal(tree.get("sha"), 40), "invalid_tree_response")
+        commit = self.json("POST", "/git/commits", payload={"message": "Establish authenticated catalogue root",
+                           "tree": tree["sha"], "parents": []})
+        sha = commit.get("sha")
+        self.verify_root(sha, files)
+        reauthorize()
+        self.bootstrap_absent()
+        # Separate no-bypass update/deletion rules preserve this consumption marker.
+        # No catch/retry here: a lost marker response consumes authority conservatively.
+        self.json("POST", "/git/refs", payload={"ref": "refs/tags/catalogue-bootstrap-root", "sha": sha})
+        marker = self.json("GET", "/git/ref/tags/catalogue-bootstrap-root")
+        require(marker.get("ref") == "refs/tags/catalogue-bootstrap-root"
+                and marker.get("object", {}).get("type") == "commit"
+                and marker.get("object", {}).get("sha") == sha,
+                "bootstrap_marker_conflict")
+        reauthorize()
+        require(self.json("GET", "/git/ref/heads/catalogue-current", missing=True) is None,
+                "bootstrap_current_exists_review_required")
+        try:
+            self.json("POST", "/git/refs", payload={"ref": "refs/heads/catalogue-current", "sha": sha})
+        except PublicationError:
+            # Even a timeout may have committed. Read exact state without retrying.
+            reference = self.json("GET", "/git/ref/heads/catalogue-current", missing=True)
+            require(reference is not None and reference.get("object", {}).get("sha") == sha,
+                    "bootstrap_root_ambiguous_review_required")
+        observed, actual = self.channel()
+        require(observed == sha and actual == files, "bootstrap_root_conflict")
+        self.verify_root(sha, files)
+        marker = self.json("GET", "/git/ref/tags/catalogue-bootstrap-root")
+        require(marker.get("object", {}).get("sha") == sha, "bootstrap_marker_conflict")
+        require(self.channel() == (sha, files), "bootstrap_root_conflict")
+        return sha

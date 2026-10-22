@@ -14,7 +14,8 @@ repository ID **1414494920**, owner ID **93822871**, environment IDs, dedicated 
 ID/slug/bot-user ID, and approved bootstrap sequence/pointer SHA-256. Record the
 reviewed producer workflow/policy source revision at activation. Neither pointer
 fields nor a downloaded `policy.json` may supply authoritative identity, roots,
-mode or bootstrap values. The producer defaults disabled with null identities.
+mode or bootstrap values. The producer defaults disabled; publisher identities are configured in source,
+while the bootstrap sequence/pointer pins remain null.
 Do not assume that the repository owner's numeric ID is the authorized maintainer.
 
 Only the explicit single-maintainer mode is implemented. A future independent-
@@ -173,3 +174,51 @@ an approved bootstrap migration and digest, non-installable legacy history handl
 consumer policy implementation and genuine acceptance. The one-human model removes
 the second-maintainer blocker; it adds no independent human veto against maintainer
 account compromise. Unknown policy modes fail closed until deliberately reviewed.
+
+## P2 bootstrap handoff — still requires independent Atlas work
+
+The [two-dispatch producer bootstrap](bootstrap.md) and
+[ADR 0003](../../docs/decisions/0003-sequence-one-bootstrap.md) implement source
+preservation, signed draft staging, separate pointer-digest approval, immutable
+finalisation and create-only root selection. No migration has run. The producer
+policy retains `enabled: false`, `bootstrap_operation: disabled`, sequence null
+and pointer digest null. No actual target release/asset IDs, new signature or root
+SHA may be invented for consumer configuration.
+
+Atlas's existing B1.3 adapter still targets legacy catalogue-v1 and rejects
+`publication_not_immutable`; even an immutable legacy release reaches
+`current_channel_policy_unavailable`. Neither gate was modified. A later Atlas
+change must implement this advancing channel and distinct selection profile,
+independently approve the **actual canonical pointer digest**, preserve the frozen
+catalogue digest/source/build profile, and retain root pointer/bundle and historical
+trust state. Authorize using the configured single maintainer and authenticated
+first-attempt selection invocation, then verify immutable snapshot identity and
+original build evidence. The activation dispatch is separately recorded in the
+producer receipt; it is not the signer invocation and the receipt is not trust.
+
+Configured producer inputs: maintainer 93822871; repository 1414494920; owner
+93822871; environments 24999137498 and 24617213627; App 5422372,
+`atlas-catalogue-publisher`, installation 174027755, bot 346232650. Atlas must
+review its own configuration rather than download these as authoritative policy.
+
+The new no-bypass `atlas-bootstrap-lock` protects the write-once
+`refs/tags/catalogue-bootstrap-root` intent tag. It points to the parentless root
+with exactly current.json and current.sigstore.json. It prevents producer bootstrap
+from reopening after current disappears. Consumers may use it as corroborating
+provider evidence; it is neither a signature nor a replacement for independent
+high-water/history storage. Missing current or lost database state requires reviewed
+recovery, never publisher rebootstrap. Keep immutable revisions, exact IDs, sticky
+withdrawal history and normal predecessor checks across restarts and restores.
+
+The frozen active Proxmox 0.2.0 entry is authenticated catalogue history only.
+Its mutable package remains non-installable. There is no Connector-specific B3
+exception or package promotion. A later sequence may deliberately withdraw that
+entry without changing its identity, and include a newly qualified immutable
+release through ordinary generic gates. P1 checks all active entries and will
+otherwise reject advancement carrying that mutable package as active.
+
+Genuine new pointer verification, live public API/protection observations, immutable
+release/root receipt, explicit consumer root approval, durable first acceptance,
+unchanged confirmation, advancement and restart/last-known-good acceptance remain
+outstanding. Offline original-source verification and model tests do not satisfy
+those boundaries.

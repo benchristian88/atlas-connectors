@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Approved immutable publication, in stage / finish phases. Never bootstrap history.
+"""Approved immutable publication and explicitly separated historical bootstrap.
+
+Normal stage/finish/recover never initialise history; bootstrap has its own phases.
 
 Only the CLI with an enabled owner-reviewed policy may mutate GitHub. Tests use
 explicit in-memory providers, not live releases, and do not constitute approval.
@@ -60,9 +62,10 @@ class Publisher:
     def __init__(self, api, verifier, policy, run_id, *, source_commit, token_identity=None):
         self.api, self.verifier, self.policy, self.run_id = api, verifier, policy, run_id
         self.source_commit, self.token_identity = source_commit, token_identity
+        self.policy_operation = "publish"
 
     def run_authority(self, run_id, source_commit, *, historical=False, package_tag=None):
-        check_policy(self.policy)
+        check_policy(self.policy, operation=self.policy_operation)
         require(positive_integer(run_id) and hexadecimal(source_commit, 40), "invalid_run_context")
         run = self.api.json("GET", f"/actions/runs/{run_id}")
         require(isinstance(run, dict) and positive_integer(run.get("workflow_id")), "missing_run_evidence")
@@ -86,20 +89,20 @@ class Publisher:
             # Public repository: an anonymous CI read avoids expanding the
             # publication App's permissions to Checks read. No auth fallback.
             self.api.json("GET", f"/commits/{source_commit}/check-runs?check_name=validate&filter=latest&per_page=100", public=True),
-            run_id=run_id, source_commit=source_commit, historical=historical, package_tag=package_tag)
+            run_id=run_id, source_commit=source_commit, historical=historical, package_tag=package_tag, operation=self.policy_operation)
 
     def authority(self):
-        check_policy(self.policy)
+        check_policy(self.policy, operation=self.policy_operation)
         authority = self.run_authority(self.run_id, self.source_commit)
         check_app(self.policy,
             self.api.json("GET", "/apps/" + self.policy["app_slug"], api_global=True),
-            self.api.json("GET", "/installation/repositories?per_page=100", api_global=True), self.token_identity)
+            self.api.json("GET", "/installation/repositories?per_page=100", api_global=True), self.token_identity, operation=self.policy_operation)
         immutable = self.api.json("GET", "/immutable-releases")
         require(immutable.get("enabled") is True, "release_immutability_not_enabled")
         rules = self.api.json("GET", "/rulesets?per_page=100")
         require(isinstance(rules, list) and len(rules) < 100 and all(positive_integer(r.get("id")) for r in rules),
                 "ruleset_response_limit")
-        check_rulesets(self.policy, [self.api.json("GET", f"/rulesets/{r['id']}") for r in rules])
+        check_rulesets(self.policy, [self.api.json("GET", f"/rulesets/{r['id']}") for r in rules], operation=self.policy_operation)
         return authority
 
     def selection(self, raw, bundle):
@@ -172,6 +175,7 @@ class Publisher:
                     and comparison.get("merge_base_commit", {}).get("sha") == source, "package_unreviewed_source")
 
     def stage(self, raw):
+        check_policy(self.policy)
         authority = self.authority()
         candidate = parse_catalogue(raw)
         name = snapshot_tag(candidate["sequence"]) + ".json"
@@ -266,6 +270,7 @@ class Publisher:
         This supports recovery after main has advanced without rebuilding old
         bytes or dispatching an arbitrary source ref. It never repairs a draft.
         """
+        check_policy(self.policy)
         self.authority()
         head, previous_files, previous_raw = self.current()
         previous = parse_pointer(previous_files["current.json"])
@@ -293,17 +298,27 @@ class Publisher:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("authorize", "stage", "finish", "recover"))
+    parser.add_argument("phase", choices=("authorize", "stage", "finish", "recover",
+        "bootstrap-preflight", "bootstrap-stage", "bootstrap-seal", "bootstrap-activate"))
     parser.add_argument("--bundle", type=Path)
     args = parser.parse_args()
     try:
         policy = strict_json(read_regular(POLICY, 16384))
-        check_policy(policy)
+        from bootstrap_catalogue import BootstrapPublisher, local_preflight
+        if args.phase == "bootstrap-preflight":
+            print(canonical_json(local_preflight(policy, Verifier())).decode(), end="")
+            return
+        operation = os.environ.get("PUBLICATION_OPERATION")
+        allowed = {"publish": {"authorize", "stage", "finish"}, "recover": {"authorize", "recover"},
+                   "bootstrap": {"authorize", "bootstrap-stage", "bootstrap-seal", "bootstrap-activate"}}
+        require(operation in allowed and args.phase in allowed[operation], "unauthorized_publication_phase")
+        check_policy(policy, operation=operation)
         require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY
                 and os.environ.get("GITHUB_REF") == "refs/heads/main"
                 and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
                 and os.environ.get("GITHUB_RUN_ATTEMPT") == "1", "untrusted_workflow_context")
-        publisher = Publisher(Github(os.environ.get("ATLAS_PUBLICATION_TOKEN")),
+        publisher_type = BootstrapPublisher if operation == "bootstrap" else Publisher
+        publisher = publisher_type(Github(os.environ.get("ATLAS_PUBLICATION_TOKEN")),
                               None if args.phase == "authorize" else Verifier(), policy,
                               int(os.environ.get("GITHUB_RUN_ID", "0")), source_commit=os.environ.get("GITHUB_SHA"),
                               token_identity={"app_slug": os.environ.get("ATLAS_APP_SLUG"),
@@ -314,7 +329,22 @@ def main():
             return
         output = ROOT / "dist/publication"
         output.mkdir(parents=True, exist_ok=True)
-        if args.phase == "recover":
+        if args.phase == "bootstrap-stage":
+            staged = publisher.stage_bootstrap()
+            (output / "current.json").write_bytes(staged.pointer)
+            if staged.bundle is not None:
+                (output / "current.sigstore.json").write_bytes(staged.bundle)
+            receipt = {"result": "bootstrap_signing_pending", "needs_attestation": staged.bundle is None,
+                       "release_id": staged.release_id, "pointer_sha256": digest(staged.pointer)}
+            if os.environ.get("GITHUB_OUTPUT"):
+                with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
+                    stream.write(f"needs_attestation={str(staged.bundle is None).lower()}\n")
+        elif args.phase == "bootstrap-seal":
+            receipt = publisher.seal_bootstrap(read_regular(output / "current.json", 1024),
+                                               read_regular(output / "current.sigstore.json", MAX_BUNDLE_BYTES))
+        elif args.phase == "bootstrap-activate":
+            receipt = publisher.activate_bootstrap()
+        elif args.phase == "recover":
             receipt = publisher.recover()
         elif args.phase == "stage":
             raw, _ = build_catalogue.build()

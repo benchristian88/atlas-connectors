@@ -8,6 +8,7 @@
   "app_slug": "atlas-catalogue-publisher",
   "app_installation_id": 174027755,
   "app_bot_user_id": 346232650,
+  "bootstrap_operation": "disabled",
   "bootstrap": {
     "sequence": null,
     "pointer_sha256": null

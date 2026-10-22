@@ -21,3 +21,11 @@ claim immutable release history, human approval or package installation eligibil
 No genuine pointer fixture exists: no pointer has been published or signed here.
 State-machine tests use visibly marked TEST_ONLY_NO_SIGNATURE objects solely to
 model transitions; those objects can never pass the production verifier.
+
+P2 reads these same frozen files without modifying them. Bootstrap additionally
+pins the catalogue byte count/digest, bundle digest and original source; its
+read-only local preflight invokes the genuine pinned verifier. No new selection
+fixture is fabricated. `test_publication_bootstrap.py` explicitly models GitHub
+state and signatures for interruptions, policy checks and the two-dispatch CLI
+path; genuine acceptance remains in `test_publication_crypto.py`. The bootstrap
+receipt and pointer values produced by model tests are not deployment inputs.
