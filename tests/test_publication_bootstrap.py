@@ -344,13 +344,86 @@ def test_legacy_entry_is_not_promoted_through_package_gate(bootstrap):
 
 def test_local_disabled_preflight_and_unauthorized_inputs(bootstrap):
     api, publisher = bootstrap
-    policy = json.loads((ROOT / 'catalogue/publication/policy.json').read_bytes())
-    assert policy['enabled'] is False and policy['bootstrap_operation'] == 'disabled'
-    assert policy['bootstrap'] == {'sequence': None, 'pointer_sha256': None}
-    assert local_preflight(policy, api.verifier)['remote_checks_performed'] is False
-    with pytest.raises(PublicationError, match='disabled'): check_policy(policy, operation='bootstrap')
+    policy = deepcopy(publisher.policy)
+    policy.update(enabled=False, bootstrap_operation='disabled')
+    result = local_preflight(policy, api.verifier)
+    assert result['enabled'] is False and result['bootstrap_operation'] == 'disabled'
+    assert result['remote_checks_performed'] is False
+    for operation in ['bootstrap', 'publish', 'recover']:
+        with pytest.raises(PublicationError, match='^publication_disabled$'):
+            check_policy(policy, operation=operation)
+    assert not api.writes
     for operation in ['BOOTSTRAP', 'bootstrap-any-source', '', None]:
         with pytest.raises(PublicationError): check_policy(api.args[0], operation=operation)
+
+
+def test_checked_in_policy_authorizes_only_bootstrap_staging(bootstrap):
+    api, _ = bootstrap
+    policy = json.loads((ROOT / 'catalogue/publication/policy.json').read_bytes())
+    assert policy['enabled'] is True and policy['bootstrap_operation'] == 'stage'
+    assert policy['bootstrap'] == {'sequence': None, 'pointer_sha256': None}
+    check_policy(policy, operation='bootstrap')
+    assert local_preflight(policy, api.verifier)['remote_checks_performed'] is False
+    for operation in ['publish', 'recover']:
+        with pytest.raises(PublicationError, match='^approved_bootstrap_required$'):
+            check_policy(policy, operation=operation)
+
+
+@pytest.mark.parametrize('pins', [
+    {'sequence': 1, 'pointer_sha256': None},
+    {'sequence': None, 'pointer_sha256': 'f'*64},
+    {'sequence': 1, 'pointer_sha256': 'f'*64},
+    {'sequence': None}, {'pointer_sha256': None},
+])
+def test_staging_requires_both_pins_explicitly_null(bootstrap, pins):
+    _, publisher = bootstrap
+    publisher.policy['bootstrap'] = pins
+    with pytest.raises(PublicationError, match='^bootstrap_staging_pins_must_be_unset$'):
+        check_policy(publisher.policy, operation='bootstrap')
+
+
+@pytest.mark.parametrize('enabled,mode,code', [
+    (False, 'disabled', 'publication_disabled'),
+    (False, 'stage', 'publication_disabled'),
+    (False, 'activate', 'publication_disabled'),
+    (False, 'unknown', 'publication_disabled'),
+    (True, 'disabled', 'bootstrap_operation_disabled'),
+    (True, 'unknown', 'bootstrap_operation_disabled'),
+    (True, None, 'bootstrap_operation_disabled'),
+    (True, 'activate', 'bootstrap_sequence'),  # Null pins do not authorize activation.
+    (1, 'stage', 'publication_disabled'),
+    ('true', 'stage', 'publication_disabled'),
+    (None, 'stage', 'publication_disabled'),
+])
+def test_invalid_bootstrap_policy_fails_before_api_access(bootstrap, monkeypatch, enabled, mode, code):
+    api, publisher = bootstrap
+    publisher.policy.update(enabled=enabled, bootstrap_operation=mode)
+    def forbidden(*args, **kwargs): pytest.fail('invalid policy reached GitHub')
+    monkeypatch.setattr(api, 'json', forbidden)
+    with pytest.raises(PublicationError, match='^' + code + '$'):
+        publisher.preflight()
+    assert not api.writes
+
+
+def test_stage_and_seal_cannot_finalise_or_create_bootstrap_refs(bootstrap, monkeypatch):
+    api, publisher = bootstrap
+    original = api.json
+    def draft_only(method, path, **kwargs):
+        if method != 'GET':
+            assert (method, path) == ('POST', '/releases')
+            assert kwargs['payload']['draft'] is True
+        return original(method, path, **kwargs)
+    monkeypatch.setattr(api, 'json', draft_only)
+    _, receipt = sealed(publisher)
+    assert receipt['result'] == 'staged_requires_separate_approval'
+    assert not receipt['published'] and not receipt['immutable']
+    assert receipt['channel_commit'] is None
+    assert api.release(TAG)['draft'] and api.ref is None and api.marker is None
+    assert api.tree is None and api.commit is None
+    def forbidden(*args, **kwargs): pytest.fail('stage policy activation reached GitHub')
+    monkeypatch.setattr(api, 'json', forbidden)
+    with pytest.raises(PublicationError, match='^bootstrap_activation_not_authorized$'):
+        publisher.activate_bootstrap()
 
 
 def test_source_byte_manifest_and_bundle_changes_rejected_before_verification(bootstrap):
