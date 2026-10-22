@@ -1,13 +1,13 @@
 {
   "enabled": false,
   "authorization_mode": "single-maintainer-v1",
-  "allowed_maintainer_id": null,
-  "environment_id": null,
-  "package_environment_id": null,
-  "app_id": null,
-  "app_slug": null,
-  "app_installation_id": null,
-  "app_bot_user_id": null,
+  "allowed_maintainer_id": 93822871,
+  "environment_id": 24999137498,
+  "package_environment_id": 24617213627,
+  "app_id": 5422372,
+  "app_slug": "atlas-catalogue-publisher",
+  "app_installation_id": 174027755,
+  "app_bot_user_id": 346232650,
   "bootstrap": {
     "sequence": null,
     "pointer_sha256": null
