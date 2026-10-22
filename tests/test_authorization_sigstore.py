@@ -21,7 +21,7 @@ SYNTHETIC_BUNDLE = canonical_json({"mediaType": "application/vnd.dev.sigstore.bu
 
 
 def synthetic_verified_output(raw):
-    identity = f"{ORIGIN}/{WORKFLOW}@{REVISION}"
+    identity = f"{ORIGIN}/{WORKFLOW}@refs/heads/main"
     return [{"verificationResult": {
         "signature": {"certificate": {"issuer": ISSUER, "subjectAlternativeName": identity,
             "buildSignerURI": identity, "buildSignerDigest": REVISION,
@@ -47,7 +47,7 @@ def decision(monkeypatch):
     return data, issue_fixture(data)
 
 
-def test_synthetic_verified_output_enforces_all_cli_constraints(monkeypatch, decision):
+def test_synthetic_branch_ref_and_independent_pinned_digest_enforce_all_cli_constraints(monkeypatch, decision):
     data, raw = decision
     commands = []
     def run(command, directory):
@@ -67,6 +67,63 @@ def test_synthetic_verified_output_enforces_all_cli_constraints(monkeypatch, dec
         assert flag in command
     # gh 2.102.1 makes these mutually exclusive. Exact SAN is checked in verified output.
     assert "--cert-identity" not in command
+    assert SOURCE != REVISION  # Verifier revision is not automatically the source SHA.
+
+
+@pytest.mark.parametrize("field", ["subjectAlternativeName", "buildSignerURI"])
+@pytest.mark.parametrize("identity", [
+    f"{ORIGIN}/{WORKFLOW}@{REVISION}",  # Old, unsupported SHA-suffixed URI.
+    f"{ORIGIN}/{WORKFLOW}@refs/heads/other",
+    f"{ORIGIN}/{WORKFLOW}@refs/tags/main",
+    f"{ORIGIN}/.github/workflows/verifier-signer-probe.yml@refs/heads/main",
+    f"{ORIGIN}/{PUBLICATION_WORKFLOW}@refs/heads/main",
+])
+def test_synthetic_signer_uri_is_exact_even_with_correct_pinned_digest(monkeypatch, decision, field, identity):
+    data, raw = decision
+    value = synthetic_verified_output(raw)
+    certificate = value[0]["verificationResult"]["signature"]["certificate"]
+    certificate[field] = identity
+    assert certificate["buildSignerDigest"] == data[3]["signer_revision"]
+    monkeypatch.setattr(crypto, "bounded_run", lambda *a: canonical_json(value))
+    with pytest.raises(ValueError, match="authorization_certificate"):
+        crypto.AuthorizationSigstore().verify(raw, SYNTHETIC_BUNDLE, expected=data[2], trust=data[3])
+
+
+def test_synthetic_correct_branch_ref_cannot_substitute_signer_revision(monkeypatch, decision):
+    data, raw = decision
+    value = synthetic_verified_output(raw)
+    value[0]["verificationResult"]["signature"]["certificate"]["buildSignerDigest"] = SOURCE
+    monkeypatch.setattr(crypto, "bounded_run", lambda *a: canonical_json(value))
+    with pytest.raises(ValueError, match="authorization_certificate"):
+        crypto.AuthorizationSigstore().verify(raw, SYNTHETIC_BUNDLE, expected=data[2], trust=data[3])
+
+
+def test_genuine_probe_evidence_remains_distinct_from_production_authorization(decision):
+    from verifier_signer_experiment import ProbeVerifier, SIGNER, check_subject, negative_checks
+    expected = {"source_commit": "e5287c3229f5b9a1dc4c3dbcda0f4193fe221c3c",
+                "run_id": 39846232008, "run_attempt": 1}
+    base = ROOT / "tests/fixtures/verifier_signer_probe"
+    raw, bundle = (base / "probe.json").read_bytes(), (base / "probe.sigstore.json").read_bytes()
+    assert digest(raw) == "75052edaed33fda77502ed2ecac49515f9e22f96f7a009ef6cb4ad3f9041e08a"
+    assert digest(bundle) == "02fa47cde8e739dad47dfe8e902b2759f9eb2f1488cd60bebd8865ef5730d199"
+    subject = check_subject(raw, expected)
+    verifier = ProbeVerifier()  # Real pinned CLI, unchanged roots. No mocks.
+    verified = verifier.verify(raw, bundle, expected)
+    certificate = verified["certificate"]
+    assert certificate["subjectAlternativeName"] == certificate["buildSignerURI"] == f"{ORIGIN}/{SIGNER}@refs/heads/main"
+    assert certificate["buildSignerDigest"] == certificate["sourceRepositoryDigest"] == expected["source_commit"]
+    assert subject["job_context"]["workflow_ref"] == f"benchristian88/atlas-connectors/{SIGNER}@refs/heads/main"
+    assert subject["job_context"]["workflow_sha"] == expected["source_commit"]
+    assert verified["predicate_type"] != PREDICATE and verified["subject"]["name"] != SUBJECT
+    assert len(negative_checks(verifier, raw, bundle, expected)) == 2
+    # Matching genuine source/signer digests cannot turn the probe's distinct
+    # workflow, predicate and subject into a production grant. Test-only trust.
+    data, _ = decision
+    request, trust = deepcopy(data[2]), deepcopy(data[3])
+    request.update(expected)
+    trust["signer_revision"] = expected["source_commit"]
+    with pytest.raises(ValueError, match="attestation_verification_failed"):
+        crypto.AuthorizationSigstore().verify(raw, bundle, expected=request, trust=trust)
 
 
 @pytest.mark.parametrize("field", list(synthetic_verified_output(b"test")[0]["verificationResult"]["signature"]["certificate"]))

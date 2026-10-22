@@ -204,6 +204,39 @@ def test_context_and_configuration_substitution_fails_closed(key):
         assert data[0].calls == []
 
 
+@pytest.mark.parametrize("workflow", [
+    REPOSITORY + "/" + auth.WORKFLOW + "@refs/heads/main",
+    REPOSITORY + "/.github/workflows/verifier-signer-experiment.yml@refs/heads/main",
+    REPOSITORY + "/" + auth.PUBLICATION_WORKFLOW + "@refs/heads/other",
+])
+def test_wrong_caller_workflow_is_rejected_before_credentials(workflow):
+    data = fixture()
+    data[1]["GITHUB_WORKFLOW_REF"] = workflow
+    with pytest.raises(ValueError, match="verification_context"):
+        issue_fixture(data)
+    assert data[0].calls == []
+
+
+def test_referenced_workflow_api_contract_remains_sha_path_and_sha():
+    data = fixture()
+    references = data[0].rows[BASE + "/actions/runs/60"]["referenced_workflows"]
+    assert references == [{"path": REPOSITORY + "/" + auth.WORKFLOW + "@" + REVISION, "sha": REVISION}]
+    assert issue_fixture(data)
+
+
+@pytest.mark.parametrize("path,sha", [
+    (REPOSITORY + "/" + auth.WORKFLOW + "@refs/heads/main", REVISION),
+    (REPOSITORY + "/" + auth.WORKFLOW + "@" + SOURCE, REVISION),
+    (REPOSITORY + "/" + auth.WORKFLOW + "@" + REVISION, SOURCE),
+    (REPOSITORY + "/.github/workflows/verifier-signer-probe.yml@" + REVISION, REVISION),
+])
+def test_referenced_workflow_api_rejects_branch_path_and_pin_or_path_substitution(path, sha):
+    data = fixture()
+    data[0].rows[BASE + "/actions/runs/60"]["referenced_workflows"] = [{"path": path, "sha": sha}]
+    with pytest.raises(ValueError, match="verification_reusable_workflow"):
+        issue_fixture(data)
+
+
 @pytest.mark.parametrize("path,change", [
     ("/app", lambda v: v.update(id=5422372)),
     ("/app", lambda v: v["owner"].update(id=1)),

@@ -49,7 +49,7 @@ jobs:
               path = 'benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml'
               if not (trust['live_signer_accepted'] is True
                       and isinstance(sha, str) and re.fullmatch('[a-f0-9]{40}', sha)
-                      and job['workflow_sha'] == sha and job['workflow_ref'] == path + '@' + sha
+                      and job['workflow_sha'] == sha and job['workflow_ref'] == path + '@refs/heads/main'
                       and job['workflow_repository'] == 'benchristian88/atlas-connectors'
                       and job['workflow_file_path'] == '.github/workflows/catalogue-verifier.yml'):
                   raise ValueError()

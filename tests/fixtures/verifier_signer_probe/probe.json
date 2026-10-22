@@ -1,0 +1,16 @@
+{
+  "job_context": {
+    "workflow_file_path": ".github/workflows/verifier-signer-probe.yml",
+    "workflow_ref": "benchristian88/atlas-connectors/.github/workflows/verifier-signer-probe.yml@refs/heads/main",
+    "workflow_repository": "benchristian88/atlas-connectors",
+    "workflow_sha": "e5287c3229f5b9a1dc4c3dbcda0f4193fe221c3c"
+  },
+  "note": "NOT a publication authorization",
+  "owner_id": 93822871,
+  "repository": "benchristian88/atlas-connectors",
+  "repository_id": 1414494920,
+  "run_attempt": 1,
+  "run_id": 39846232008,
+  "schema": "atlas-verifier-signer-experiment/v1",
+  "source_commit": "e5287c3229f5b9a1dc4c3dbcda0f4193fe221c3c"
+}
