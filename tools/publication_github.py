@@ -32,7 +32,9 @@ class Github:
         require(method in {"GET", "POST", "PATCH"}, "unsupported_api_method")
         require(not public or method == "GET" and payload is None and binary is None, "invalid_public_request")
         require(method == "GET" or bool(self.token), "publication_credentials_missing")
-        url = API + path
+        # GitHub's repository metadata endpoint rejects a trailing slash.
+        # Preserve every non-root path and the existing validation above.
+        url = API if path == "/" else API + path
         if api_global:
             # Only identity/scope observations may escape the fixed repository;
             # never use a provider-selected URL or permit global writes.

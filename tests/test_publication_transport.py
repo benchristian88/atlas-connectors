@@ -43,6 +43,62 @@ def client(*responses):
     return api
 
 
+@pytest.mark.parametrize('token,public', [(None, False), ('synthetic-not-a-credential', False),
+                                        ('synthetic-not-a-credential', True)])
+def test_repository_root_uses_canonical_url_and_preserves_authentication(token, public):
+    api = client(Response(b'{"id":1414494920}'))
+    api.token = token
+    assert api.json('GET', '/', public=public) == {'id': 1414494920}
+    request, = api.opener.calls
+    assert request.full_url == 'https://api.github.com/repos/benchristian88/atlas-connectors'
+    assert request.get_method() == 'GET' and request.data is None
+    assert request.get_header('Authorization') == ('Bearer ' + token if token and not public else None)
+
+
+@pytest.mark.parametrize('bootstrap', [False, True])
+def test_publication_authority_reads_canonical_repository_root(bootstrap):
+    from bootstrap_catalogue import BootstrapPublisher
+    from publish_catalogue import Publisher
+    from test_publication_contract import authority_fixture
+    policy, repo, branch, environment, run, attempt, workflow, user, checks = authority_fixture()
+    if bootstrap:
+        policy.update(bootstrap_operation='stage', bootstrap={'sequence': None, 'pointer_sha256': None})
+    # Exercise the real authority caller and transport together, with only HTTP
+    # responses simulated. No signatures, credentials or GitHub writes are used.
+    api = client(*(Response(canonical_json(value)) for value in
+                   (run, user, repo, branch, environment, attempt, workflow, checks)))
+    publisher_type = BootstrapPublisher if bootstrap else Publisher
+    publisher = publisher_type(api, None, policy, run['id'], source_commit=run['head_sha'])
+    authority = publisher.run_authority(run['id'], run['head_sha'])
+    assert authority.actor_id == policy['allowed_maintainer_id']
+    assert api.opener.calls[2].full_url == 'https://api.github.com/repos/benchristian88/atlas-connectors'
+    assert all(request.get_method() == 'GET' for request in api.opener.calls)
+    assert api.opener.calls[2].get_header('Authorization') == 'Bearer synthetic-not-a-credential'
+    assert api.opener.calls[-1].get_header('Authorization') is None  # Public CI read.
+
+
+@pytest.mark.parametrize('path', ['/branches/main', '/releases/', '/releases?per_page=100&page=1',
+                                '/contents/current.json?ref=' + 'a'*40])
+def test_nonroot_repository_paths_are_preserved_exactly(path):
+    api = client(Response())
+    assert api.json('GET', path) == {}
+    request, = api.opener.calls
+    assert request.full_url == 'https://api.github.com/repos/benchristian88/atlas-connectors' + path
+    assert request.get_header('Authorization') == 'Bearer synthetic-not-a-credential'
+
+
+@pytest.mark.parametrize('method,options,code', [
+    ('GET', {'api_global': True}, 'invalid_identity_endpoint'),
+    ('POST', {'binary': b'bytes'}, 'invalid_upload'),
+    ('POST', {'public': True}, 'invalid_public_request'),
+])
+def test_repository_root_does_not_bypass_transport_scope(method, options, code):
+    api = client()
+    with pytest.raises(PublicationError, match=code):
+        api.request(method, '/', **options)
+    assert not api.opener.calls
+
+
 @pytest.mark.parametrize('path', ['/users/maintainer', '/users/publication-app%5Bbot%5D',
     '/apps/publication-app', '/installation/repositories?per_page=100'])
 def test_identity_reads_use_fixed_github_api_origin(path):
@@ -90,7 +146,7 @@ def test_redirect_destinations_rejected(url):
 
 def test_metadata_redirect_and_double_asset_redirect_are_rejected():
     redirect=failure(302,Location='https://release-assets.githubusercontent.com/x')
-    for path,responses in [('/releases/1',[redirect]),('/releases/assets/1',[redirect,redirect])]:
+    for path,responses in [('/',[redirect]),('/releases/1',[redirect]),('/releases/assets/1',[redirect,redirect])]:
         api=client(*responses)
         with pytest.raises(PublicationError): api.request('GET',path,asset=path.startswith('/releases/assets/'))
 
@@ -119,6 +175,8 @@ def test_read_retries_and_write_ambiguity(monkeypatch):
     api=client(failure(429,**{'Retry-After':'1'}),failure(503),Response(b'{}'))
     assert api.json('GET','/')=={}
     assert len(api.opener.calls)==3
+    assert all(request.full_url == 'https://api.github.com/repos/benchristian88/atlas-connectors'
+               for request in api.opener.calls)
     api=client(failure(503),Response())
     with pytest.raises(PublicationError):api.json('POST','/releases',payload={})
     assert len(api.opener.calls)==1
