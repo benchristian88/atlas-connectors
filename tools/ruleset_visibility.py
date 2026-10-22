@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Bounded ruleset visibility experiment; no publication imports or operations."""
 import base64
+from contextlib import contextmanager
 import json
 import os
 import re
@@ -33,10 +34,31 @@ LIST_PATH = BASE + "/rulesets?includes_parents=true&per_page=6&page=1"
 INSTALLATION_PATH = BASE + "/installation"
 TOKEN_PATH = f"/app/installations/{INSTALLATION_ID}/access_tokens"
 MAX_BYTES = 262144
+FAILURE_CODES = frozenset({
+    "verifier_context_failed", "verifier_configuration_failed",
+    "verifier_jwt_failed", "verifier_installation_failed", "verifier_token_failed",
+    "ruleset_list_failed", "ruleset_detail_failed",
+    "ruleset_bypass_missing", "ruleset_bypass_mismatch", "verifier_unexpected_failed",
+})
 
 
 class EvidenceError(ValueError):
     """Never include remote content, headers, credentials or exception text."""
+
+
+class StageFailure(EvidenceError):
+    def __init__(self, code):
+        super().__init__()
+        self.code = code
+
+
+@contextmanager
+def failure_stage(code):
+    """Map any stage failure to a local constant, never to exception content."""
+    try:
+        yield
+    except Exception:
+        raise StageFailure(code) from None
 
 
 def require(condition):
@@ -150,27 +172,31 @@ def app_jwt(private_key):
 
 
 def authenticate(api, environ):
-    require(environ.get("VERIFICATION_APP_ID") == APP_ID)
-    require(environ.get("VERIFICATION_APP_INSTALLATION_ID") == INSTALLATION_ID)
-    key = environ.get("VERIFICATION_APP_PRIVATE_KEY")
-    require(isinstance(key, str) and bool(key))
-    jwt = app_jwt(key)
-    installation = api.installation(jwt)
-    require(isinstance(installation, dict))
-    require(type(installation.get("id")) is int and installation["id"] == int(INSTALLATION_ID))
-    require(type(installation.get("app_id")) is int and installation["app_id"] == int(APP_ID))
-    require(isinstance(installation.get("account"), dict) and
-            installation["account"].get("login") == "benchristian88")
-    require(installation.get("repository_selection") == "selected")
-    require("suspended_at" in installation and installation["suspended_at"] is None)
-    result = api.mint(jwt)
-    require(isinstance(result, dict) and result.get("permissions") == PERMISSIONS)
-    repositories = result.get("repositories")
-    require(isinstance(repositories, list) and len(repositories) == 1 and
-            isinstance(repositories[0], dict) and
-            repositories[0].get("full_name") == REPOSITORY)
-    token = result.get("token")
-    require(isinstance(token, str) and re.fullmatch(r"[A-Za-z0-9_]+", token) is not None)
+    with failure_stage("verifier_configuration_failed"):
+        require(environ.get("VERIFICATION_APP_ID") == APP_ID)
+        require(environ.get("VERIFICATION_APP_INSTALLATION_ID") == INSTALLATION_ID)
+        key = environ.get("VERIFICATION_APP_PRIVATE_KEY")
+        require(isinstance(key, str) and bool(key))
+    with failure_stage("verifier_jwt_failed"):
+        jwt = app_jwt(key)
+    with failure_stage("verifier_installation_failed"):
+        installation = api.installation(jwt)
+        require(isinstance(installation, dict))
+        require(type(installation.get("id")) is int and installation["id"] == int(INSTALLATION_ID))
+        require(type(installation.get("app_id")) is int and installation["app_id"] == int(APP_ID))
+        require(isinstance(installation.get("account"), dict) and
+                installation["account"].get("login") == "benchristian88")
+        require(installation.get("repository_selection") == "selected")
+        require("suspended_at" in installation and installation["suspended_at"] is None)
+    with failure_stage("verifier_token_failed"):
+        result = api.mint(jwt)
+        require(isinstance(result, dict) and result.get("permissions") == PERMISSIONS)
+        repositories = result.get("repositories")
+        require(isinstance(repositories, list) and len(repositories) == 1 and
+                isinstance(repositories[0], dict) and
+                repositories[0].get("full_name") == REPOSITORY)
+        token = result.get("token")
+        require(isinstance(token, str) and re.fullmatch(r"[A-Za-z0-9_]+", token) is not None)
     # Keep token in process memory: no outputs, artifacts, logs or revocation DELETE.
     return token
 
@@ -191,30 +217,32 @@ def validate_list(value):
 
 
 def detail_diagnostic(value, name, identity):
-    require(isinstance(value, dict))
-    require(positive_id(value.get("id")) and value["id"] == identity and value.get("name") == name)
-    require(value.get("source_type") == "Repository" and value.get("source") == REPOSITORY)
-    require(isinstance(value.get("target"), str) and value["target"] in {"branch", "tag"})
-    require(isinstance(value.get("enforcement"), str) and
-            value["enforcement"] in {"active", "disabled", "evaluate"})
-    require(isinstance(value.get("conditions"), dict))
-    require(isinstance(value.get("rules"), list) and all(
-        isinstance(rule, dict) and isinstance(rule.get("type"), str) and bool(rule["type"])
-        for rule in value["rules"]))
+    with failure_stage("ruleset_detail_failed"):
+        require(isinstance(value, dict))
+        require(positive_id(value.get("id")) and value["id"] == identity and value.get("name") == name)
+        require(value.get("source_type") == "Repository" and value.get("source") == REPOSITORY)
+        require(isinstance(value.get("target"), str) and value["target"] in {"branch", "tag"})
+        require(isinstance(value.get("enforcement"), str) and
+                value["enforcement"] in {"active", "disabled", "evaluate"})
+        require(isinstance(value.get("conditions"), dict))
+        require(isinstance(value.get("rules"), list) and all(
+            isinstance(rule, dict) and isinstance(rule.get("type"), str) and bool(rule["type"])
+            for rule in value["rules"]))
     if "bypass_actors" not in value:
         return {"name": name, "id": identity, "bypass_actors_present": False,
                 "bypass_actor_count": None, "bypass_actors": None}
-    actors = value["bypass_actors"]
-    require(isinstance(actors, list))
-    safe_actors = []
-    for actor in actors:
-        require(isinstance(actor, dict))
-        require(actor.get("actor_id") is None or positive_id(actor["actor_id"]))
-        require(isinstance(actor.get("actor_type"), str) and actor["actor_type"] in {
-            "Integration", "OrganizationAdmin", "RepositoryRole", "Team", "DeployKey", "User"})
-        require(isinstance(actor.get("bypass_mode"), str) and
-                actor["bypass_mode"] in {"always", "pull_request", "exempt"})
-        safe_actors.append({key: actor.get(key) for key in ("actor_id", "actor_type", "bypass_mode")})
+    with failure_stage("ruleset_bypass_mismatch"):
+        actors = value["bypass_actors"]
+        require(isinstance(actors, list))
+        safe_actors = []
+        for actor in actors:
+            require(isinstance(actor, dict))
+            require(actor.get("actor_id") is None or positive_id(actor["actor_id"]))
+            require(isinstance(actor.get("actor_type"), str) and actor["actor_type"] in {
+                "Integration", "OrganizationAdmin", "RepositoryRole", "Team", "DeployKey", "User"})
+            require(isinstance(actor.get("bypass_mode"), str) and
+                    actor["bypass_mode"] in {"always", "pull_request", "exempt"})
+            safe_actors.append({key: actor.get(key) for key in ("actor_id", "actor_type", "bypass_mode")})
     return {"name": name, "id": identity, "bypass_actors_present": True,
             "bypass_actor_count": len(actors), "bypass_actors": safe_actors}
 
@@ -222,33 +250,44 @@ def detail_diagnostic(value, name, identity):
 def validate_detail(value, name, identity):
     diagnostic = detail_diagnostic(value, name, identity)
     # Absence must never be treated as an empty bypass list.
-    require("bypass_actors" in value and value["bypass_actors"] == EXPECTED[name])
+    with failure_stage("ruleset_bypass_missing"):
+        require("bypass_actors" in value)
+    with failure_stage("ruleset_bypass_mismatch"):
+        require(value["bypass_actors"] == EXPECTED[name])
     return diagnostic
 
 
 def experiment(api, token, emit=None):
-    listed = validate_list(api.get(LIST_PATH, token))
-    # Fetch all five details before validating/printing any successful evidence.
-    details = {name: api.get(BASE + f"/rulesets/{listed[name]}?includes_parents=true", token)
-               for name in EXPECTED}
-    diagnostics = [detail_diagnostic(details[name], name, listed[name]) for name in EXPECTED]
+    with failure_stage("ruleset_list_failed"):
+        listed = validate_list(api.get(LIST_PATH, token))
+    # Fetch and validate all five details before emitting any success output.
+    details = {}
+    for name in EXPECTED:
+        with failure_stage("ruleset_detail_failed"):
+            details[name] = api.get(BASE + f"/rulesets/{listed[name]}?includes_parents=true", token)
+    diagnostics = [validate_detail(details[name], name, listed[name]) for name in EXPECTED]
     if emit is not None:
         for diagnostic in diagnostics:
             emit(diagnostic)
-    return [validate_detail(details[name], name, listed[name]) for name in EXPECTED]
+    return diagnostics
 
 
 def main():
     try:
-        require(os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch")
-        require(os.environ.get("GITHUB_REF") == "refs/heads/main")
-        require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY)
+        with failure_stage("verifier_context_failed"):
+            require(os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch")
+            require(os.environ.get("GITHUB_REF") == "refs/heads/main")
+            require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY)
         api = Transport()
         token = authenticate(api, os.environ)
         experiment(api, token, emit=lambda diagnostic: print(
             json.dumps(diagnostic, separators=(",", ":"))))
-    except Exception:
-        # Intentionally no exception message or traceback, even on unexpected errors.
+    except Exception as error:
+        # Only local allowlisted codes reach stderr, never exception text/args.
+        code = error.code if isinstance(error, StageFailure) else None
+        if type(code) is not str or code not in FAILURE_CODES:
+            code = "verifier_unexpected_failed"
+        print(code, file=sys.stderr)
         return 1
     return 0
 

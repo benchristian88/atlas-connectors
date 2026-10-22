@@ -256,8 +256,9 @@ def test_auth_identity_and_token_scope(monkeypatch):
 def test_bad_configuration_fails_before_auth(monkeypatch, field):
     api, environ = auth_fixture(monkeypatch)
     environ[field] = ""
-    with pytest.raises(visibility.EvidenceError):
+    with pytest.raises(visibility.StageFailure) as error:
         visibility.authenticate(api, environ)
+    assert error.value.code == "verifier_configuration_failed"
     assert api.calls == []
 
 
@@ -270,8 +271,9 @@ def test_bad_configuration_fails_before_auth(monkeypatch, field):
 def test_wrong_installation_never_mints(monkeypatch, change):
     api, environ = auth_fixture(monkeypatch)
     change(api.observed)
-    with pytest.raises(visibility.EvidenceError):
+    with pytest.raises(visibility.StageFailure) as error:
         visibility.authenticate(api, environ)
+    assert error.value.code == "verifier_installation_failed"
     assert api.calls == ["installation"]
 
 
@@ -286,8 +288,9 @@ def test_wrong_installation_never_mints(monkeypatch, change):
 def test_bad_token_evidence_rejected(monkeypatch, change):
     api, environ = auth_fixture(monkeypatch)
     change(api.issued)
-    with pytest.raises(visibility.EvidenceError):
+    with pytest.raises(visibility.StageFailure) as error:
         visibility.authenticate(api, environ)
+    assert error.value.code == "verifier_token_failed"
 
 
 def test_jwt_has_expected_identity_lifetime_and_valid_signature(tmp_path, monkeypatch):
@@ -320,8 +323,13 @@ def test_cli_safe_exact_output(monkeypatch, capsys):
     assert visibility.main() == 0
     out, err = capsys.readouterr()
     assert not err
-    assert out == "".join(json.dumps(row, separators=(",", ":")) + "\n"
-                          for row in visibility.experiment(FakeAPI(), "synthetic-token"))
+    assert out == (
+        '{"name":"atlas-main","id":1,"bypass_actors_present":true,"bypass_actor_count":0,"bypass_actors":[]}\n'
+        '{"name":"atlas-history-lock","id":2,"bypass_actors_present":true,"bypass_actor_count":0,"bypass_actors":[]}\n'
+        '{"name":"atlas-bootstrap-lock","id":3,"bypass_actors_present":true,"bypass_actor_count":0,"bypass_actors":[]}\n'
+        '{"name":"atlas-catalogue-current","id":4,"bypass_actors_present":true,"bypass_actor_count":1,"bypass_actors":[{"actor_id":5422372,"actor_type":"Integration","bypass_mode":"always"}]}\n'
+        '{"name":"atlas-publication-tags","id":5,"bypass_actors_present":true,"bypass_actor_count":1,"bypass_actors":[{"actor_id":5422372,"actor_type":"Integration","bypass_mode":"always"}]}\n'
+    )
     assert "synthetic" not in out
 
 
@@ -331,21 +339,18 @@ def test_cli_suppresses_even_unexpected_exception_details(monkeypatch, capsys):
         raise RuntimeError("synthetic-sensitive-error")
     monkeypatch.setattr(visibility, "authenticate", fail)
     assert visibility.main() == 1
-    assert capsys.readouterr() == ("", "")
+    assert capsys.readouterr() == ("", "verifier_unexpected_failed\n")
 
 
-def test_missing_bypass_is_visible_but_still_fails(monkeypatch, capsys):
+@pytest.mark.parametrize("index", range(5))
+def test_missing_bypass_has_only_safe_code(monkeypatch, capsys, index):
     context(monkeypatch)
     api = FakeAPI()
-    del api.rules[0]["bypass_actors"]
+    del api.rules[index]["bypass_actors"]
     monkeypatch.setattr(visibility, "Transport", lambda: api)
     monkeypatch.setattr(visibility, "authenticate", lambda *args: "synthetic-token")
     assert visibility.main() == 1
-    out, err = capsys.readouterr()
-    rows = [json.loads(line) for line in out.splitlines()]
-    assert len(rows) == 5 and not err
-    assert rows[0] == {"name": "atlas-main", "id": 1, "bypass_actors_present": False,
-                       "bypass_actor_count": None, "bypass_actors": None}
+    assert capsys.readouterr() == ("", "ruleset_bypass_missing\n")
 
 
 def test_unexpected_actor_diagnostic_excludes_untrusted_extra_fields(monkeypatch, capsys):
@@ -355,10 +360,7 @@ def test_unexpected_actor_diagnostic_excludes_untrusted_extra_fields(monkeypatch
     monkeypatch.setattr(visibility, "Transport", lambda: api)
     monkeypatch.setattr(visibility, "authenticate", lambda *args: "synthetic-token")
     assert visibility.main() == 1
-    out, err = capsys.readouterr()
-    assert "synthetic-sensitive-content" not in out and not err
-    assert json.loads(out.splitlines()[3])["bypass_actors"] == [
-        {"actor_id": 99, "actor_type": "Integration", "bypass_mode": "always"}]
+    assert capsys.readouterr() == ("", "ruleset_bypass_mismatch\n")
 
 
 def test_untrusted_actor_strings_never_reach_logs(monkeypatch, capsys):
@@ -368,16 +370,130 @@ def test_untrusted_actor_strings_never_reach_logs(monkeypatch, capsys):
     monkeypatch.setattr(visibility, "Transport", lambda: api)
     monkeypatch.setattr(visibility, "authenticate", lambda *args: "synthetic-token")
     assert visibility.main() == 1
-    assert capsys.readouterr() == ("", "")
+    assert capsys.readouterr() == ("", "ruleset_bypass_mismatch\n")
 
 
 @pytest.mark.parametrize("key,value", [("GITHUB_REF", "refs/heads/dev"),
     ("GITHUB_REF", "refs/tags/main"), ("GITHUB_EVENT_NAME", "push"), ("GITHUB_REPOSITORY", "fork/repo")])
-def test_cli_rejects_wrong_context_before_credentials(monkeypatch, key, value):
+def test_cli_rejects_wrong_context_before_credentials(monkeypatch, capsys, key, value):
     context(monkeypatch)
     monkeypatch.setenv(key, value)
     monkeypatch.setattr(visibility, "authenticate", lambda *args: pytest.fail("must not authenticate"))
     assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "verifier_context_failed\n")
+
+
+def pipeline(monkeypatch):
+    """Exercise real authentication/transport/validation using offline responses."""
+    context(monkeypatch)
+    auth, environ = auth_fixture(monkeypatch)
+    for key, value in environ.items():
+        monkeypatch.setenv(key, value)
+    rows = records()
+    responses = [auth.observed, auth.issued, rows, *deepcopy(rows)]
+    api = visibility.Transport()
+    calls = []
+
+    def open_response(request, timeout):
+        index = len(calls)
+        calls.append(request)
+        response = responses[index]
+        if isinstance(response, Exception):
+            raise response
+        if isinstance(response, Response):
+            return response
+        return Response(json.dumps(response).encode(), status=201 if index == 1 else 200)
+
+    monkeypatch.setattr(api.opener, "open", open_response)
+    monkeypatch.setattr(visibility, "Transport", lambda: api)
+    return responses, calls
+
+
+@pytest.mark.parametrize("index,code", [
+    (0, "verifier_installation_failed"), (1, "verifier_token_failed"),
+    (2, "ruleset_list_failed"),
+    *[(index, "ruleset_detail_failed") for index in range(3, 8)],
+])
+@pytest.mark.parametrize("kind", ["http", "body", "unexpected"])
+def test_each_retrieval_failure_emits_only_stage_code(monkeypatch, capsys, index, code, kind):
+    responses, calls = pipeline(monkeypatch)
+    sensitive = "synthetic-private-key synthetic-token Authorization: Bearer synthetic-secret"
+    if kind == "http":
+        responses[index] = urllib.error.HTTPError(
+            "https://example/" + sensitive, 403, sensitive,
+            {"Authorization": sensitive}, io.BytesIO(sensitive.encode()))
+    elif kind == "body":
+        responses[index] = Response(sensitive.encode(), status=201 if index == 1 else 200)
+    else:
+        responses[index] = RuntimeError(sensitive)
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", code + "\n")
+    assert len(calls) == index + 1
+
+
+@pytest.mark.parametrize("index,change,code", [
+    (0, lambda value: value.update(app_id=5422372), "verifier_installation_failed"),
+    (0, lambda value: value.update(repository_selection="all"), "verifier_installation_failed"),
+    (1, lambda value: value["permissions"].update(contents="write"), "verifier_token_failed"),
+    (1, lambda value: value.update(repositories=[]), "verifier_token_failed"),
+    (2, lambda value: value.pop(), "ruleset_list_failed"),
+    (2, lambda value: value.append(deepcopy(value[0])), "ruleset_list_failed"),
+    (2, lambda value: value.__setitem__(1, deepcopy(value[0])), "ruleset_list_failed"),
+    *[(index, lambda value: value.update(id=999), "ruleset_detail_failed") for index in range(3, 8)],
+    *[(index, lambda value: value.update(bypass_actors=None), "ruleset_bypass_mismatch") for index in range(3, 8)],
+    (6, lambda value: value.update(bypass_actors=[]), "ruleset_bypass_mismatch"),
+    (6, lambda value: value["bypass_actors"][0].update(bypass_mode="pull_request"), "ruleset_bypass_mismatch"),
+])
+def test_validation_failures_emit_only_stage_code(monkeypatch, capsys, index, change, code):
+    responses, _ = pipeline(monkeypatch)
+    change(responses[index])
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", code + "\n")
+
+
+def test_configuration_failure_emits_only_code_before_network(monkeypatch, capsys):
+    _, calls = pipeline(monkeypatch)
+    monkeypatch.setenv("VERIFICATION_APP_ID", "synthetic-sensitive-config")
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "verifier_configuration_failed\n")
+    assert not calls
+
+
+def test_jwt_subprocess_failure_never_logs_captured_output(monkeypatch, capsys):
+    real_jwt = visibility.app_jwt
+    _, calls = pipeline(monkeypatch)
+    monkeypatch.setattr(visibility, "app_jwt", real_jwt)
+    def fail(command, **kwargs):
+        assert kwargs["capture_output"] is True
+        raise subprocess.CalledProcessError(1, command, output=b"synthetic-token",
+                                            stderr=b"synthetic-private-key")
+    monkeypatch.setattr(visibility.subprocess, "run", fail)
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "verifier_jwt_failed\n")
+    assert not calls
+
+
+@pytest.mark.parametrize("code", ["synthetic-sensitive-error", ["synthetic-sensitive-error"]])
+def test_unknown_failure_codes_never_reach_logs(monkeypatch, capsys, code):
+    context(monkeypatch)
+    def fail(*args):
+        raise visibility.StageFailure(code)
+    monkeypatch.setattr(visibility, "authenticate", fail)
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "verifier_unexpected_failed\n")
+
+
+def test_successful_pipeline_matches_documented_output(monkeypatch, capsys):
+    _, calls = pipeline(monkeypatch)
+    assert visibility.main() == 0
+    out, err = capsys.readouterr()
+    documented = (ROOT / "docs/ruleset-visibility-experiment.md").read_text()
+    expected = documented.split('```text\n{"name":"atlas-main"', 1)[1].split("```", 1)[0]
+    expected = '{"name":"atlas-main"' + expected
+    for index, name in enumerate(("MAIN", "HISTORY", "BOOTSTRAP", "CURRENT", "TAGS"), 1):
+        expected = expected.replace("<" + name + "_ID>", str(index))
+    assert out == expected and err == ""
+    assert [request.get_method() for request in calls] == ["GET", "POST"] + ["GET"] * 6
 
 
 def test_workflow_contract():
