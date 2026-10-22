@@ -34,6 +34,8 @@ LIST_PATH = BASE + "/rulesets?includes_parents=true&per_page=6&page=1"
 INSTALLATION_PATH = BASE + "/installation"
 TOKEN_PATH = f"/app/installations/{INSTALLATION_ID}/access_tokens"
 MAX_BYTES = 262144
+# Header safety bound, not a token-format or JWT-length assumption.
+MAX_INSTALLATION_TOKEN_LENGTH = 4096
 FAILURE_CODES = frozenset({
     "verifier_context_failed", "verifier_configuration_failed",
     "verifier_jwt_failed", "verifier_installation_failed", "verifier_token_failed",
@@ -196,7 +198,10 @@ def authenticate(api, environ):
                 isinstance(repositories[0], dict) and
                 repositories[0].get("full_name") == REPOSITORY)
         token = result.get("token")
-        require(isinstance(token, str) and re.fullmatch(r"[A-Za-z0-9_]+", token) is not None)
+        # Treat the credential as opaque. Visible ASCII excludes whitespace,
+        # controls and non-ASCII header encoding ambiguities without parsing JWTs.
+        require(isinstance(token, str) and 0 < len(token) <= MAX_INSTALLATION_TOKEN_LENGTH
+                and all("!" <= char <= "~" for char in token))
     # Keep token in process memory: no outputs, artifacts, logs or revocation DELETE.
     return token
 

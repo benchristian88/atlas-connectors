@@ -17,6 +17,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import ruleset_visibility as visibility
 
+# Synthetic opaque examples only; no real credentials or embedded JWT claims.
+STATELESS_TOKEN = "ghs_5424851_" + "a_-" * 40 + "." + "b_-" * 100 + "." + "c_-" * 28 + "c_"
+ACCEPTED_TOKENS = [
+    pytest.param("ghs_" + "a" * 36, id="legacy"),
+    pytest.param(STATELESS_TOKEN, id="stateless-520-characters"),
+    pytest.param("opaque.with_more-than.two.periods/+==", id="no-jwt-structure"),
+    pytest.param("opaque!punctuation:allowed", id="visible-ascii"),
+    pytest.param("x", id="no-fixed-minimum"),
+    pytest.param("x" * visibility.MAX_INSTALLATION_TOKEN_LENGTH, id="upper-bound"),
+]
+
 
 def records():
     return [dict(id=index, name=name, source_type="Repository", source=visibility.REPOSITORY,
@@ -268,8 +279,10 @@ def test_bad_configuration_fails_before_auth(monkeypatch, field):
     lambda value: value.update(repository_selection="all"),
     lambda value: value.update(suspended_at="now"), lambda value: value.pop("suspended_at"),
 ])
-def test_wrong_installation_never_mints(monkeypatch, change):
+@pytest.mark.parametrize("token", ["ghs_" + "a" * 36, STATELESS_TOKEN], ids=["legacy", "stateless"])
+def test_wrong_installation_never_mints(monkeypatch, change, token):
     api, environ = auth_fixture(monkeypatch)
+    api.issued["token"] = token
     change(api.observed)
     with pytest.raises(visibility.StageFailure) as error:
         visibility.authenticate(api, environ)
@@ -285,8 +298,10 @@ def test_wrong_installation_never_mints(monkeypatch, change):
     lambda value: value["repositories"][0].update(full_name="other/repo"),
     lambda value: value.update(token="bad\ntoken"), lambda value: value.update(token=None),
 ])
-def test_bad_token_evidence_rejected(monkeypatch, change):
+@pytest.mark.parametrize("token", ["ghs_" + "a" * 36, STATELESS_TOKEN], ids=["legacy", "stateless"])
+def test_bad_token_evidence_rejected(monkeypatch, change, token):
     api, environ = auth_fixture(monkeypatch)
+    api.issued["token"] = token
     change(api.issued)
     with pytest.raises(visibility.StageFailure) as error:
         visibility.authenticate(api, environ)
@@ -483,8 +498,10 @@ def test_unknown_failure_codes_never_reach_logs(monkeypatch, capsys, code):
     assert capsys.readouterr() == ("", "verifier_unexpected_failed\n")
 
 
-def test_successful_pipeline_matches_documented_output(monkeypatch, capsys):
-    _, calls = pipeline(monkeypatch)
+@pytest.mark.parametrize("token", ACCEPTED_TOKENS)
+def test_successful_pipeline_matches_documented_output(monkeypatch, capsys, token):
+    responses, calls = pipeline(monkeypatch)
+    responses[1]["token"] = token
     assert visibility.main() == 0
     out, err = capsys.readouterr()
     documented = (ROOT / "docs/ruleset-visibility-experiment.md").read_text()
@@ -494,6 +511,36 @@ def test_successful_pipeline_matches_documented_output(monkeypatch, capsys):
         expected = expected.replace("<" + name + "_ID>", str(index))
     assert out == expected and err == ""
     assert [request.get_method() for request in calls] == ["GET", "POST"] + ["GET"] * 6
+    # Every evidence GET carries the exact opaque bytes, without trimming,
+    # truncation, JWT parsing, or format-dependent redaction/logging.
+    assert all(request.get_header("Authorization") == "Bearer " + token for request in calls[2:])
+
+
+def test_stateless_fixture_is_representative():
+    assert len(STATELESS_TOKEN) == 520
+    assert all(character in STATELESS_TOKEN for character in "._-")
+
+
+@pytest.mark.parametrize("token", [
+    pytest.param("", id="empty"), pytest.param(None, id="null"),
+    pytest.param(True, id="boolean"), pytest.param(123, id="integer"),
+    pytest.param(1.5, id="float"), pytest.param([], id="array"),
+    pytest.param({}, id="object"),
+    pytest.param("x" * (visibility.MAX_INSTALLATION_TOKEN_LENGTH + 1), id="oversized"),
+    pytest.param("prefix\r\nAuthorization: Bearer synthetic-secret", id="header-injection"),
+    *[pytest.param("prefix" + chr(code) + "suffix", id=f"control-{code}")
+      for code in [*range(33), *range(127, 160)]],
+    *[pytest.param("prefix" + character + "suffix", id=f"unicode-{ord(character)}")
+      for character in ("\u00a0", "\u200b", "\u2028", "\u2029", "\u3000", "é", "🔑", "\ud800")],
+    pytest.param(" leading", id="leading-space"),
+    pytest.param("trailing ", id="trailing-space"),
+])
+def test_unsafe_token_emits_only_code_and_never_reaches_evidence_gets(monkeypatch, capsys, token):
+    responses, calls = pipeline(monkeypatch)
+    responses[1]["token"] = token
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "verifier_token_failed\n")
+    assert [request.get_method() for request in calls] == ["GET", "POST"]
 
 
 def test_workflow_contract():

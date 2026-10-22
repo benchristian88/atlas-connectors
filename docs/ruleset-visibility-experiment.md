@@ -48,6 +48,25 @@ GET /repos/benchristian88/atlas-connectors/rulesets?includes_parents=true&per_pa
 GET /repos/benchristian88/atlas-connectors/rulesets/<ID>?includes_parents=true
 ```
 
+Installation access tokens are opaque strings. The helper accepts a non-empty
+string of at most 4,096 visible ASCII characters (`!` through `~`), rejecting
+whitespace, control characters (including CR/LF and DEL), non-ASCII characters and
+larger values before issuing any evidence GET. Since only ASCII is accepted, this
+is also a 4,096-byte bound. The limit comfortably accommodates the approximately
+520-character tokens described in GitHub's
+[October 2026 rollout notice](https://github.blog/changelog/2026-10-02-stateless-github-app-installation-tokens-rolled-out/).
+Periods, underscores and hyphens are accepted. No token prefix, fixed length,
+JWT segment structure, embedded claims or signature is interpreted or validated;
+the exact returned string is used in the Authorization header. The App JWT used
+to authenticate the mint request is separate and its signing behavior is unchanged.
+
+The previous `[A-Za-z0-9_]+` check rejected stateless tokens containing periods
+or hyphens. This is a confirmed local compatibility defect and a strongly supported
+explanation for the observed `verifier_token_failed`, but that code also covers
+API, response-schema, permission and repository-scope failures. Those checks remain
+unchanged. Local tests do not prove the cause of an earlier live failure or establish
+that a subsequent live run will succeed.
+
 The final request runs once for each of the five listed IDs. Redirects are rejected.
 There are no requests that change releases, tags, refs, branches or settings, and
 no publication imports, credentials, policy access, artifacts or workflow calls.
@@ -131,3 +150,6 @@ safe stage-specific failures, unchanged successful output, main-only dispatch
 context and workflow contract. Injected subprocess, HTTP, malformed-body and
 unexpected errors prove sensitive error content does not reach diagnostics. No live App
 credentials or network requests are needed. YAML syntax is also parsed locally.
+Opaque-token tests cover legacy and 520-character stateless examples, unchanged
+header transmission and successful output, size boundaries, malformed types,
+control/whitespace/non-ASCII rejection, and retained installation/permission/scope checks.
