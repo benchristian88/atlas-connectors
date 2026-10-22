@@ -12,7 +12,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_context_guard(tmp_path, changes=None, *, remove=None, accepted=True):
+def run_context_guard(tmp_path, changes=None, *, remove=None, accepted=True, acceptance_only=False):
     """Execute the actual pre-credential inline Python with synthetic context.
 
     This tests the local guard, not GitHub's runner/environment isolation.
@@ -33,7 +33,7 @@ def run_context_guard(tmp_path, changes=None, *, remove=None, accepted=True):
     program = steps[0]["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
     output = tmp_path / "output"
     result = subprocess.run([sys.executable, "-c", program], cwd=tmp_path, capture_output=True, timeout=10,
-        env={"JOB_CONTEXT": json.dumps(job), "VERIFICATION_POLICY": json.dumps(trust), "GITHUB_OUTPUT": str(output)})
+        env={"JOB_CONTEXT": json.dumps(job), "VERIFICATION_POLICY": json.dumps(trust), "GITHUB_OUTPUT": str(output), "ACCEPTANCE_ONLY": str(acceptance_only).lower()})
     return result, output
 
 
@@ -42,12 +42,11 @@ def test_actual_guard_accepts_main_job_ref_and_independently_pinned_sha(tmp_path
     assert REVISION != SOURCE
     result, output = run_context_guard(tmp_path)
     assert result.returncode == 0 and not result.stdout and not result.stderr
-    assert output.read_text() == "revision=" + REVISION + "\n"
+    assert output.read_text().splitlines() == ["revision=" + REVISION, "workflow_ref=benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@refs/heads/main"]
 
 
 @pytest.mark.parametrize("changes", [
-    {"workflow_ref": "benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@" + "b" * 40},
-    {"workflow_ref": "benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@refs/heads/other"},
+    {"workflow_ref": "benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@"},
     {"workflow_ref": "benchristian88/atlas-connectors/.github/workflows/verifier-signer-probe.yml@refs/heads/main"},
     {"workflow_sha": "a" * 40},  # Advancing caller/main does not update the trusted pin.
     {"workflow_sha": "B" * 40}, {"workflow_sha": None},
@@ -95,22 +94,39 @@ def test_verifier_is_reusable_only_isolated_and_uses_no_caller_code():
     assert len(privileged) == 1
     assert privileged[0]["run"] == "python3 tools/issue_publication_authorization.py"
     attest = next(s for s in steps if s.get("id") == "attest")
-    assert attest["with"]["predicate-type"] == "https://atlas-impact.dev/attestations/publication-authorization/v1"
+    assert attest["with"]["predicate-type"] == "https://atlas-impact.dev/attestations/publication-preflight/v2"
     assert "subject-path" in attest["with"] and "subject-digest" not in attest["with"]
     upload = next(s for s in steps if s.get("id") == "upload")
     assert upload["with"]["path"].splitlines() == [
-        "${{ runner.temp }}/publication-authorization/authorization.json",
-        "${{ runner.temp }}/publication-authorization/authorization.sigstore.json"]
+        "${{ runner.temp }}/publication-authorization/preflight.json",
+        "${{ runner.temp }}/publication-authorization/preflight.sigstore.json"]
     assert "always()" not in upload.get("if", "")
     assert "token" not in str(job["outputs"])
 
 
-def test_existing_publisher_has_no_new_authorization_integration_or_verifier_secret():
-    publisher = (ROOT / ".github/workflows/catalogue-publish.yml").read_text()
-    assert "catalogue-verifier" not in publisher and "VERIFICATION_APP" not in publisher
-    for filename in ("publish_catalogue.py", "bootstrap_catalogue.py"):
-        source = (ROOT / "tools" / filename).read_text()
-        assert "publication_authorization" not in source and "verification_github" not in source
+def test_publisher_depends_on_isolated_preflight_before_credentials_and_executes_pinned_code():
+    caller = yaml.load((ROOT / ".github/workflows/catalogue-publish.yml").read_text(), Loader=yaml.BaseLoader)
+    assert set(caller["jobs"]) == {"preflight", "publish"}
+    signer, publisher = caller["jobs"]["preflight"], caller["jobs"]["publish"]
+    match = re.fullmatch(r"benchristian88/atlas-connectors/\.github/workflows/catalogue-verifier\.yml@([a-f0-9]{40})", signer["uses"])
+    assert match and signer["with"] == {"request": "${{ toJSON(inputs) }}"}
+    assert "secrets" not in signer and "environment" not in signer
+    assert publisher["needs"] == "preflight" and "!inputs.acceptance_only" in publisher["if"]
+    steps = publisher["steps"]
+    implementation, source = steps[:2]
+    assert implementation["with"]["ref"] == match[1] == publisher["env"]["ATLAS_IMPLEMENTATION_REVISION"]
+    assert source["with"]["ref"] == "${{ github.sha }}" and source["with"]["path"] == "publication-source"
+    verify = next(i for i, step in enumerate(steps) if step.get("run") == "python tools/publish_catalogue.py authorize")
+    mint = next(i for i, step in enumerate(steps) if step.get("id") == "app")
+    download = next(i for i, step in enumerate(steps) if "download-artifact@" in step.get("uses", ""))
+    assert download < verify < mint
+    assert steps[download]["with"]["artifact-ids"] == "${{ needs.preflight.outputs.artifact-id }}"
+    assert "VERIFICATION_APP" not in (ROOT / ".github/workflows/catalogue-publish.yml").read_text()
+    assert "PUBLICATION_APP_PRIVATE_KEY" not in (ROOT / ".github/workflows/catalogue-verifier.yml").read_text()
+    for step in steps[:mint]:
+        assert "secrets." not in str(step)
+        assert "publication-source/tools" not in step.get("run", "")
+
 
 
 def test_installed_dependencies_are_vendored_and_offline():
@@ -125,3 +141,10 @@ def test_issuer_imports_with_only_standard_library_and_vendored_sdk():
         "import sys; sys.path[:0] = sys.argv[1:]; import issue_publication_authorization" ,
         str(ROOT / "tools"), str(wheel)], capture_output=True, timeout=10)
     assert result.returncode == 0, result.stderr.decode()
+
+
+def test_unaccepted_signer_can_only_gather_explicit_acceptance_evidence(tmp_path):
+    result, output = run_context_guard(tmp_path, accepted=False, acceptance_only=True)
+    assert result.returncode == 0 and output.exists()
+    # The Publisher's unconditional acceptance-only skip and signed mode binding
+    # are asserted separately; this is not a production acceptance override.

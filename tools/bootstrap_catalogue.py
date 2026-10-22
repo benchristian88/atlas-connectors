@@ -70,17 +70,7 @@ class BootstrapPublisher(Publisher):
         require(isinstance(refs, list) and len(refs) < 100, "bootstrap_ref_limit")
         allowed = {"refs/tags/" + LEGACY_TAG, "refs/tags/" + TAG}
         require(all(isinstance(r, dict) and r.get("ref") in allowed for r in refs), "bootstrap_historical_ref_conflict")
-        releases = []
-        for page in range(1, 5):
-            rows = self.api.json("GET", f"/releases?per_page=100&page={page}")
-            require(isinstance(rows, list) and len(rows) <= 100
-                    and all(isinstance(r, dict) and isinstance(r.get("tag_name"), str) for r in rows),
-                    "bootstrap_release_evidence")
-            releases.extend(rows)
-            if len(rows) < 100:
-                break
-        else:
-            require(False, "bootstrap_release_limit")
+        releases = self.release_inventory()
         require(all(not r["tag_name"].startswith("catalogue-") or r["tag_name"] in {TAG, LEGACY_TAG}
                     for r in releases), "bootstrap_historical_release_conflict")
         matches = [r for r in releases if r["tag_name"] == TAG]

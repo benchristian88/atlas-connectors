@@ -120,8 +120,9 @@ def test_deadline_stops_before_request(monkeypatch):
     assert api.opener.calls == []
 
 
-def test_404_is_absence_only_when_explicitly_requested():
+def test_draft_and_ref_absence_endpoints_are_not_available_to_verifier():
     error = urllib.error.HTTPError("https://api.github.com", 404, "sensitive", Message(), io.BytesIO())
-    assert client(error).get(transport.BASE + "/git/ref/heads/catalogue-current", "synthetic-token", missing=True) is None
+    with pytest.raises(ValueError, match="verification_endpoint"):
+        client(error).get(transport.BASE + "/git/ref/heads/catalogue-current", "synthetic-token", missing=True)
     with pytest.raises(ValueError):
         client(error).get(transport.LIST, "synthetic-token")

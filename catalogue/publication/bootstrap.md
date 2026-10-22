@@ -1,6 +1,7 @@
 # Sequence-one bootstrap operator runbook
 
-Status: **local foundations implemented; disabled; live P2 acceptance not performed**.
+Status: **P2 machinery retained under Lean V2; production activation and live P2 acceptance remain blocked**.
+Every publication dispatch first needs the [Lean V2 preflight and acceptance gates](README.md). Acceptance-only signing never executes the Publisher job.
 The [bootstrap ADR](../../docs/decisions/0003-sequence-one-bootstrap.md) records the
 new two-dispatch approval boundary and one-time fence. The [P1 runbook](README.md)
 remains authoritative for identities, protections, signing profiles and transport.
@@ -29,9 +30,10 @@ bootstrap; the six-field catalogue and complete embedded Manifest stay unchanged
 
 ## Configuration checklist and authority
 
-The checked-in policy has `enabled: false`, `bootstrap_operation: disabled`, and
-null `bootstrap.sequence` / `bootstrap.pointer_sha256`. These must remain so until
-separately approved operator action. No real target release ID, asset ID, pointer
+The checked-in policy currently has `enabled: true`, `bootstrap_operation: stage`,
+and null `bootstrap.sequence` / `bootstrap.pointer_sha256`. V2 verifier trust remains
+unaccepted and unconfigured, so publication is blocked despite stage-enabled policy.
+Trust activation and actual pointer approval require separate reviewed owner action. No real target release ID, asset ID, pointer
 digest, selection signature or root commit exists as a result of this task.
 
 Configured identities are maintainer **93822871**, publication environment
@@ -61,7 +63,7 @@ Before any live dispatch, the owner must review and validate:
 
 1. **Source validation (offline).** With the pinned SDK/verifier installed, run
    `python tools/publish_catalogue.py bootstrap-preflight`. This supports the
-   disabled checked-in configuration, authenticates real original evidence and
+   current stage-enabled configuration as well as disabled policy, authenticates real original evidence and
    prints sanitized JSON. It makes no GitHub requests or writes. It does not prove
    live protections, legacy release identity or empty history. The workflow's
    read-only remote preflight performs those checks with the scoped App after

@@ -7,19 +7,43 @@ on:
         type: choice
         options: [publish, recover, bootstrap]
         default: publish
+      acceptance_only:
+        description: Verify and sign preflight only; Publisher job never starts
+        type: boolean
+        default: true
 permissions:
   contents: read
 concurrency:
   group: official-catalogue-publication
   cancel-in-progress: false
 jobs:
+  preflight:
+    if: >-
+      github.repository == 'benchristian88/atlas-connectors' &&
+      github.repository_id == '1414494920' && github.repository_owner_id == '93822871' &&
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    # Inert pre-V2 pin: freeze reviewed V2 as S, then update the call, checkout and implementation SHA in
+    # a separate reviewed caller commit. Trust remains unaccepted until live review.
+    uses: benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@da5562eeb21d5c1cc653cfea7ae8d025d2a9174a
+    with:
+      request: ${{ toJSON(inputs) }}
+
   publish:
-    if: github.repository == 'benchristian88/atlas-connectors' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    needs: preflight
+    if: >-
+      !inputs.acceptance_only && github.repository == 'benchristian88/atlas-connectors' &&
+      github.ref == 'refs/heads/main' && github.run_attempt == 1
     environment: catalogue-publication
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       PUBLICATION_OPERATION: ${{ inputs.operation }}
+      ATLAS_SOURCE_DIRECTORY: publication-source
+      ATLAS_IMPLEMENTATION_REVISION: da5562eeb21d5c1cc653cfea7ae8d025d2a9174a
     permissions:
       contents: read
       actions: read
@@ -28,6 +52,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          repository: benchristian88/atlas-connectors
+          ref: da5562eeb21d5c1cc653cfea7ae8d025d2a9174a
+          persist-credentials: false
+      - name: Read advancing source as data only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: benchristian88/atlas-connectors
+          ref: ${{ github.sha }}
+          path: publication-source
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
@@ -43,18 +76,22 @@ jobs:
           import json, os, sys
           sys.path.insert(0, 'tools')
           from publication_contract import check_policy
-          policy = json.load(open('catalogue/publication/policy.json'))
+          policy = json.load(open('publication-source/catalogue/publication/policy.json'))
           check_policy(policy, operation=os.environ["PUBLICATION_OPERATION"])
           if str(policy['app_id']) != os.environ['APP_ID']:
               raise SystemExit('publication_disabled_or_app_mismatch')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
               stream.write('bootstrap_mode=' + policy.get('bootstrap_operation', 'disabled') + '\n')
           PY
-      - name: Verify first-attempt maintainer dispatch through independent GitHub API observations
-        env:
-          ATLAS_PUBLICATION_TOKEN: ${{ github.token }}
-        run: python tools/publish_catalogue.py authorize
       - run: python tools/prepare_publication_verifier.py
+      - name: Download only the isolated verifier public preflight
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.preflight.outputs.artifact-id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/publication-preflight
+      - name: Cryptographically admit this exact run before Publisher credentials
+        run: python tools/publish_catalogue.py authorize
       - name: Authenticate frozen original bytes offline before write credentials
         if: inputs.operation == 'bootstrap'
         run: python tools/publish_catalogue.py bootstrap-preflight
