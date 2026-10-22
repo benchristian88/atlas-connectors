@@ -1,0 +1,63 @@
+name: Reusable signer acceptance experiment
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+jobs:
+  sign:
+    if: >-
+      github.repository == 'benchristian88/atlas-connectors' &&
+      github.repository_id == '1414494920' && github.repository_owner_id == '93822871' &&
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      github.run_attempt == 1 &&
+      github.workflow_ref == 'benchristian88/atlas-connectors/.github/workflows/verifier-signer-experiment.yml@refs/heads/main'
+    permissions:
+      id-token: write
+      attestations: write
+    # GitHub resolves a local reusable workflow to this caller's exact commit.
+    uses: ./.github/workflows/verifier-signer-probe.yml
+
+  inspect:
+    needs: sign
+    if: >-
+      github.repository == 'benchristian88/atlas-connectors' &&
+      github.repository_id == '1414494920' && github.repository_owner_id == '93822871' &&
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      github.run_attempt == 1 &&
+      github.workflow_ref == 'benchristian88/atlas-connectors/.github/workflows/verifier-signer-experiment.yml@refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: benchristian88/atlas-connectors
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install pinned offline SDK and verifier
+        run: |
+          python3 -m pip install --target "$RUNNER_TEMP/probe-dependencies" --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
+          PYTHONPATH="$RUNNER_TEMP/probe-dependencies" python3 tools/prepare_publication_verifier.py
+      - name: Download public probe
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact-id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/received-probe
+      - name: Independently verify and inspect
+        env:
+          PYTHONPATH: ${{ runner.temp }}/probe-dependencies
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/verifier_signer_experiment.py
+      - name: Upload sanitized acceptance evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verifier-signer-evidence-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/signer-evidence/evidence.json
+            ${{ runner.temp }}/signer-evidence/comparison.md
+          if-no-files-found: error
+          retention-days: 1

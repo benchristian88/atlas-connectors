@@ -1,0 +1,113 @@
+name: Experimental reusable signer probe
+
+on:
+  workflow_call:
+    outputs:
+      artifact-id:
+        description: Public experimental probe and bundle
+        value: ${{ jobs.probe.outputs.artifact-id }}
+
+permissions: {}
+jobs:
+  probe:
+    if: >-
+      github.repository == 'benchristian88/atlas-connectors' &&
+      github.repository_id == '1414494920' && github.repository_owner_id == '93822871' &&
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      github.run_attempt == 1 &&
+      github.workflow_ref == 'benchristian88/atlas-connectors/.github/workflows/verifier-signer-experiment.yml@refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+      attestations: write
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      # No checkout, downloaded artifacts, repository code, secrets or environment.
+      - name: Create public experimental subject
+        # Read only four properties. The JSON roundtrip accommodates older
+        # actionlint job-context schemas; the complete context is never exported.
+        env:
+          PROBE_WORKFLOW_REF: ${{ fromJSON(toJSON(job)).workflow_ref }}
+          PROBE_WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          PROBE_WORKFLOW_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          PROBE_WORKFLOW_FILE_PATH: ${{ fromJSON(toJSON(job)).workflow_file_path }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, time
+          started, wall = time.monotonic_ns(), time.time_ns() // 1000000
+          def encode(value):
+              return (json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False) + '\n').encode()
+          assert os.environ['GITHUB_REPOSITORY'] == 'benchristian88/atlas-connectors'
+          assert os.environ['GITHUB_REPOSITORY_ID'] == '1414494920'
+          assert os.environ['GITHUB_REPOSITORY_OWNER_ID'] == '93822871'
+          assert os.environ['GITHUB_REF'] == 'refs/heads/main'
+          assert os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch'
+          assert os.environ['GITHUB_RUN_ATTEMPT'] == '1'
+          assert re.fullmatch('[0-9a-f]{40}', os.environ['GITHUB_SHA'])
+          assert re.fullmatch('[1-9][0-9]{0,14}', os.environ['GITHUB_RUN_ID'])
+          context = {}
+          for key in ('ref', 'sha', 'repository', 'file_path'):
+              value = os.environ.get('PROBE_WORKFLOW_' + key.upper(), '')
+              assert len(value) <= 512 and all(32 <= ord(c) <= 126 for c in value)
+              context['workflow_' + key] = value or None
+          probe = {'schema': 'atlas-verifier-signer-experiment/v1',
+                   'repository': 'benchristian88/atlas-connectors',
+                   'repository_id': 1414494920, 'owner_id': 93822871,
+                   'source_commit': os.environ['GITHUB_SHA'],
+                   'run_id': int(os.environ['GITHUB_RUN_ID']), 'run_attempt': 1,
+                   'note': 'NOT a publication authorization', 'job_context': context}
+          raw = encode(probe)
+          assert len(raw) <= 4096
+          destination = pathlib.Path(os.environ['RUNNER_TEMP']) / 'signer-probe'
+          destination.mkdir(mode=0o700)
+          (destination / 'probe.json').write_bytes(raw)
+          (destination / 'predicate.json').write_bytes(encode({
+              'schema': 'atlas-verifier-signer-probe-predicate/v1',
+              'probe_sha256': hashlib.sha256(raw).hexdigest(), 'not_authorization': True}))
+          (destination / 'signer-timing.json').write_bytes(encode({
+              'subject_started_utc_ms': wall,
+              'subject_creation_ms': (time.monotonic_ns() - started) // 1000000,
+              'attestation_started_monotonic_ms': time.monotonic_ns() // 1000000}))
+          PY
+      - name: Attest experimental subject
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        id: attest
+        with:
+          subject-path: ${{ runner.temp }}/signer-probe/probe.json
+          predicate-type: https://atlas-impact.dev/attestations/verifier-signer-experiment/v1
+          predicate-path: ${{ runner.temp }}/signer-probe/predicate.json
+          push-to-registry: false
+          create-storage-record: false
+          show-summary: false
+      - name: Preserve bundle and public timing only
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, stat, time
+          destination = pathlib.Path(os.environ['RUNNER_TEMP']) / 'signer-probe'
+          fd = os.open(os.environ['BUNDLE_PATH'], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+          with os.fdopen(fd, 'rb') as stream:
+              assert stat.S_ISREG(os.fstat(stream.fileno()).st_mode)
+              bundle = stream.read(1048577)
+          assert 0 < len(bundle) <= 1048576
+          (destination / 'probe.sigstore.json').write_bytes(bundle)
+          timing = json.loads((destination / 'signer-timing.json').read_bytes())
+          start = timing.pop('attestation_started_monotonic_ms')
+          timing['attestation_generation_ms'] = time.monotonic_ns() // 1000000 - start
+          timing['attestation_finished_utc_ms'] = time.time_ns() // 1000000
+          (destination / 'signer-timing.json').write_text(json.dumps(timing, sort_keys=True, indent=2) + '\n')
+          PY
+      - name: Upload public probe
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        id: upload
+        with:
+          name: verifier-signer-probe-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/signer-probe/probe.json
+            ${{ runner.temp }}/signer-probe/probe.sigstore.json
+            ${{ runner.temp }}/signer-probe/signer-timing.json
+          if-no-files-found: error
+          retention-days: 1
