@@ -6,6 +6,14 @@ experimental workflows reach protected `main`, is required. The production
 `live_signer_accepted` flag remains false; no trust pins or production validation
 are changed by this experiment.
 
+Genuine run [39846232008](https://github.com/benchristian88/atlas-connectors/actions/runs/39846232008)
+has since succeeded. Its evidence prompted the separately scoped
+[V1 identity correction](signed-publication-verifier.md#genuine-identity-evidence-and-corrected-representations).
+The experiment inspector and its comparison table retain the original V1 SHA-ref
+assumption as the recorded baseline; they no longer describe the corrected
+production URI checks. No experiment code or workflow is changed by that correction.
+The preserved probe remains distinct from production authorization evidence.
+
 ## Architecture and boundaries
 
 The manual caller is
@@ -115,7 +123,7 @@ only `path`, `sha` and `ref`; missing fields remain null. A missing top-level
 field is explicitly NOT OBSERVABLE; an empty array is an observed empty array,
 not affirmative evidence of the reusable workflow identity.
 
-The comparison table transcribes the current expectations in
+The comparison table transcribes the pre-correction V1 expectations in
 [AuthorizationSigstore.verify()](../tools/authorization_sigstore.py). Each row
 contains the V1 expectation, actual observation, and MATCH, MISMATCH or
 NOT OBSERVABLE. V1's unset signer revision is displayed as

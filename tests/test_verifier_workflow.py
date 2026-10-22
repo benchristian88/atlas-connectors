@@ -1,13 +1,74 @@
 # SPDX-License-Identifier: Apache-2.0
 """Workflow isolation contracts; not a substitute for a genuine platform run."""
 from pathlib import Path
+import json
 import re
 import subprocess
 import sys
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def run_context_guard(tmp_path, changes=None, *, remove=None, accepted=True):
+    """Execute the actual pre-credential inline Python with synthetic context.
+
+    This tests the local guard, not GitHub's runner/environment isolation.
+    """
+    from test_publication_authorization import REVISION, fixture
+    trust = fixture()[3]
+    trust["live_signer_accepted"] = accepted
+    job = {"workflow_ref": "benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@refs/heads/main",
+           "workflow_sha": REVISION, "workflow_repository": "benchristian88/atlas-connectors",
+           "workflow_file_path": ".github/workflows/catalogue-verifier.yml"}
+    job.update(changes or {})
+    if remove:
+        job.pop(remove)
+    workflow = yaml.load((ROOT / ".github/workflows/catalogue-verifier.yml").read_text(), Loader=yaml.BaseLoader)
+    steps = workflow["jobs"]["verify"]["steps"]
+    assert steps[0]["id"] == "context" and "VERIFICATION_APP_PRIVATE_KEY" not in steps[0]["env"]
+    assert not any("VERIFICATION_APP_PRIVATE_KEY" in step.get("env", {}) for step in steps[:2])
+    program = steps[0]["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    output = tmp_path / "output"
+    result = subprocess.run([sys.executable, "-c", program], cwd=tmp_path, capture_output=True, timeout=10,
+        env={"JOB_CONTEXT": json.dumps(job), "VERIFICATION_POLICY": json.dumps(trust), "GITHUB_OUTPUT": str(output)})
+    return result, output
+
+
+def test_actual_guard_accepts_main_job_ref_and_independently_pinned_sha(tmp_path):
+    from test_publication_authorization import REVISION, SOURCE
+    assert REVISION != SOURCE
+    result, output = run_context_guard(tmp_path)
+    assert result.returncode == 0 and not result.stdout and not result.stderr
+    assert output.read_text() == "revision=" + REVISION + "\n"
+
+
+@pytest.mark.parametrize("changes", [
+    {"workflow_ref": "benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@" + "b" * 40},
+    {"workflow_ref": "benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@refs/heads/other"},
+    {"workflow_ref": "benchristian88/atlas-connectors/.github/workflows/verifier-signer-probe.yml@refs/heads/main"},
+    {"workflow_sha": "a" * 40},  # Advancing caller/main does not update the trusted pin.
+    {"workflow_sha": "B" * 40}, {"workflow_sha": None},
+    {"workflow_repository": "another/repository"},
+    {"workflow_file_path": ".github/workflows/verifier-signer-probe.yml"},
+])
+def test_actual_guard_rejects_wrong_identity_before_credentials_or_output(tmp_path, changes):
+    result, output = run_context_guard(tmp_path, changes)
+    assert result.returncode != 0 and result.stderr == b"verification_trust_not_accepted\n"
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("field", ["workflow_ref", "workflow_sha", "workflow_repository", "workflow_file_path"])
+def test_actual_guard_rejects_missing_job_fields(tmp_path, field):
+    result, output = run_context_guard(tmp_path, remove=field)
+    assert result.returncode != 0 and not output.exists()
+
+
+def test_actual_guard_still_requires_live_acceptance(tmp_path):
+    result, output = run_context_guard(tmp_path, accepted=False)
+    assert result.returncode != 0 and not output.exists()
 
 
 def test_verifier_is_reusable_only_isolated_and_uses_no_caller_code():

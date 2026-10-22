@@ -103,14 +103,66 @@ Use the former plus independent signer/source digests; check the exact certifica
 SAN in verified output. No DSSE decoding is accepted as cryptographic verification.
 
 [GitHub's guidance](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/increase-security-rating)
-identifies the reusable workflow as signer. The exact SAN/buildSigner URI is
-required to be `https://github.com/benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@<PINNED_SHA>`;
-buildSignerDigest is that SHA, while buildConfig URI/digest describe the original
-`catalogue-publish.yml@refs/heads/main` caller and its source commit. These exact
-certificate expectations have **not** been demonstrated by a genuine verifier
-attestation. The checked-in trust template rejects issuance and verification until
-a separately authorized live experiment confirms them. Never weaken constraints
-to fit synthetic output. Unexpected platform behavior needs evidence and review.
+identifies the reusable workflow as signer. The original V1 assumption that the
+certificate signer URI and `job.workflow_ref` end in `@<PINNED_SHA>` is corrected
+by the genuine evidence below. This is a representation correction; exact
+implementation pinning and the production acceptance block remain in force.
+
+### Evidence correction — 2026-10-23
+
+Successful public experiment
+[run 39846232008, attempt 1](https://github.com/benchristian88/atlas-connectors/actions/runs/39846232008)
+used source `e5287c3229f5b9a1dc4c3dbcda0f4193fe221c3c` and a same-commit local
+reusable call. Its exact public [probe and bundle](../../tests/fixtures/verifier_signer_probe/README.md)
+were independently reverified offline with unchanged pinned gh/roots. The run API
+was separately read; its representation must not be confused with job context.
+
+| Identity surface | Observed experimental representation | Corrected V1 requirement |
+| --- | --- | --- |
+| Certificate SAN / buildSignerURI | `verifier-signer-probe.yml@refs/heads/main` | Exact `https://github.com/benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@refs/heads/main` |
+| Certificate buildSignerDigest | Exact experiment source SHA | Independently trusted `signer_revision`, also enforced by `--signer-digest` |
+| Reusable job workflow_ref / workflow_sha | Probe workflow at `@refs/heads/main` / exact source SHA | Exact production workflow at `@refs/heads/main` / independently trusted signer SHA; reject before checkout or credential injection |
+| Caller API referenced_workflows.path / sha | Probe workflow at `@<source SHA>` / exact source SHA | Exact production workflow at `@<trusted signer SHA>` / that same SHA; unchanged |
+
+The observed buildConfig URI identifies the experimental **caller** workflow at
+`refs/heads/main`; its digest is the caller source commit. V1 continues requiring
+`catalogue-publish.yml@refs/heads/main` and that original caller commit, independently
+of the verifier revision. Repository/owner IDs, issuer, source/ref, hosted runner,
+trigger, invocation/attempt, production subject/predicate and transparency checks
+are retained. Arbitrary branches, workflow paths, old SHA-suffixed certificate
+URIs and wrong signer digests are rejected; there is no alternate-ref fallback.
+
+This genuine probe is not a genuine production authorization. Its workflow,
+predicate and subject remain distinct, and production verification rejects it.
+`live_signer_accepted` remains false and all signer/ruleset/environment pins remain
+unset. Synthetic production-profile tests establish policy behavior only.
+
+### Verifier revision lifecycle — V2 design requirement
+
+[GitHub documents](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#calling-a-reusable-workflow)
+that a local `uses: ./.github/workflows/catalogue-verifier.yml` resolves to the
+caller's commit. If accepted signer revision S is fixed and main advances to C,
+that call executes workflow C and reports workflow_sha/buildSignerDigest C. The
+unchanged exact S pin must reject it, even when the verifier files were untouched.
+Checking out S later does not pin the workflow steps already selected at C.
+
+V2 must decouple catalogue source C from independently reviewed verifier code S.
+The intended approach remains a literal
+`benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@<reviewed 40-character SHA>`
+job call, with S separately pinned in consumer trust and the verifier environment;
+ordinary catalogue changes may advance C without approving S again. New verifier
+code requires an explicit security-reviewed pin update, never automatic trust in
+current main. Caller identity/buildConfig/source stay bound to C; signer digest,
+job SHA, verifier checkout and API reference stay bound to S.
+
+The local-call experiment used C = S. It does **not** establish certificate/job
+URI spelling or separate source/signer claims for an explicit `@S` call with
+C different from S. A separate harmless, credential-free pinned-call experiment
+must demonstrate these before V2 integration. If an explicit call produces
+SHA-suffixed certificate/job URIs, today's exact main-ref profile must fail;
+any specific profile correction needs that evidence and separate security review.
+Do not preemptively accept both forms, remove digest constraints, change this
+correction's pins or modify the publisher to work around the lifecycle gate.
 
 ## Freshness, replay, races and recovery
 
@@ -142,7 +194,9 @@ unavailable verification stop progress; there is no repair-by-bypass path.
 The [V1 foundation and V2 handoff](../signed-publication-verifier.md) specify the
 schemas, actual checks, production blockers and separate stage/seal/activate/
 finish/recover job requirements. Existing genuine catalogue/package fixtures
-exercise real cryptography; new positive signer-policy tests use synthetic
-verified output only. No new genuine signer fixture, live token, workflow run,
-publication or settings change is performed here. V2 integration and independent
-genuine acceptance are required before declaring the publication pipeline ready.
+exercise real cryptography. The preserved genuine experimental probe verifies
+only its separate experimental profile and is rejected as production authorization;
+positive production signer-policy tests still use synthetic verified output only.
+This correction reads an existing run; it creates no live token, workflow run,
+publication or settings change. V2 integration and independent genuine acceptance
+of the exact production signer remain required before publication readiness.

@@ -27,7 +27,9 @@ class AuthorizationSigstore(Verifier):
                 and envelope.get("mediaType") == "application/vnd.dev.sigstore.bundle.v0.3+json",
                 "attestation_format")
         revision, commit = trust["signer_revision"], expected["source_commit"]
-        identity = f"{ORIGIN}/{WORKFLOW}@{revision}"
+        # Genuine reusable-workflow evidence uses the branch ref in the URI.
+        # Implementation trust remains the independent exact signer digest below.
+        identity = f"{ORIGIN}/{WORKFLOW}@refs/heads/main"
         with tempfile.TemporaryDirectory(prefix="atlas-authorization-verify-") as work:
             directory = Path(work)
             for name, raw in (("artifact", artifact), ("bundle.json", bundle), ("roots.jsonl", self.roots)):
