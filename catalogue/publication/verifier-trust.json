@@ -1,0 +1,14 @@
+{
+  "schema": "atlas-publication-verifier-trust/v1",
+  "live_signer_accepted": false,
+  "signer_revision": null,
+  "ruleset_ids": {
+    "atlas-main": null,
+    "atlas-history-lock": null,
+    "atlas-bootstrap-lock": null,
+    "atlas-catalogue-current": null,
+    "atlas-publication-tags": null
+  },
+  "verification_environment_id": null,
+  "max_observation_age_seconds": 60
+}

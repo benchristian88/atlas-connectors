@@ -10,6 +10,13 @@ P2 adds a separate [two-dispatch bootstrap procedure](bootstrap.md),
 [ADR 0003](../../docs/decisions/0003-sequence-one-bootstrap.md) and
 [implementation record](bootstrap-report.md); it has not performed the migration.
 
+The [V1 signed verifier foundation](../../docs/signed-publication-verifier.md) and
+[ADR 0004](../../docs/decisions/0004-isolated-signed-publication-verifier.md) correct
+the Administration Read ruleset-visibility assumption. The current checked-in
+policy enables bootstrap staging, but incomplete bypass evidence still fails
+closed. The isolated verifier has no live signer acceptance and is not integrated
+with publication; V2 and genuine acceptance remain required.
+
 ## Distribution and trust boundaries
 
 1. A qualified package has a canonical SDK Manifest, reviewed source and independent
