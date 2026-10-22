@@ -5,6 +5,9 @@ numbered releases and a separately authenticated current-pointer branch. Local
 foundations use explicit single-maintainer authorization behind disabled policy. Owner settings, bootstrap
 migration, package-history decisions and Atlas consumer support remain required;
 no live publication or settings changes were performed by this implementation.
+[P2 bootstrap foundations](publication/bootstrap.md) now provide explicitly gated
+staging and later activation of the unchanged historical sequence. Both live
+dispatches and independent consumer acceptance remain outstanding.
 
 The legacy aggregate v1 sequence 1 remains at the
 [official release](https://github.com/benchristian88/atlas-connectors/releases/tag/catalogue-v1).

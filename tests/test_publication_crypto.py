@@ -43,3 +43,26 @@ def test_genuine_original_package_bytes_and_build_profile():
         tag=entry['release_tag'], commit=entry['manifest']['distribution']['provenance']['source_commit'])
     assert evidence.profile == 'package'
     assert evidence.source_commit == '456a5bfdd1398c19da9ffef29216029027e24278'
+
+
+def test_genuine_bootstrap_source_preflight_and_no_catalogue_as_selection():
+    """Pinned gh really verifies the source; no genuine selection is claimed."""
+    import json
+    from bootstrap_catalogue import local_preflight, CATALOGUE_SHA256
+    from publication_contract import pointer_bytes
+    verifier = Verifier()
+    policy = json.loads((ROOT / 'catalogue/publication/policy.json').read_bytes())
+    result = local_preflight(policy, verifier)
+    assert result['catalogue_bytes'] == 10585 and result['sha256'] == CATALOGUE_SHA256
+    assert result['enabled'] is False and not result['remote_checks_performed']
+    pointer = pointer_bytes({'schema_version': '1.0', 'sequence': 1, 'release_tag': 'catalogue-000001',
+                            'release_id': 123, 'asset_id': 456, 'sha256': CATALOGUE_SHA256,
+                            'previous_pointer_sha256': None})  # Test-only IDs, never approval.
+    bundle = (ROOT / 'tests/fixtures/publication/catalogue.sigstore.json').read_bytes()
+    with pytest.raises(ValueError):
+        verifier.verify(pointer, bundle, profile='pointer', name='current.json')
+    tampered = json.loads(bundle)
+    tampered['dsseEnvelope']['signatures'][0]['sig'] = 'AAAA'
+    with pytest.raises(ValueError):
+        verifier.verify((ROOT / 'tests/fixtures/official_catalogue/catalogue-000001.json').read_bytes(),
+                        json.dumps(tampered).encode(), profile='catalogue', name='catalogue-000001.json')

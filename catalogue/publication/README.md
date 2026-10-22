@@ -1,4 +1,4 @@
-# P1 publication contract and operator runbook
+# P1 publication contract and P2 bootstrap runbook
 
 Status: **local foundations implemented; publication disabled; no live acceptance**.
 The [investigation](investigation.md) records pre-change evidence, the
@@ -6,6 +6,9 @@ The [investigation](investigation.md) records pre-change evidence, the
 [single-maintainer ADR](../../docs/decisions/0002-single-maintainer-publication.md)
 record the proposed decisions, and the [consumer handoff](consumer-handoff.md) defines required Atlas work.
 No release, branch, tag, repository setting or remote asset was changed here.
+P2 adds a separate [two-dispatch bootstrap procedure](bootstrap.md),
+[ADR 0003](../../docs/decisions/0003-sequence-one-bootstrap.md) and
+[implementation record](bootstrap-report.md); it has not performed the migration.
 
 ## Distribution and trust boundaries
 
@@ -129,7 +132,7 @@ verified binary; verification runs offline with no token or ambient CLI config.
 
 The explicit policy mode is `single-maintainer-v1`. The maintainer reviews the
 candidate and manually dispatches `catalogue-publish.yml` **from protected main**,
-choosing `publish` or `recover`. That dispatch is the authorization action. This
+choosing `publish`, `recover`, or the separately gated `bootstrap` operation. That dispatch is the authorization action. This
 provides **single-maintainer authorization**, not independent human approval or a
 human cryptographic signature. GitHub records an account action; it cannot prove
 that a person clicked the UI rather than using that account's API credential.
@@ -244,15 +247,20 @@ Owner actions, separately reviewed:
    actual App/installation/bot-user IDs and slug. Do not infer the allowed maintainer
    from a run, pointer, login or repository owner. Confirm the selected account
    independently, then record `allowed_maintainer_id` through a reviewed policy PR.
-   Keep those values null until supplied. Enforce MFA/passkeys on the maintainer
+   The current source policy records reviewed identities; independently verify
+   their live validity before activation. Enforce MFA/passkeys on the maintainer
    account and protect its credentials; this design has one human trust root.
 6. Keep default Actions permissions read-only. Catalogue preparation receives
    contents read + attestations write + id-token write. Publication's GITHUB_TOKEN
    also gets Actions read; only the ref-restricted App token grants contents
    write. No PR trigger runs publication code with these credentials. Workflow
-   dispatch accepts only `publish` or `recover`, never a repository/ref/digest.
-7. Approve and implement the independent bootstrap migration below. Record the
-   actual approved sequence/pointer digest in `policy.json`. Fill environment,
+   dispatch accepts only `publish`, `recover` or `bootstrap`, never a
+   repository/ref/digest.
+7. Approve the implemented two-dispatch [bootstrap procedure](bootstrap.md),
+   including its new no-bypass root-intent tag ruleset. Record the
+   actual approved sequence/pointer digest in `policy.json` only after the
+   bootstrap runbook staging checkpoint. The stage-only activation deliberately
+   leaves those pins null; separate activation approves the real bytes. Fill environment,
    maintainer and App identities through a reviewed PR; change `enabled` only after
    configuration and the Atlas profile/bootstrap decisions, for an explicitly
    approved first live acceptance. Normal production readiness still requires
@@ -323,16 +331,15 @@ Sequence 1 stays exactly 10,585 bytes at SHA-256
 Preserve catalogue-v1's two JSON assets, attestation 57152061 and original source
 `91dfd86f18d0b59ff977bb1e8a5fef42c5329943`. Do not rebuild from current HEAD.
 
-A separately approved migration can copy these exact authenticated bytes and the
-original bundle into a new draft `catalogue-000001` targeting that original source
-commit, create an explicitly maintainer-authorized selection with the new
-release/asset IDs,
-verify it, lock the release and create the root current commit. This retains old
-build provenance and adds new publication authority; immutability alone cannot
-retroactively authenticate a builder. The old catalogue workflow is already the
-B1.2 catalogue profile, so no widened build signer is needed for these fixtures.
-The selection workflow/profile and exact bootstrap digest require explicit new
-owner approval. No migration command or bootstrap bypass is implemented here.
+The implemented [bootstrap operation](bootstrap.md) copies these authenticated
+bytes and the exact original bundle into a new draft targeting the original source.
+It signs a new seven-field selection through catalogue-publish.yml using real
+provider IDs, then stops. A separate reviewed policy commit pins the actual pointer
+digest; a fresh activation dispatch verifies and finalises the immutable release
+before creating a true root. A protected no-bypass root-intent tag fences consumed
+bootstrap authority even if current is later removed. See the bootstrap runbook
+for the extra ruleset, bounded recovery and operator checkpoints. This task leaves
+publication disabled, bootstrap operation disabled and both root pins unset.
 
 The legacy catalogue contains Proxmox 0.2.0 whose package release also reports
 mutable. Copying that package to a different tag/asset would change its recorded
@@ -362,7 +369,8 @@ source, package provenance, App build identity, immutable release and exact asse
 The explicit catalogue dispatch authorizes inclusion; preparation has no human
 approval claim. The operator can perform tag creation and draft finalisation alone
 using the dedicated App, but must follow its scope and evidence checks. There is
-no automated package finaliser or bootstrap command in this implementation.
+no automated package finaliser. The distinct bootstrap command never publishes
+or qualifies executable packages.
 New IDs/versions conforming to supported contracts require no Atlas source edits.
 
 ## Residual limitations and acceptance

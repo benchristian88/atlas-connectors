@@ -131,9 +131,12 @@ class Authority:
     actor_id: int
 
 
-def check_policy(policy):
+def check_policy(policy, *, operation="publish", local=False):
     """No mode inference, dummy IDs, legacy reviewer fallback or implicit bootstrap."""
-    require(isinstance(policy, dict) and policy.get("enabled") is True, "publication_disabled")
+    require(isinstance(policy, dict) and type(policy.get("enabled")) is bool, "publication_disabled")
+    require(local or policy["enabled"], "publication_disabled")
+    require(operation in {"publish", "recover", "bootstrap"}, "unsupported_publication_operation")
+    require(not local or operation == "bootstrap", "unsupported_local_operation")
     require(policy.get("authorization_mode") == AUTHORIZATION_MODE and "reviewer_ids" not in policy,
             "unsupported_authorization_mode")
     require(positive_integer(policy.get("allowed_maintainer_id")), "maintainer_unconfigured")
@@ -143,6 +146,15 @@ def check_policy(policy):
             and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,99}", policy["app_slug"]), "publication_app_unconfigured")
     require(policy["allowed_maintainer_id"] != policy["app_bot_user_id"], "unsupported_maintainer_identity")
     bootstrap = policy.get("bootstrap")
+    if operation == "bootstrap":
+        mode = policy.get("bootstrap_operation", "disabled")
+        require(mode in {"disabled", "stage", "activate"}, "bootstrap_operation_disabled")
+        require(local or mode != "disabled", "bootstrap_operation_disabled")
+        if mode in {"disabled", "stage"}:
+            require(bootstrap == {"sequence": None, "pointer_sha256": None}, "bootstrap_staging_pins_must_be_unset")
+            return
+        require(isinstance(bootstrap, dict) and type(bootstrap.get("sequence")) is int
+                and bootstrap["sequence"] == 1, "bootstrap_sequence")
     require(isinstance(bootstrap, dict) and positive_integer(bootstrap.get("sequence"))
             and hexadecimal(bootstrap.get("pointer_sha256")), "approved_bootstrap_required")
 
@@ -155,14 +167,14 @@ def check_repository(repository):
             "publication_repository")
 
 
-def check_app(policy, app, token_repositories, token_identity):
+def check_app(policy, app, token_repositories, token_identity, *, operation="publish"):
     """Public App metadata plus JWT-authenticated pinned token-action observations.
 
     The action, not caller-supplied metadata alone, binds the actual key to the
     configured App/installation. Correct-but-stolen keys cannot be detected here;
     they still cannot satisfy the separate human dispatch and signature gates.
     """
-    check_policy(policy)
+    check_policy(policy, operation=operation)
     require(isinstance(app, dict) and type(app.get("id")) is int and app["id"] == policy["app_id"]
             and app.get("slug") == policy["app_slug"] and isinstance(app.get("owner"), dict)
             and app["owner"].get("id") == OWNER_ID and app.get("permissions") == APP_PERMISSIONS,
@@ -176,9 +188,9 @@ def check_app(policy, app, token_repositories, token_identity):
     check_repository(token_repositories["repositories"][0])
 
 
-def check_rulesets(policy, rulesets):
+def check_rulesets(policy, rulesets, *, operation="publish"):
     """Deliberately narrow supported configuration; unknown combinations fail shut."""
-    check_policy(policy)
+    check_policy(policy, operation=operation)
     require(isinstance(rulesets, list) and all(isinstance(r, dict) for r in rulesets), "publication_ruleset_evidence")
     required = {
         "atlas-main": ("branch", ["refs/heads/main"], {"pull_request", "required_status_checks", "deletion", "non_fast_forward"}),
@@ -186,13 +198,15 @@ def check_rulesets(policy, rulesets):
         "atlas-history-lock": ("branch", [CHANNEL_REF], {"deletion", "non_fast_forward"}),
         "atlas-publication-tags": ("tag", ["refs/tags/catalogue-*", "refs/tags/*-v*"], {"creation", "update", "deletion"}),
     }
+    if operation == "bootstrap":
+        required["atlas-bootstrap-lock"] = ("tag", ["refs/tags/catalogue-bootstrap-root"], {"update", "deletion"})
     for name, (target, included, types) in required.items():
         matches = [r for r in rulesets if r.get("name") == name]
         require(len(matches) == 1, "publication_ruleset_missing")
         rule = matches[0]
         require(rule.get("target") == target and rule.get("enforcement") == "active"
                 and rule.get("conditions") == {"ref_name": {"include": included, "exclude": []}}, "publication_ruleset_scope")
-        bypass = [] if name in {"atlas-main", "atlas-history-lock"} else [{"actor_id": policy["app_id"], "actor_type": "Integration", "bypass_mode": "always"}]
+        bypass = [] if name in {"atlas-main", "atlas-history-lock", "atlas-bootstrap-lock"} else [{"actor_id": policy["app_id"], "actor_type": "Integration", "bypass_mode": "always"}]
         require(rule.get("bypass_actors") == bypass, "publication_ruleset_bypass")
         rules = rule.get("rules")
         require(isinstance(rules, list) and all(isinstance(r, dict) and isinstance(r.get("type"), str) for r in rules)
@@ -211,13 +225,13 @@ def check_rulesets(policy, rulesets):
 
 
 def check_authority(policy, repository, branch, environment, run, attempt, workflow, user, checks,
-                    *, run_id, source_commit, historical=False, package_tag=None):
+                    *, run_id, source_commit, historical=False, package_tag=None, operation="publish"):
     """Compare independent API observations to external policy and authenticated context.
 
     Package runs authenticate the configured App's tag build, never human consent.
     Only the manual selection run constitutes single-maintainer authorization.
     """
-    check_policy(policy)
+    check_policy(policy, operation=operation)
     check_repository(repository)
     require(all(isinstance(value, dict) for value in (branch, environment, run, attempt, workflow, user, checks)),
             "missing_authority_evidence")
