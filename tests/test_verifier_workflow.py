@@ -74,7 +74,11 @@ def test_verifier_is_reusable_only_isolated_and_uses_no_caller_code():
     workflow = yaml.load((ROOT / ".github/workflows/catalogue-verifier.yml").read_text(), Loader=yaml.BaseLoader)
     assert set(workflow["on"]) == {"workflow_call"}
     assert set(workflow["on"]["workflow_call"]["inputs"]) == {"request"}
-    assert "secrets" not in workflow["on"]["workflow_call"]
+    call = workflow["on"]["workflow_call"]
+    assert call["secrets"] == {"VERIFICATION_APP_PRIVATE_KEY": {
+        "description": "Private key for the isolated Atlas Catalogue Verifier App", "required": "true"}}
+    assert set(call["outputs"]) == {"artifact-id"}
+    assert call["outputs"]["artifact-id"]["value"] == "${{ jobs.verify.outputs.artifact-id }}"
     job = workflow["jobs"]["verify"]
     assert job["runs-on"] == "ubuntu-24.04" and job["environment"] == "catalogue-verification"
     assert job["permissions"] == {"contents": "read", "id-token": "write", "attestations": "write"}
@@ -93,6 +97,17 @@ def test_verifier_is_reusable_only_isolated_and_uses_no_caller_code():
     privileged = [s for s in steps if "VERIFICATION_APP_PRIVATE_KEY" in s.get("env", {})]
     assert len(privileged) == 1
     assert privileged[0]["run"] == "python3 tools/issue_publication_authorization.py"
+    secret_ref = "${{ secrets.VERIFICATION_APP_PRIVATE_KEY }}"
+    assert privileged[0]["env"]["VERIFICATION_APP_PRIVATE_KEY"] == secret_ref
+    assert (ROOT / ".github/workflows/catalogue-verifier.yml").read_text().count(secret_ref) == 1
+    for step in steps:
+        assert "secrets." not in step.get("run", "")
+        assert "secrets." not in str(step.get("with", {}))
+        if step is not privileged[0]:
+            assert "secrets." not in str(step)
+    for filename in ("catalogue-verifier.yml", "catalogue-publish.yml"):
+        definition = yaml.load((ROOT / ".github/workflows" / filename).read_text(), Loader=yaml.BaseLoader)
+        assert all(job.get("secrets") != "inherit" for job in definition["jobs"].values())
     attest = next(s for s in steps if s.get("id") == "attest")
     assert attest["with"]["predicate-type"] == "https://atlas-impact.dev/attestations/publication-preflight/v2"
     assert "subject-path" in attest["with"] and "subject-digest" not in attest["with"]
@@ -102,6 +117,7 @@ def test_verifier_is_reusable_only_isolated_and_uses_no_caller_code():
         "${{ runner.temp }}/publication-authorization/preflight.sigstore.json"]
     assert "always()" not in upload.get("if", "")
     assert "token" not in str(job["outputs"])
+    assert job["outputs"] == {"artifact-id": "${{ steps.upload.outputs.artifact-id }}"}
 
 
 def test_publisher_depends_on_isolated_preflight_before_credentials_and_executes_pinned_code():

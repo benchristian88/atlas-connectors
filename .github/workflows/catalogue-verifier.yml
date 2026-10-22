@@ -9,6 +9,10 @@ on:
         description: Dispatch operation object only; never commands, paths or transition targets
         type: string
         required: true
+    secrets:
+      VERIFICATION_APP_PRIVATE_KEY:
+        description: Private key for the isolated Atlas Catalogue Verifier App
+        required: true
     outputs:
       artifact-id:
         description: Public authorization bytes and Sigstore bundle only
