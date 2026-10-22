@@ -62,8 +62,8 @@ to authenticate the mint request is separate and its signing behavior is unchang
 
 The previous `[A-Za-z0-9_]+` check rejected stateless tokens containing periods
 or hyphens. This is a confirmed local compatibility defect and a strongly supported
-explanation for the observed `verifier_token_failed`, but that code also covers
-API, response-schema, permission and repository-scope failures. Those checks remain
+explanation for an earlier `verifier_token_failed`, but that former umbrella code
+also covered API, response-schema, permission and repository-scope failures. Those checks remain
 unchanged. Local tests do not prove the cause of an earlier live failure or establish
 that a subsequent live run will succeed.
 
@@ -105,18 +105,48 @@ The failure identifiers distinguish stages without exposing remote data:
 | `verifier_configuration_failed` | Configured App/installation IDs or missing private key |
 | `verifier_jwt_failed` | App JWT creation, including OpenSSL signing |
 | `verifier_installation_failed` | Installation lookup, response parsing or identity/selection validation |
-| `verifier_token_failed` | Token minting, response parsing or permission/repository/token validation |
+| `verifier_token_request_failed` | Token request construction, network/HTTP/API failure, redirects, non-201 status, body-read or response-close failure |
+| `verifier_token_response_rejected` | A 201 response fails existing content-type, encoding, pagination, declared-size, actual-size or length-consistency protections |
+| `verifier_token_response_invalid` | Invalid UTF-8/JSON, ambiguous duplicate keys, non-finite constants, a non-object response, missing/non-object permissions, or malformed repository evidence |
+| `verifier_token_permissions_mismatch` | The returned permissions object differs from the exact required permission contract |
+| `verifier_token_repositories_missing` | The response has no `repositories` field; no substitute scope evidence is accepted |
+| `verifier_token_repositories_mismatch` | A structurally valid repository list is empty, has more than one entry, or names a repository other than `benchristian88/atlas-connectors` |
+| `verifier_token_value_invalid` | Token is missing, empty, not a string, oversized or unsafe for an Authorization header |
 | `ruleset_list_failed` | List retrieval, response parsing or exact count/name/ID/source validation |
 | `ruleset_detail_failed` | Any individual detail retrieval, response parsing or detail identity/shape validation |
 | `ruleset_bypass_missing` | A detail response lacks the explicit `bypass_actors` field |
 | `ruleset_bypass_mismatch` | Malformed bypass actors or a list that differs from the exact expectation |
 | `verifier_unexpected_failed` | An unexpected failure outside the named stages |
 
-For example, a token HTTP error and an invalid token permission set both produce
-only `verifier_token_failed`, without a status, response body or exception string.
+The former `verifier_token_failed` code is replaced by the seven precise codes
+above. A token HTTP error now produces `verifier_token_request_failed`; a different
+permissions object produces `verifier_token_permissions_mismatch`. Neither exposes
+a status, response value, body or exception string. Transport errors are classified
+at the point of failure before sanitization; token-request handling maps those
+internal error types to fixed identifiers. Other stages keep their existing codes.
+After a successful request, checks run in order: response/permissions structure,
+exact permissions, repository field presence, repository structure, exact scope,
+then opaque token safety. The first failing check supplies the identifier.
+For repository structure, null/non-array evidence, non-object entries and missing
+or non-string `full_name` values are invalid responses, rather than missing fields.
+
 The workflow's helper-download bootstrap is unchanged; these codes apply once
 execution has reached the helper. This diagnostic change alone does not establish
 which stage failed in an earlier live run.
+
+### Response-schema assumption requiring separate review
+
+GitHub's [installation-token guide](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)
+describes repository evidence in the response as conditional ("if applicable").
+The experiment deliberately requires `repositories` with exactly one repository
+object naming the expected `full_name`. This is a stricter evidence requirement
+than the guide's unconditional guarantees. Absence now reports
+`verifier_token_repositories_missing` and still fails closed; null or malformed
+evidence reports `verifier_token_response_invalid`. The requested repository list,
+installation selection and any other response field are not substituted for this
+evidence. Exact returned permissions remain required as well. No live response was
+inspected, so this documentation difference does not establish the live failure's
+cause. Any alternate means of proving token scope requires a separate review.
 
 A successful helper exits 0 and prints these five JSON lines in this order.
 `<..._ID>` denotes the actual numeric ID returned by GitHub, not a literal output
@@ -153,3 +183,6 @@ credentials or network requests are needed. YAML syntax is also parsed locally.
 Opaque-token tests cover legacy and 520-character stateless examples, unchanged
 header transmission and successful output, size boundaries, malformed types,
 control/whitespace/non-ASCII rejection, and retained installation/permission/scope checks.
+Token-response tests additionally separate API failures, response-header/size
+rejections, malformed JSON/objects, permission mismatch, absent repository evidence,
+scope mismatch and unsafe token values, with no response-dependent failure output.

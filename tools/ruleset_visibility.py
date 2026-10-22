@@ -38,7 +38,11 @@ MAX_BYTES = 262144
 MAX_INSTALLATION_TOKEN_LENGTH = 4096
 FAILURE_CODES = frozenset({
     "verifier_context_failed", "verifier_configuration_failed",
-    "verifier_jwt_failed", "verifier_installation_failed", "verifier_token_failed",
+    "verifier_jwt_failed", "verifier_installation_failed",
+    "verifier_token_request_failed", "verifier_token_response_rejected",
+    "verifier_token_response_invalid", "verifier_token_permissions_mismatch",
+    "verifier_token_repositories_missing", "verifier_token_repositories_mismatch",
+    "verifier_token_value_invalid",
     "ruleset_list_failed", "ruleset_detail_failed",
     "ruleset_bypass_missing", "ruleset_bypass_mismatch", "verifier_unexpected_failed",
 })
@@ -46,6 +50,18 @@ FAILURE_CODES = frozenset({
 
 class EvidenceError(ValueError):
     """Never include remote content, headers, credentials or exception text."""
+
+
+class RequestFailed(EvidenceError):
+    """Request, status, redirect or body-read failure; no remote details."""
+
+
+class ResponseRejected(EvidenceError):
+    """Response headers or byte limits fail the existing transport checks."""
+
+
+class ResponseInvalid(EvidenceError):
+    """Response cannot be decoded as unambiguous JSON."""
 
 
 class StageFailure(EvidenceError):
@@ -121,9 +137,11 @@ class Transport:
                                "permissions": PERMISSIONS}).encode()
         request = urllib.request.Request(API + path, headers=headers, data=data,
                                          method="POST" if mint else "GET")
+        failure_type = RequestFailed
         try:
             with self.opener.open(request, timeout=20) as response:
                 require(response.status == (201 if mint else 200))
+                failure_type = ResponseRejected
                 require(response.headers.get_content_type() == "application/json")
                 require(response.headers.get("Content-Encoding", "identity") == "identity")
                 # This experiment accepts one complete page only. Never follow Link.
@@ -132,13 +150,18 @@ class Transport:
                 require(lengths is None or len(lengths) == 1 and
                         lengths[0].isascii() and lengths[0].isdigit() and
                         int(lengths[0]) <= MAX_BYTES)
+                failure_type = RequestFailed
                 raw = response.read(MAX_BYTES + 1)
+                failure_type = ResponseRejected
                 require(len(raw) <= MAX_BYTES)
                 require(lengths is None or len(raw) == int(lengths[0]))
-                return parse_json(raw)
+                failure_type = ResponseInvalid
+                value = parse_json(raw)
+                failure_type = RequestFailed
+                return value
         except Exception:
             # HTTP errors can carry credential-bearing requests and remote bodies.
-            raise EvidenceError() from None
+            raise failure_type() from None
 
     def get(self, path, token):
         require(path == LIST_PATH or re.fullmatch(
@@ -190,13 +213,28 @@ def authenticate(api, environ):
                 installation["account"].get("login") == "benchristian88")
         require(installation.get("repository_selection") == "selected")
         require("suspended_at" in installation and installation["suspended_at"] is None)
-    with failure_stage("verifier_token_failed"):
+    try:
         result = api.mint(jwt)
-        require(isinstance(result, dict) and result.get("permissions") == PERMISSIONS)
+    except ResponseRejected:
+        raise StageFailure("verifier_token_response_rejected") from None
+    except ResponseInvalid:
+        raise StageFailure("verifier_token_response_invalid") from None
+    except Exception:
+        raise StageFailure("verifier_token_request_failed") from None
+    with failure_stage("verifier_token_response_invalid"):
+        require(isinstance(result, dict) and isinstance(result.get("permissions"), dict))
+    with failure_stage("verifier_token_permissions_mismatch"):
+        require(result["permissions"] == PERMISSIONS)
+    with failure_stage("verifier_token_repositories_missing"):
+        require("repositories" in result)
+    with failure_stage("verifier_token_response_invalid"):
         repositories = result.get("repositories")
-        require(isinstance(repositories, list) and len(repositories) == 1 and
-                isinstance(repositories[0], dict) and
-                repositories[0].get("full_name") == REPOSITORY)
+        require(isinstance(repositories, list) and all(
+            isinstance(repository, dict) and isinstance(repository.get("full_name"), str)
+            for repository in repositories))
+    with failure_stage("verifier_token_repositories_mismatch"):
+        require(len(repositories) == 1 and repositories[0]["full_name"] == REPOSITORY)
+    with failure_stage("verifier_token_value_invalid"):
         token = result.get("token")
         # Treat the credential as opaque. Visible ASCII excludes whitespace,
         # controls and non-ASCII header encoding ambiguities without parsing JWTs.

@@ -290,22 +290,23 @@ def test_wrong_installation_never_mints(monkeypatch, change, token):
     assert api.calls == ["installation"]
 
 
-@pytest.mark.parametrize("change", [
-    lambda value: value["permissions"].update(contents="write"),
-    lambda value: value["permissions"].update(administration="read"),
-    lambda value: value.update(repositories=[]),
-    lambda value: value["repositories"].append({"full_name": "other/repo"}),
-    lambda value: value["repositories"][0].update(full_name="other/repo"),
-    lambda value: value.update(token="bad\ntoken"), lambda value: value.update(token=None),
+@pytest.mark.parametrize("change,code", [
+    (lambda value: value["permissions"].update(contents="write"), "verifier_token_permissions_mismatch"),
+    (lambda value: value["permissions"].update(administration="read"), "verifier_token_permissions_mismatch"),
+    (lambda value: value.update(repositories=[]), "verifier_token_repositories_mismatch"),
+    (lambda value: value["repositories"].append({"full_name": "other/repo"}), "verifier_token_repositories_mismatch"),
+    (lambda value: value["repositories"][0].update(full_name="other/repo"), "verifier_token_repositories_mismatch"),
+    (lambda value: value.update(token="bad\ntoken"), "verifier_token_value_invalid"),
+    (lambda value: value.update(token=None), "verifier_token_value_invalid"),
 ])
 @pytest.mark.parametrize("token", ["ghs_" + "a" * 36, STATELESS_TOKEN], ids=["legacy", "stateless"])
-def test_bad_token_evidence_rejected(monkeypatch, change, token):
+def test_bad_token_evidence_rejected(monkeypatch, change, code, token):
     api, environ = auth_fixture(monkeypatch)
     api.issued["token"] = token
     change(api.issued)
     with pytest.raises(visibility.StageFailure) as error:
         visibility.authenticate(api, environ)
-    assert error.value.code == "verifier_token_failed"
+    assert error.value.code == code
 
 
 def test_jwt_has_expected_identity_lifetime_and_valid_signature(tmp_path, monkeypatch):
@@ -425,7 +426,7 @@ def pipeline(monkeypatch):
 
 
 @pytest.mark.parametrize("index,code", [
-    (0, "verifier_installation_failed"), (1, "verifier_token_failed"),
+    (0, "verifier_installation_failed"), (1, "verifier_token_request_failed"),
     (2, "ruleset_list_failed"),
     *[(index, "ruleset_detail_failed") for index in range(3, 8)],
 ])
@@ -439,6 +440,8 @@ def test_each_retrieval_failure_emits_only_stage_code(monkeypatch, capsys, index
             {"Authorization": sensitive}, io.BytesIO(sensitive.encode()))
     elif kind == "body":
         responses[index] = Response(sensitive.encode(), status=201 if index == 1 else 200)
+        if index == 1:
+            code = "verifier_token_response_invalid"
     else:
         responses[index] = RuntimeError(sensitive)
     assert visibility.main() == 1
@@ -449,8 +452,8 @@ def test_each_retrieval_failure_emits_only_stage_code(monkeypatch, capsys, index
 @pytest.mark.parametrize("index,change,code", [
     (0, lambda value: value.update(app_id=5422372), "verifier_installation_failed"),
     (0, lambda value: value.update(repository_selection="all"), "verifier_installation_failed"),
-    (1, lambda value: value["permissions"].update(contents="write"), "verifier_token_failed"),
-    (1, lambda value: value.update(repositories=[]), "verifier_token_failed"),
+    (1, lambda value: value["permissions"].update(contents="write"), "verifier_token_permissions_mismatch"),
+    (1, lambda value: value.update(repositories=[]), "verifier_token_repositories_mismatch"),
     (2, lambda value: value.pop(), "ruleset_list_failed"),
     (2, lambda value: value.append(deepcopy(value[0])), "ruleset_list_failed"),
     (2, lambda value: value.__setitem__(1, deepcopy(value[0])), "ruleset_list_failed"),
@@ -539,8 +542,97 @@ def test_unsafe_token_emits_only_code_and_never_reaches_evidence_gets(monkeypatc
     responses, calls = pipeline(monkeypatch)
     responses[1]["token"] = token
     assert visibility.main() == 1
-    assert capsys.readouterr() == ("", "verifier_token_failed\n")
+    assert capsys.readouterr() == ("", "verifier_token_value_invalid\n")
     assert [request.get_method() for request in calls] == ["GET", "POST"]
+
+
+@pytest.mark.parametrize("change,code", [
+    (lambda value: value.pop("permissions"), "verifier_token_response_invalid"),
+    (lambda value: value.update(permissions=None), "verifier_token_response_invalid"),
+    (lambda value: value.update(permissions=[]), "verifier_token_response_invalid"),
+    (lambda value: value.update(permissions="synthetic-secret"), "verifier_token_response_invalid"),
+    (lambda value: value.update(permissions={}), "verifier_token_permissions_mismatch"),
+    (lambda value: value["permissions"].pop("metadata"), "verifier_token_permissions_mismatch"),
+    (lambda value: value["permissions"].update(administration="synthetic-secret"), "verifier_token_permissions_mismatch"),
+    (lambda value: value.pop("repositories"), "verifier_token_repositories_missing"),
+    (lambda value: value.update(repositories=None), "verifier_token_response_invalid"),
+    (lambda value: value.update(repositories={}), "verifier_token_response_invalid"),
+    (lambda value: value.update(repositories="synthetic-secret"), "verifier_token_response_invalid"),
+    (lambda value: value.update(repositories=[None]), "verifier_token_response_invalid"),
+    (lambda value: value.update(repositories=[{}]), "verifier_token_response_invalid"),
+    (lambda value: value.update(repositories=[{"full_name": 123}]), "verifier_token_response_invalid"),
+    (lambda value: value.update(repositories=[]), "verifier_token_repositories_mismatch"),
+    (lambda value: value["repositories"].append(deepcopy(value["repositories"][0])), "verifier_token_repositories_mismatch"),
+    (lambda value: value["repositories"][0].update(full_name="synthetic-secret"), "verifier_token_repositories_mismatch"),
+    (lambda value: value.pop("token"), "verifier_token_value_invalid"),
+])
+@pytest.mark.parametrize("token", ["ghs_" + "a" * 36, STATELESS_TOKEN], ids=["legacy", "stateless"])
+def test_token_contract_failures_have_precise_codes(monkeypatch, capsys, change, code, token):
+    responses, calls = pipeline(monkeypatch)
+    responses[1]["token"] = token
+    change(responses[1])
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", code + "\n")
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("raw", [
+    b"null", b"[]", b"true", b"123", b'"synthetic-secret"',
+    b"{", b"\xff", b"NaN", b'{"token":"synthetic-secret","token":"another-secret"}',
+])
+def test_invalid_mint_json_has_response_code(monkeypatch, capsys, raw):
+    responses, calls = pipeline(monkeypatch)
+    responses[1] = Response(raw, status=201)
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "verifier_token_response_invalid\n")
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("status", [200, 202, 301, 302, 307, 401, 403, 422, 429, 500])
+def test_non_created_mint_response_is_request_failure(monkeypatch, capsys, status):
+    responses, calls = pipeline(monkeypatch)
+    responses[1] = Response(b"synthetic-secret", status=status)
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "verifier_token_request_failed\n")
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("headers,raw", [
+    ([("Content-Type", "text/html")], b"synthetic-secret"),
+    ([("Content-Encoding", "gzip")], b"synthetic-secret"),
+    ([("Link", "https://example/synthetic-secret")], b"{}"),
+    ([("Link", "")], b"{}"),
+    ([("Content-Length", "synthetic-secret")], b"{}"),
+    ([("Content-Length", str(visibility.MAX_BYTES + 1))], b"{}"),
+    ([("Content-Length", "1")], b"{}"),
+    ([("Content-Length", "3")], b"{}"),
+    ([("Content-Length", "2"), ("Content-Length", "2")], b"{}"),
+    ([], b"x" * (visibility.MAX_BYTES + 1)),
+])
+def test_mint_header_and_size_rejections_are_distinct(monkeypatch, capsys, headers, raw):
+    responses, calls = pipeline(monkeypatch)
+    response = Response(raw, status=201)
+    for key, value in headers:
+        if key == "Content-Type":
+            response.headers.replace_header(key, value)
+        else:
+            response.headers[key] = value
+    responses[1] = response
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "verifier_token_response_rejected\n")
+    assert len(calls) == 2
+
+
+def test_mint_body_read_failure_is_request_failure(monkeypatch, capsys):
+    responses, calls = pipeline(monkeypatch)
+    response = Response(b"", status=201)
+    def fail(*args):
+        raise OSError("synthetic-secret Authorization: Bearer synthetic-token")
+    response.read = fail
+    responses[1] = response
+    assert visibility.main() == 1
+    assert capsys.readouterr() == ("", "verifier_token_request_failed\n")
+    assert len(calls) == 2
 
 
 def test_workflow_contract():
