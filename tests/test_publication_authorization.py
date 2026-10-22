@@ -315,11 +315,21 @@ def test_issuer_erases_step_scoped_key_before_openssl_and_exports_no_credentials
 
 def test_checked_in_trust_cannot_enable_publication():
     trust = json.loads((ROOT / "catalogue/publication/verifier-trust.json").read_bytes())
-    assert trust["live_signer_accepted"] is False and trust["signer_revision"] is None
+    assert trust == {"schema": "atlas-publication-verifier-trust/v2", "live_signer_accepted": False,
+        "signer_revision": "d12d47111dec137e4a6af261879f1e49b8db05e2",
+        "ruleset_ids": {"atlas-main": 25618213, "atlas-history-lock": 25618809,
+            "atlas-bootstrap-lock": 25628137, "atlas-catalogue-current": 25618684,
+            "atlas-publication-tags": 25618901},
+        "verification_environment_id": 25016263801, "max_observation_age_seconds": 900}
+    auth.check_trust(trust, acceptance_only=True)
     with pytest.raises(ValueError, match="live_acceptance"):
         auth.check_trust(trust)
+    with pytest.raises(ValueError, match="live_acceptance"):
+        auth.AuthorizationVerifier(trust, fixture()[4])
+    incomplete = deepcopy(trust)
+    incomplete["signer_revision"] = None
     with pytest.raises(ValueError):
-        auth.check_trust(trust, acceptance_only=True)  # Configured real pins still required.
+        auth.check_trust(incomplete, acceptance_only=True)
 
 
 def test_executable_and_data_checkouts_are_independently_checked_before_credentials(monkeypatch, tmp_path):

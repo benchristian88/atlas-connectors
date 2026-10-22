@@ -1,14 +1,14 @@
 {
   "schema": "atlas-publication-verifier-trust/v2",
   "live_signer_accepted": false,
-  "signer_revision": null,
+  "signer_revision": "d12d47111dec137e4a6af261879f1e49b8db05e2",
   "ruleset_ids": {
-    "atlas-main": null,
-    "atlas-history-lock": null,
-    "atlas-bootstrap-lock": null,
-    "atlas-catalogue-current": null,
-    "atlas-publication-tags": null
+    "atlas-main": 25618213,
+    "atlas-history-lock": 25618809,
+    "atlas-bootstrap-lock": 25628137,
+    "atlas-catalogue-current": 25618684,
+    "atlas-publication-tags": 25618901
   },
-  "verification_environment_id": null,
+  "verification_environment_id": 25016263801,
   "max_observation_age_seconds": 900
 }

@@ -1,14 +1,17 @@
 # Lean V2 signed publication preflight
 
-Status: **Implemented locally; production activation BLOCKED pending pinning and genuine acceptance.**
+Status: **Reviewed implementation frozen and acceptance trust configured; production activation BLOCKED pending genuine acceptance.**
 [ADR 0005](decisions/0005-lean-run-preflight.md) supersedes the V1 transition-grant
 architecture. The [operator runbook](../catalogue/publication/README.md) is the active
 procedure; [V1 documentation](signed-publication-verifier-v1.md) is historical.
 
 The checked-in publication policy is unchanged: enabled, bootstrap `stage`, with
 both root approval pins unset. That does not activate V2. Verifier trust remains
-`live_signer_accepted: false`, with signer/ruleset/environment pins unset. No live
-workflow, settings mutation, release or ref write was performed during implementation.
+`live_signer_accepted: false`, with signer/ruleset/environment pins configured in
+[verifier-trust.json](../catalogue/publication/verifier-trust.json). The operator
+must copy that exact JSON into `catalogue-verification`'s `VERIFICATION_POLICY`
+environment variable before the first acceptance-only dispatch. No live workflow,
+GitHub variable/settings mutation, release or ref write was performed by this task.
 
 ## One preflight, two Apps, one maintainer
 
@@ -65,15 +68,20 @@ pin. Advancing C alone does not accept a new S. New implementation code requires
 an explicit reviewed pin change, including the call, Publisher checkout and
 `ATLAS_IMPLEMENTATION_REVISION` literal, plus independent environment trust.
 
-**Uncommitted-work pin boundary:** current literals intentionally retain the inert
-pre-V2 commit `da5562eeb21d5c1cc653cfea7ae8d025d2a9174a`. That commit contains V1,
-not this new implementation, and is not accepted as a V2 signer. It cannot execute
-the new contract successfully. After review, freeze this implementation in commit
-S, then make a separate protected-main caller/configuration commit C updating all
-three literals and the independently reviewed trust pins to S. Do not substitute
-latest main automatically, use a local reusable reference, invent a future SHA,
-or call the current inert pin a completed deployment. No Git mutation is part of
-this local task. V2 is ready for that staged review; live execution is blocked.
+**Frozen implementation:** S is
+`d12d47111dec137e4a6af261879f1e49b8db05e2`, the reviewed Lean V2 implementation
+merged into protected main with passing CI. All three executable workflow pins
+and repository signer trust now identify S. The next protected-main merge of
+these configuration changes becomes C; its actual SHA is not yet known, and
+C must differ from S. The catalogue/source checkout stays `${{ github.sha }}`.
+Never derive S from current main or replace it with a moving reference.
+
+Repository trust pins verification environment **25016263801**, all five verified
+ruleset IDs and a **900-second** startup age. Its acceptance flag remains false.
+Configure the independent GitHub environment variable with JSON identical to that
+file, then follow the [single bootstrap acceptance-only dispatch](../catalogue/publication/README.md#minimum-genuine-signingisolation-acceptance).
+The Publisher job must remain skipped. No remote configuration or dispatch is
+performed by this pinning task, and production activation remains blocked.
 
 ## Canonical contract and verification
 
@@ -165,8 +173,9 @@ V2 fixture or live acceptance is claimed from synthetic verified-output tests.
 
 Follow the [operator checklist](../catalogue/publication/README.md). The minimum
 credential/signing acceptance is one fresh `bootstrap`, `acceptance_only: true`
-main dispatch at C after freezing S and configuring real pins. Keep both copies
-of trust unaccepted. Verify the exported preflight offline, independently check
+main dispatch at the future C once `VERIFICATION_POLICY` matches the committed
+trust JSON for frozen S. Keep both copies of trust unaccepted. Verify the exported
+preflight offline, independently check
 C/S and run/attempt/operation/policy, complete rulesets, environments and immutability,
 and confirm the Publisher job was skipped and no publication credentials or writes
 occurred. Preserve public artifacts before their one-day expiry and review the

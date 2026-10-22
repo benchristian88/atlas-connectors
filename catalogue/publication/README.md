@@ -1,10 +1,11 @@
 # Official catalogue publication — Lean V2 operator runbook
 
 **Production activation is blocked.** The current policy remains stage-enabled,
-with no approved root digest; verifier trust is unaccepted and its real pins are
-unset. The current workflow implementation literals refer to pre-V2
-`da5562eeb21d5c1cc653cfea7ae8d025d2a9174a` as an inert safety lock. No live operation
-was performed by local implementation. Do not dispatch until the pinning steps below.
+with no approved root digest. Verifier trust is configured for frozen reviewed
+implementation **S = `d12d47111dec137e4a6af261879f1e49b8db05e2`**, but
+`live_signer_accepted` remains **false**. The next protected-main configuration
+merge becomes caller/source **C**, which must differ from S. No live operation or
+GitHub environment change was performed by this configuration task.
 
 The [security contract](../../docs/signed-publication-verifier.md) and
 [ADR 0005](../../docs/decisions/0005-lean-run-preflight.md) define the one-preflight
@@ -13,14 +14,15 @@ design. [Historical configuration tables](publication-v1-reference.md), the
 remain reference material; the current workflow and runbook take precedence over
 old per-transition grants and disabled-policy descriptions.
 
-## Configure and freeze once
+## Configured pins and next operator action
 
-1. Review the V2 implementation and freeze it in commit **S**. In a separate
-   protected-main commit **C**, pin the reusable workflow call, Publisher executable
-   checkout and `ATLAS_IMPLEMENTATION_REVISION` to that exact full SHA. Never use
-   a moving branch/tag, a local reusable call, latest-main lookup or an invented SHA.
-   Update the explicit pin regression assertion in the same review. The source
-   checkout remains C and is read only as catalogue/policy/trust data.
+1. The reviewed V2 implementation is frozen at S above. The reusable workflow
+   call, Publisher executable checkout and `ATLAS_IMPLEMENTATION_REVISION` all
+   pin that exact full SHA. Review and merge these configuration changes through
+   protected main and successful CI to establish C != S. Keep the source checkout
+   at `${{ github.sha }}`; it advances independently and is read only as
+   catalogue/policy/trust data. Never replace executable S with a moving branch,
+   tag, local reusable call or latest-main lookup.
 2. Independently verify repository **1414494920**, owner/human maintainer
    **93822871**; Publisher App/installation **5422372 / 174027755**, bot **346232650**;
    Verifier App/installation **5424851 / 174088125**. Preserve the existing App
@@ -34,21 +36,39 @@ old per-transition grants and disabled-policy descriptions.
    and publication-tag rules; main, history-lock and bootstrap-lock have no bypass.
    See the [configuration tables](publication-v1-reference.md#operator-configuration--do-not-execute-publication-yet)
    and [bootstrap fence](bootstrap.md#configuration-checklist-and-authority).
-4. Fill the real S, five ruleset IDs and verification environment ID in
-   `catalogue/publication/verifier-trust.json` at C and its independently administered
-   `VERIFICATION_POLICY` environment variable in `catalogue-verification`. Keep
-   `live_signer_accepted: false` in both. The maximum startup age is 900 seconds;
-   do not extend it to accommodate stalled runs. Store each App key only in its
-   own existing environment, never a caller input or inherited secret.
+4. **Next operator action:** configure the GitHub environment variable
+   `VERIFICATION_POLICY` in environment **catalogue-verification** with JSON
+   identical to the committed [verifier-trust.json](verifier-trust.json). Copy the
+   complete file verbatim, preserving `live_signer_accepted: false`; do not set
+   this variable in a different environment or pass it as a workflow input.
+   This task does not create or modify the GitHub variable. The configured
+   verification environment ID is **25016263801**, with `can_admins_bypass: false`
+   and branch policy `protected_branches: true`, `custom_branch_policies: false`.
+   The maximum startup age remains **900 seconds**. Store each App key only in
+   its existing environment, never a caller input or inherited secret.
+
+The committed trust pins these verified ruleset identities:
+
+| Ruleset | ID |
+| --- | --- |
+| atlas-main | 25618213 |
+| atlas-history-lock | 25618809 |
+| atlas-bootstrap-lock | 25628137 |
+| atlas-catalogue-current | 25618684 |
+| atlas-publication-tags | 25618901 |
 
 ## Minimum genuine signing/isolation acceptance
 
-After the above review, the owner may separately authorize one fresh dispatch of
-`catalogue-publish.yml` from main with **operation bootstrap, acceptance_only true**.
+After the configuration merge passes CI and the environment variable matches the
+committed trust file, the next test is **one manual dispatch** of
+`catalogue-publish.yml`, branch **main**, **operation bootstrap**, and
+**acceptance_only true**. Record actual C and require C != S.
 This is the default safe mode. The Publisher job must be skipped entirely. Its
 key and token action must never run; no catalogue assets or refs may be written.
 The isolated verifier uses real credentials to observe protections and signs only
 public preflight evidence. No production acceptance flag is needed for this mode.
+Only attempt one is permitted; do not use **Re-run jobs**. This task does not
+perform the dispatch.
 
 Before accepting the implementation, independently review:
 

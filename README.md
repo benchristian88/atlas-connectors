@@ -124,7 +124,8 @@ the separate checked-in release registry, deterministic catalogue builder and
 preparation/attestation workflow. [Lean V2 publication](catalogue/publication/README.md)
 adds one isolated signed security preflight before Publisher credentials, preserving
 P1 immutable snapshots, separately signed selection, single-maintainer authority
-and recovery. Production activation remains blocked on reviewed implementation pins,
+and recovery. Executable code is pinned to reviewed Lean V2 commit
+`d12d47111dec137e4a6af261879f1e49b8db05e2`. Production activation remains blocked on
 genuine signing/isolation acceptance, separately approved [P2 legacy bootstrap](catalogue/publication/bootstrap.md)
 and Atlas consumer decisions. The active policy is stage-enabled with root pins
 unset; verifier trust is unaccepted. No live migration is complete. Existing catalogue-v1 assets
