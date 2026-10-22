@@ -15,8 +15,8 @@ jobs:
     permissions:
       id-token: write
       attestations: write
-    # GitHub resolves a local reusable workflow to this caller's exact commit.
-    uses: ./.github/workflows/verifier-signer-probe.yml
+    # Fixed reviewed signer S, independent of the dispatched caller commit C.
+    uses: benchristian88/atlas-connectors/.github/workflows/verifier-signer-probe.yml@260d83d529f89d00646771f8e66f32efd34826a3
 
   inspect:
     needs: sign
@@ -53,6 +53,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/verifier_signer_experiment.py
       - name: Upload sanitized acceptance evidence
+        # Preserve verified diagnostics even when C/S identity acceptance fails.
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: verifier-signer-evidence-${{ github.run_id }}

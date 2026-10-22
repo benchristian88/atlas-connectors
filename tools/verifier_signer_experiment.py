@@ -20,6 +20,7 @@ from publication_verify import ISSUER, ORIGIN, Verifier, bounded_run, read_regul
 
 CALLER = ".github/workflows/verifier-signer-experiment.yml"
 SIGNER = ".github/workflows/verifier-signer-probe.yml"
+SIGNER_REVISION = "260d83d529f89d00646771f8e66f32efd34826a3"
 PREDICATE = "https://atlas-impact.dev/attestations/verifier-signer-experiment/v1"
 JOB_FIELDS = ("workflow_ref", "workflow_sha", "workflow_repository", "workflow_file_path")
 CERT_FIELDS = ("subjectAlternativeName", "buildSignerURI", "buildSignerDigest",
@@ -44,6 +45,7 @@ def context(env):
     require(all(env.get(key) == value for key, value in expected.items()), "experiment_context")
     commit, run = env.get("GITHUB_SHA"), env.get("GITHUB_RUN_ID", "")
     require(hexadecimal(commit, 40) and re.fullmatch(r"[1-9][0-9]{0,14}", run), "experiment_source")
+    require(commit != SIGNER_REVISION, "experiment_revisions_must_differ")
     return {"source_commit": commit, "run_id": int(run), "run_attempt": 1}
 
 
@@ -72,6 +74,7 @@ class ProbeVerifier(Verifier):
                 "application/vnd.dev.sigstore.bundle.v0.3+json", "attestation_format")
         commit = expected["source_commit"]
         require(hexadecimal(commit, 40), "experiment_source")
+        require(commit != SIGNER_REVISION, "experiment_revisions_must_differ")
         with tempfile.TemporaryDirectory(prefix="atlas-probe-verification-") as work:
             directory = Path(work)
             for name, raw in (("artifact", artifact), ("bundle.json", bundle), ("roots.jsonl", self.roots)):
@@ -79,7 +82,7 @@ class ProbeVerifier(Verifier):
             command = [str(self.binary), "attestation", "verify", str(directory / "artifact"),
                 "--bundle", str(directory / "bundle.json"), "--custom-trusted-root", str(directory / "roots.jsonl"),
                 "--repo", REPOSITORY, "--hostname", "github.com",
-                "--signer-workflow", REPOSITORY + "/" + SIGNER, "--signer-digest", commit,
+                "--signer-workflow", REPOSITORY + "/" + SIGNER, "--signer-digest", SIGNER_REVISION,
                 "--source-digest", commit, "--source-ref", "refs/heads/main",
                 "--cert-oidc-issuer", ISSUER, "--deny-self-hosted-runners",
                 "--predicate-type", PREDICATE, "--digest-alg", "sha256", "--format", "json"]
@@ -194,58 +197,84 @@ def step_timings(jobs):
             "missing_steps": sorted(names - result.keys())}
 
 
-def comparisons(verified, expected, job_context):
-    """Literal V1 comparison plus mapped workflow roles; never changes V1 policy."""
+def workflow_identity(value, workflow):
+    """Check the exact workflow path, without inferring revision from its ref.
+
+    The CLI independently enforces buildSignerDigest S. GitHub's textual ref
+    representation for an explicit pinned call is an observation, not a pin.
+    """
+    if type(value) is not str:
+        return False
+    path, separator, ref = value.partition("@")
+    return path == workflow and separator == "@" and bool(ref) and "@" not in ref
+
+
+def comparisons(verified, expected, job_context, references):
+    """Compare independent C/S bindings only after genuine CLI verification."""
     commit = expected["source_commit"]
-    production_signer = f"{ORIGIN}/.github/workflows/catalogue-verifier.yml@<PINNED_VERIFIER_SHA>"
-    probe_signer = f"{ORIGIN}/{SIGNER}@{commit}"
+    signer_uri = f"{ORIGIN}/{SIGNER}"
     common = {"sourceRepositoryURI": ORIGIN, "sourceRepositoryRef": "refs/heads/main",
         "sourceRepositoryDigest": commit, "sourceRepositoryIdentifier": str(REPOSITORY_ID),
         "sourceRepositoryOwnerIdentifier": str(OWNER_ID),
         "sourceRepositoryOwnerURI": "https://github.com/benchristian88",
         "sourceRepositoryVisibilityAtSigning": "public", "issuer": ISSUER,
         "runnerEnvironment": "github-hosted", "buildTrigger": "workflow_dispatch",
-        "runInvocationURI": f"{ORIGIN}/actions/runs/{expected['run_id']}/attempts/1"}
-    v1 = {**common, "subjectAlternativeName": production_signer, "buildSignerURI": production_signer,
-        "buildSignerDigest": "<PINNED_VERIFIER_SHA>",
-        "buildConfigURI": f"{ORIGIN}/.github/workflows/catalogue-publish.yml@refs/heads/main",
-        "buildConfigDigest": commit}
-    mapped = {**common, "subjectAlternativeName": probe_signer, "buildSignerURI": probe_signer,
-        "buildSignerDigest": commit, "buildConfigURI": f"{ORIGIN}/{CALLER}@refs/heads/main",
+        "runInvocationURI": f"{ORIGIN}/actions/runs/{expected['run_id']}/attempts/{expected['run_attempt']}"}
+    wanted = {**common, "subjectAlternativeName": signer_uri + "@<GitHub textual ref>",
+        "buildSignerURI": signer_uri + "@<GitHub textual ref>",
+        "buildSignerDigest": SIGNER_REVISION,
+        "buildConfigURI": f"{ORIGIN}/{CALLER}@refs/heads/main",
         "buildConfigDigest": commit}
     observed = verified["certificate"]
     rows = []
-    def add(claim, wanted, analogue, actual):
-        def status(expectation):
-            if actual is None or "<PINNED_VERIFIER_SHA>" in str(expectation):
-                return "NOT OBSERVABLE"
-            return "MATCH" if actual == expectation else "MISMATCH"
-        rows.append({"claim": claim, "expected_v1": wanted, "probe_role_expectation": analogue,
-                     "observed": actual, "v1_status": status(wanted), "probe_role_status": status(analogue)})
+    def add(claim, role, expectation, actual, matches=None):
+        status = "NOT OBSERVABLE" if actual is None else (
+            "MATCH" if (actual == expectation if matches is None else matches) else "MISMATCH")
+        rows.append({"claim": claim, "binding": role, "expected": expectation,
+                     "observed": actual, "status": status})
+    add("C != S", "C and S", True, commit != SIGNER_REVISION)
     for key in CERT_FIELDS:
-        add(key, v1[key], mapped[key], observed[key])
-    add("predicateType", "https://atlas-impact.dev/attestations/publication-authorization/v1",
-        PREDICATE, verified["predicate_type"])
-    add("subject.name", "authorization.json", "probe.json", verified["subject"]["name"])
+        role = ("S revision" if key == "buildSignerDigest" else
+                "S workflow path; ref recorded, digest pins revision" if key in
+                    {"subjectAlternativeName", "buildSignerURI"} else
+                "C revision" if key in {"sourceRepositoryDigest", "buildConfigDigest"} else
+                "C caller workflow" if key == "buildConfigURI" else "caller run / trust boundary")
+        matches = workflow_identity(observed[key], signer_uri) if key in {
+            "subjectAlternativeName", "buildSignerURI"} else None
+        add(key, role, wanted[key], observed[key], matches)
+    add("SAN equals buildSignerURI", "S workflow identity", observed["subjectAlternativeName"],
+        observed["buildSignerURI"])
+    add("predicateType", "experimental profile", PREDICATE, verified["predicate_type"])
+    add("subject.name", "experimental profile", "probe.json", verified["subject"]["name"])
     for field, value in job_context.items():
-        wanted = {"workflow_ref": f"{REPOSITORY}/.github/workflows/catalogue-verifier.yml@<PINNED_VERIFIER_SHA>",
-            "workflow_sha": "<PINNED_VERIFIER_SHA>", "workflow_repository": REPOSITORY,
-            "workflow_file_path": ".github/workflows/catalogue-verifier.yml"}[field]
-        analogue = {"workflow_ref": f"{REPOSITORY}/{SIGNER}@{commit}", "workflow_sha": commit,
+        expectation = {"workflow_ref": f"{REPOSITORY}/{SIGNER}@<GitHub textual ref>",
+                    "workflow_sha": SIGNER_REVISION,
                     "workflow_repository": REPOSITORY, "workflow_file_path": SIGNER}[field]
-        add("job." + field + " (workflow-reported)", wanted, analogue, value)
+        matches = workflow_identity(value, f"{REPOSITORY}/{SIGNER}") if field == "workflow_ref" else None
+        add("job." + field, "S revision / workflow; signed workflow-reported data", expectation, value, matches)
+    add("referenced_workflows count", "provider metadata; not signed", 1,
+        None if references is None else len(references))
+    reference = references[0] if references is not None and len(references) == 1 else {}
+    add("referenced_workflows.path", "S workflow reference; provider metadata",
+        f"{REPOSITORY}/{SIGNER}@{SIGNER_REVISION}", reference.get("path"))
+    add("referenced_workflows.sha", "S revision; provider metadata", SIGNER_REVISION, reference.get("sha"))
     return rows
+
+
+def identity_accepted(rows):
+    return bool(rows) and all(row["status"] == "MATCH" for row in rows)
 
 
 def render_table(rows):
     def cell(value):
         return str(value if value is not None else "NOT OBSERVABLE").replace("|", "&#124;").replace("<", "&lt;")
-    columns = ("claim", "expected_v1", "observed", "v1_status", "probe_role_expectation", "probe_role_status")
+    columns = ("claim", "binding", "expected", "observed", "status")
     return ("# Experimental signer comparison\n\n"
-        "No production acceptance. Workflow names, predicate and subject differ intentionally. "
-        "The probe-role columns preserve V1's SHA-ref assumption while mapping workflow names; "
-        "a mismatch there requires investigation and a separate security-reviewed correction. "
-        "Job context is signed workflow-reported data, not a certificate extension.\n\n"
+        + "Pinned experiment identity: " + ("PASS" if identity_accepted(rows) else "BLOCKED") + ". "
+        "No production acceptance. Every identity row must MATCH. "
+        "Signer URI/ref rows check the exact workflow path and record GitHub's textual ref; "
+        "they do not infer S from that ref. Separate digest rows must equal fixed S. "
+        "Job context is signed workflow-reported data; API references are unsigned provider metadata.\n\n"
         + "| " + " | ".join(columns) + " |\n| " + " | ".join(["---"] * len(columns)) + " |\n"
         + "".join("| " + " | ".join(cell(row[key]) for key in columns) + " |\n" for row in rows))
 
@@ -272,8 +301,11 @@ def main():
     references, provider_timing = get_run_evidence(os.environ.get("GH_TOKEN"), expected)
     total = finished - timing["subject_started_utc_ms"]
     require(total >= 0, "experiment_clock_skew")
-    rows = comparisons(verified, expected, probe["job_context"])
+    rows = comparisons(verified, expected, probe["job_context"], references)
+    accepted = identity_accepted(rows)
     report = {"schema": "atlas-verifier-signer-evidence/v1", "production_accepted": False,
+        "cryptographic_verification": "VERIFIED_BY_PINNED_CLI", "identity_accepted": accepted,
+        "experiment_result": "PASS" if accepted else "BLOCKED", "signer_revision": SIGNER_REVISION,
         "context": expected, "authenticated": verified, "workflow_reported_job_context": probe["job_context"],
         "caller_run_referenced_workflows": references,
         "missing_certificate_fields": [key for key, value in verified["certificate"].items() if value is None],
@@ -292,10 +324,13 @@ def main():
     destination.mkdir(mode=0o700)
     (destination / "evidence.json").write_bytes(canonical_json(report))
     (destination / "comparison.md").write_text(render_table(rows))
+    # Preserve genuine verified diagnostics for review, but fail the job on any
+    # incorrect or missing C/S binding. Cryptographic validity alone is not PASS.
+    require(accepted, "pinned_experiment_identity_not_accepted")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception:
-        sys.exit("signer_experiment_not_verified; no acceptance evidence exported")
+        sys.exit("signer_experiment_not_accepted; inspect verified diagnostics if available")
