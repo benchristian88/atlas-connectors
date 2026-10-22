@@ -188,7 +188,7 @@ def check_app(policy, app, token_repositories, token_identity, *, operation="pub
     check_repository(token_repositories["repositories"][0])
 
 
-def check_rulesets(policy, rulesets, *, operation="publish"):
+def check_rulesets(policy, rulesets, *, operation="publish", include_bootstrap_lock=False):
     """Deliberately narrow supported configuration; unknown combinations fail shut."""
     check_policy(policy, operation=operation)
     require(isinstance(rulesets, list) and all(isinstance(r, dict) for r in rulesets), "publication_ruleset_evidence")
@@ -198,7 +198,7 @@ def check_rulesets(policy, rulesets, *, operation="publish"):
         "atlas-history-lock": ("branch", [CHANNEL_REF], {"deletion", "non_fast_forward"}),
         "atlas-publication-tags": ("tag", ["refs/tags/catalogue-*", "refs/tags/*-v*"], {"creation", "update", "deletion"}),
     }
-    if operation == "bootstrap":
+    if operation == "bootstrap" or include_bootstrap_lock:
         required["atlas-bootstrap-lock"] = ("tag", ["refs/tags/catalogue-bootstrap-root"], {"update", "deletion"})
     for name, (target, included, types) in required.items():
         matches = [r for r in rulesets if r.get("name") == name]
