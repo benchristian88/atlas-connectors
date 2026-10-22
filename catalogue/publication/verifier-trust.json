@@ -1,5 +1,5 @@
 {
-  "schema": "atlas-publication-verifier-trust/v1",
+  "schema": "atlas-publication-verifier-trust/v2",
   "live_signer_accepted": false,
   "signer_revision": null,
   "ruleset_ids": {
@@ -10,5 +10,5 @@
     "atlas-publication-tags": null
   },
   "verification_environment_id": null,
-  "max_observation_age_seconds": 60
+  "max_observation_age_seconds": 900
 }

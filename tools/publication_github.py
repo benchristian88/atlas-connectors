@@ -19,8 +19,11 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class Github:
-    def __init__(self, token=None):
+    def __init__(self, token=None, *, draft_visibility=False):
         self.token = token
+        # Set only on the authenticated Contents Write publisher path, never the
+        # Verifier App or ordinary read-only job-token path.
+        self.draft_visibility = draft_visibility
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
         self.deadline = time.monotonic() + 600
 

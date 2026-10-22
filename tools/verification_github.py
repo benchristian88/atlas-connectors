@@ -32,9 +32,7 @@ def allowed(path):
     if path in {"/app", INSTALLATION, LIST, "/installation/repositories?per_page=2&page=1",
                 "/apps/atlas-catalogue-publisher", "/users/benchristian88", BASE,
                 BASE + "/branches/main", BASE + "/immutable-releases",
-                BASE + "/releases?per_page=100&page=1",
-                BASE + "/environments/catalogue-publication", BASE + "/environments/catalogue-verification",
-                BASE + "/git/ref/heads/catalogue-current", BASE + "/git/ref/tags/catalogue-bootstrap-root"}:
+                BASE + "/environments/catalogue-publication", BASE + "/environments/catalogue-verification"}:
         return True
     patterns = (
         r"/rulesets/[1-9][0-9]{0,15}\?includes_parents=true",
@@ -42,11 +40,6 @@ def allowed(path):
         r"/actions/workflows/[1-9][0-9]{0,15}",
         r"/commits/[a-f0-9]{40}/check-runs\?check_name=validate&filter=latest&per_page=2&page=1",
         r"/contents/catalogue/publication/policy\.json\?ref=[a-f0-9]{40}",
-        r"/contents/current\.json\?ref=[a-f0-9]{40}",
-        r"/releases/tags/catalogue-[0-9]{6,16}",
-        r"/releases/[1-9][0-9]{0,15}(?:/assets\?per_page=5&page=1)?",
-        r"/git/commits/[a-f0-9]{40}",
-        r"/git/ref/tags/catalogue-[0-9]{6,16}",
     )
     return any(re.fullmatch(re.escape(BASE) + suffix, path) for suffix in patterns)
 
@@ -59,7 +52,7 @@ class VerificationGithub:
     def _json(self, path, token, *, mint=False, missing=False):
         require(type(path) is str and (path == MINT if mint else allowed(path)), "verification_endpoint")
         headers = {"Authorization": "Bearer " + credential(token), "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "atlas-publication-verifier-v1",
+            "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "atlas-publication-verifier-v2",
             "Accept-Encoding": "identity"}
         data = None
         if mint:

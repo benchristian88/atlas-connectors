@@ -19,7 +19,7 @@ from bootstrap_catalogue import *
 from publication_contract import PublicationError, check_rulesets
 from publication_github import Github
 from publication_verify import Evidence
-from test_publication_state import MemoryGithub, StructuralVerifier, structural_bundle, COMMIT
+from test_publication_state import MemoryGithub, StructuralVerifier, structural_bundle, COMMIT, admit_model, recover_model
 
 RAW = (ROOT / 'tests/fixtures/official_catalogue/catalogue-000001.json').read_bytes()
 BUNDLE = (ROOT / 'tests/fixtures/publication/catalogue.sigstore.json').read_bytes()
@@ -131,6 +131,7 @@ def bootstrap():
     api = BootstrapGithub()
     publisher = BootstrapPublisher(api, api.verifier, api.args[0], 60, source_commit=COMMIT,
                                    token_identity=api.token_identity)
+    admit_model(publisher)
     return api, publisher
 
 
@@ -146,6 +147,7 @@ def approve(api, publisher, stage):
     publisher.run_id = 70
     publisher.source_commit = api.next_source
     api.args[2]['commit']['sha'] = api.next_source
+    admit_model(publisher)
 
 
 def test_empty_history_preflight_has_no_writes(bootstrap):
@@ -256,8 +258,10 @@ def test_activation_requires_actual_digest_and_separate_revision_dispatch(bootst
     api, publisher = bootstrap
     stage, _ = sealed(publisher)
     publisher.policy.update(bootstrap_operation='activate', bootstrap={'sequence': 1, 'pointer_sha256': 'f'*64})
+    admit_model(publisher)
     with pytest.raises(PublicationError, match='approval_mismatch'): publisher.activate_bootstrap()
     publisher.policy['bootstrap']['pointer_sha256'] = digest(stage.pointer)
+    admit_model(publisher)
     with pytest.raises(PublicationError, match='separate_approval'): publisher.activate_bootstrap()
     assert api.release(TAG)['draft']
 
@@ -327,11 +331,11 @@ def test_mutable_or_nonroot_never_selected(bootstrap, mutable, parent):
 def test_normal_publish_recover_stay_closed_before_bootstrap(bootstrap):
     api, publisher = bootstrap
     normal = Publisher(api, api.verifier, api.args[0], 60, source_commit=COMMIT, token_identity=api.token_identity)
-    for operation in [lambda: normal.stage(RAW), normal.recover]:
+    for operation in [lambda: normal.stage(RAW), lambda: recover_model(normal)]:
         with pytest.raises(PublicationError, match='approved_bootstrap_required'): operation()
     # Even approved pins alone cannot initialize history via ordinary recover.
     api.args[0]['bootstrap'] = {'sequence': 1, 'pointer_sha256': 'f'*64}
-    with pytest.raises(PublicationError, match='approved_bootstrap_required'): normal.recover()
+    with pytest.raises(PublicationError, match='approved_bootstrap_required'): recover_model(normal)
     assert not api.writes
 
 
@@ -546,6 +550,7 @@ def test_interrupted_signing_resumes_after_main_advances(bootstrap):
     first = publisher.stage_bootstrap()
     publisher.run_id, publisher.source_commit = 70, api.next_source
     api.args[2]['commit']['sha'] = api.next_source
+    admit_model(publisher)
     second = publisher.stage_bootstrap()
     assert first == second
     bundle = structural_bundle(second.pointer, 'pointer', 'current.json', commit=api.next_source, run=70)
@@ -583,7 +588,12 @@ def test_workflow_dispatch_cli_path_simulated_provider_only(bootstrap, tmp_path,
     policy_path.write_bytes(canonical_json(api.args[0]))
     monkeypatch.setattr(cli, 'POLICY', policy_path)
     monkeypatch.setattr(cli, 'ROOT', tmp_path)
-    monkeypatch.setattr(cli, 'Github', lambda token: api)
+    monkeypatch.setattr(cli, 'Github', lambda token, **kwargs: api)
+    import publication_authorization as preflight
+    monkeypatch.setattr(preflight, 'job_preflight', lambda *args, **kwargs: publisher.run_preflight)
+    trust_path = tmp_path / 'catalogue/publication/verifier-trust.json'
+    trust_path.parent.mkdir(parents=True)
+    trust_path.write_text('{}')
     monkeypatch.setattr(cli, 'Verifier', lambda: api.verifier)
     def never_build(*args, **kwargs): pytest.fail('bootstrap must never invoke a builder')
     monkeypatch.setattr(cli.build_catalogue, 'build', never_build)
@@ -636,7 +646,8 @@ def test_workflow_bootstrap_has_fixed_dispatch_and_two_exclusive_modes():
     triggers = workflow.get('on', workflow.get(True))
     assert set(triggers) == {'workflow_dispatch'}
     inputs = triggers['workflow_dispatch']['inputs']
-    assert set(inputs) == {'operation'}
+    assert set(inputs) == {'operation', 'acceptance_only'}
+    assert inputs['acceptance_only']['default'] is True
     assert inputs['operation']['options'] == ['publish', 'recover', 'bootstrap']
     assert inputs['operation']['default'] == 'publish'
     job = workflow['jobs']['publish']

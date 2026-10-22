@@ -36,6 +36,7 @@ class StructuralVerifier:
 
 class MemoryGithub(Github):
     def __init__(self):
+        self.draft_visibility = True
         self.args = authority_fixture()
         self.rules = rules_fixture()
         _, self.app, self.app_scope, self.token_identity = app_fixture()
@@ -133,6 +134,8 @@ class MemoryGithub(Github):
                 if unquote(path.split('/')[-1]) not in self.tags and kwargs.get('missing'):
                     return None
                 return {'object':{'sha':self.tags[unquote(path.split('/')[-1])], 'type':'commit'}}
+            if path.startswith('/releases?per_page=100&page='):
+                return deepcopy(list(self.releases.values()))
             if path.startswith('/releases/tags/'):
                 tag = unquote(path.split('/')[-1])
                 return deepcopy(next((r for r in self.releases.values() if r['tag_name']==tag), None))
@@ -173,10 +176,27 @@ class MemoryGithub(Github):
         return self.ref
 
 
+def admit_model(publisher, operation=None):
+    """Synthetic admission only; real startup cryptography is tested separately."""
+    if operation is not None:
+        publisher.policy_operation = operation
+    publisher.policy_raw = canonical_json(publisher.policy)
+    publisher.run_preflight = {"source": {"commit": publisher.source_commit,
+        "policy_sha256": digest(publisher.policy_raw)}, "execution": {"run_id": publisher.run_id,
+        "run_attempt": 1, "operation": publisher.policy_operation, "acceptance_only": False},
+        "rulesets": {"observations": deepcopy(publisher.api.rules)}}
+
+
+def recover_model(publisher):
+    admit_model(publisher, "recover")
+    return publisher.recover()
+
+
 @pytest.fixture
 def state():
     api = MemoryGithub()
     publisher = Publisher(api, api.verifier, api.args[0], 60, source_commit=COMMIT, token_identity=api.token_identity)
+    admit_model(publisher)
     next_doc = parse_catalogue(api.previous)
     next_doc['sequence'] = 2
     return api, publisher, canonical_json(next_doc)
@@ -422,15 +442,15 @@ def test_recovery_uses_original_snapshot_not_rebuilt_head(state):
     publisher.run_id=70
     publisher.source_commit='b'*40
     before=deepcopy(api.by_release)
-    assert publisher.recover()['result']=='recovered'
+    assert recover_model(publisher)['result']=='recovered'
     assert api.by_release==before
-    assert publisher.recover()['result']=='no_interrupted_snapshot'
+    assert recover_model(publisher)['result']=='no_interrupted_snapshot'
 
 
 def test_recovery_refuses_unfinished_mutable_release(state):
     api,publisher,raw=state
     publisher.stage(raw)
-    with pytest.raises(PublicationError,match='not_immutable'):publisher.recover()
+    with pytest.raises(PublicationError,match='not_immutable'):recover_model(publisher)
 
 
 @pytest.mark.parametrize('change', [lambda p:p.update(enabled=False),
@@ -505,7 +525,7 @@ def test_current_protection_removed_after_finalization_leaves_snapshot_recoverab
     assert api.release('catalogue-000002')['immutable'] is True
     assert parse_pointer(api.files['current.json'])['sequence'] == 1
     api.rules[1]['enforcement']='active'
-    assert publisher.recover()['result'] == 'recovered'
+    assert recover_model(publisher)['result'] == 'recovered'
 
 
 @pytest.mark.parametrize('evidence', [None, {}, {'total_count':0,'branch_policies':[]},
@@ -522,3 +542,50 @@ def test_package_environment_restriction_evidence_failures(state,monkeypatch,evi
     with pytest.raises(PublicationError,match='package_environment_tag_policy'):
         publisher.stage(canonical_json(value))
     assert api.writes == []
+
+
+def test_missing_or_acceptance_only_preflight_prevents_publisher_writes(state):
+    api, publisher, raw = state
+    proof = publisher.run_preflight
+    publisher.run_preflight = None
+    with pytest.raises(PublicationError, match='signed_preflight_required'):
+        publisher.stage(raw)
+    publisher.run_preflight = proof
+    proof['execution']['acceptance_only'] = True
+    with pytest.raises(PublicationError, match='preflight_context_mismatch'):
+        publisher.stage(raw)
+    assert not api.writes
+
+
+def test_draft_visibility_is_explicitly_required_before_creating_a_snapshot(state):
+    api, publisher, raw = state
+    api.draft_visibility = False
+    with pytest.raises(PublicationError, match='draft_visibility_required'):
+        publisher.stage(raw)
+    assert not api.writes
+
+
+def test_hidden_duplicate_and_higher_drafts_are_found_by_complete_inventory(state, monkeypatch):
+    api, publisher, raw = state
+    # get-by-tag can omit drafts; the authenticated Contents Write list cannot.
+    api.new_release('catalogue-000002')
+    api.new_release('catalogue-000002')
+    monkeypatch.setattr(api, 'release', lambda tag: None)
+    with pytest.raises(PublicationError, match='duplicate_snapshot_draft'):
+        publisher.stage(raw)
+    assert not api.writes
+
+
+def test_publisher_read_scope_omission_uses_only_previously_signed_bypass_observation(state, monkeypatch):
+    api, publisher, raw = state
+    original = api.json
+    def read_without_bypass(method, path, **kwargs):
+        value = original(method, path, **kwargs)
+        if method == 'GET' and path.startswith('/rulesets/'):
+            value.pop('bypass_actors')
+        return value
+    monkeypatch.setattr(api, 'json', read_without_bypass)
+    assert complete(publisher, raw)['result'] == 'published'
+    # The signed startup observation is retained intact, never rewritten to []
+    # or represented as a fresh complete observation from the read-scoped App.
+    assert publisher.run_preflight['rulesets']['observations'][1]['bypass_actors']

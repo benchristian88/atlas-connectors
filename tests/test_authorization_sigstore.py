@@ -36,7 +36,7 @@ def synthetic_verified_output(raw):
             "runInvocationURI": f"{ORIGIN}/actions/runs/60/attempts/1"}},
         "statement": {"_type": "https://in-toto.io/Statement/v1", "subject": [{"name": SUBJECT,
             "digest": {"sha256": digest(raw)}}], "predicateType": PREDICATE,
-            "predicate": {"schema": "atlas-publication-decision/v1", "authorization_sha256": digest(raw)}},
+            "predicate": {"schema": "atlas-publication-preflight-predicate/v2", "preflight_sha256": digest(raw)}},
         "verifiedTimestamps": [{"type": "Tlog", "uri": "https://rekor.sigstore.dev", "timestamp": "synthetic"}]}}]
 
 
@@ -57,7 +57,7 @@ def test_synthetic_branch_ref_and_independent_pinned_digest_enforce_all_cli_cons
         assert (directory / "bundle.json").read_bytes() == SYNTHETIC_BUNDLE
         return canonical_json(synthetic_verified_output(raw))
     monkeypatch.setattr(crypto, "bounded_run", run)
-    AuthorizationVerifier(data[3], data[4]).verify_and_consume(raw, SYNTHETIC_BUNDLE, data[2], clock=lambda: NOW)
+    AuthorizationVerifier(data[3], data[4]).verify(raw, SYNTHETIC_BUNDLE, data[2], clock=lambda: NOW)
     command = commands[0]
     flags = {"--signer-digest": REVISION,
              "--source-digest": SOURCE, "--source-ref": "refs/heads/main", "--cert-oidc-issuer": ISSUER,
@@ -178,7 +178,7 @@ def test_each_synthetic_certificate_constraint_rejects_wrong_or_absent_value(mon
     lambda v: v.update(subject=[]), lambda v: v["subject"].append(deepcopy(v["subject"][0])),
     lambda v: v["subject"][0].update(name="current.json"),
     lambda v: v["subject"][0]["digest"].update(sha256="0" * 64),
-    lambda v: v["predicate"].update(authorization_sha256="0" * 64),
+    lambda v: v["predicate"].update(preflight_sha256="0" * 64),
     lambda v: v["predicate"].update(extra="wrong"), lambda v: v.update(predicate={}),
 ])
 def test_synthetic_statement_digest_subject_and_predicate_rejection(monkeypatch, decision, change):

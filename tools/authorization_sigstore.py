@@ -9,7 +9,7 @@ import tempfile
 
 from atlas_connector_sdk.contracts import strict_json
 from publication_authorization import (MAX_AUTHORIZATION_BYTES, PREDICATE, SUBJECT, WORKFLOW,
-                                       check_request, check_trust)
+                                       check_request, check_trust, workflow_identity)
 from publication_contract import (MAX_BUNDLE_BYTES, OWNER_ID, PUBLICATION_WORKFLOW,
     REPOSITORY, REPOSITORY_ID, digest, require)
 from publication_verify import ISSUER, ORIGIN, Verifier, bounded_run
@@ -18,7 +18,7 @@ from publication_verify import ISSUER, ORIGIN, Verifier, bounded_run
 class AuthorizationSigstore(Verifier):
     def verify(self, artifact, bundle, *, expected, trust):
         check_request(expected)
-        check_trust(trust)
+        check_trust(trust, acceptance_only=expected["acceptance_only"])
         require(type(artifact) is bytes and 0 < len(artifact) <= MAX_AUTHORIZATION_BYTES,
                 "authorization_size")
         require(type(bundle) is bytes and 0 < len(bundle) <= MAX_BUNDLE_BYTES, "attestation_size")
@@ -27,9 +27,9 @@ class AuthorizationSigstore(Verifier):
                 and envelope.get("mediaType") == "application/vnd.dev.sigstore.bundle.v0.3+json",
                 "attestation_format")
         revision, commit = trust["signer_revision"], expected["source_commit"]
-        # Genuine reusable-workflow evidence uses the branch ref in the URI.
-        # Implementation trust remains the independent exact signer digest below.
-        identity = f"{ORIGIN}/{WORKFLOW}@refs/heads/main"
+        # The exact path and independently pinned digest authenticate S; textual
+        # URI refs are platform representation, never an implementation pin.
+        identity = f"{ORIGIN}/{WORKFLOW}"
         with tempfile.TemporaryDirectory(prefix="atlas-authorization-verify-") as work:
             directory = Path(work)
             for name, raw in (("artifact", artifact), ("bundle.json", bundle), ("roots.jsonl", self.roots)):
@@ -47,8 +47,7 @@ class AuthorizationSigstore(Verifier):
             verified = output[0]["verificationResult"]
             certificate = verified["signature"]["certificate"]
             invocation = f"{ORIGIN}/actions/runs/{expected['run_id']}/attempts/{expected['run_attempt']}"
-            required = {"issuer": ISSUER, "subjectAlternativeName": identity,
-                "buildSignerURI": identity, "buildSignerDigest": revision,
+            required = {"issuer": ISSUER, "buildSignerDigest": revision,
                 "sourceRepositoryURI": ORIGIN, "sourceRepositoryIdentifier": str(REPOSITORY_ID),
                 "sourceRepositoryOwnerIdentifier": str(OWNER_ID),
                 "sourceRepositoryOwnerURI": "https://github.com/benchristian88",
@@ -56,14 +55,17 @@ class AuthorizationSigstore(Verifier):
                 "sourceRepositoryVisibilityAtSigning": "public", "runnerEnvironment": "github-hosted",
                 "buildConfigURI": f"{ORIGIN}/{PUBLICATION_WORKFLOW}@refs/heads/main",
                 "buildConfigDigest": commit, "buildTrigger": "workflow_dispatch", "runInvocationURI": invocation}
-            require(all(certificate.get(key) == value for key, value in required.items()), "authorization_certificate")
+            require(all(certificate.get(key) == value for key, value in required.items())
+                and workflow_identity(certificate.get("subjectAlternativeName"), identity)
+                and certificate.get("buildSignerURI") == certificate.get("subjectAlternativeName"),
+                "authorization_certificate")
             statement = verified["statement"]
             require(statement.keys() == {"_type", "subject", "predicateType", "predicate"}
                     and statement["_type"] == "https://in-toto.io/Statement/v1"
                     and statement["predicateType"] == PREDICATE
                     and statement["subject"] == [{"name": SUBJECT, "digest": {"sha256": digest(artifact)}}]
-                    and statement["predicate"] == {"schema": "atlas-publication-decision/v1",
-                                                   "authorization_sha256": digest(artifact)},
+                    and statement["predicate"] == {"schema": "atlas-publication-preflight-predicate/v2",
+                                                   "preflight_sha256": digest(artifact)},
                     "authorization_attestation_statement")
             timestamps = verified["verifiedTimestamps"]
             require(isinstance(timestamps, list) and 1 <= len(timestamps) <= 8

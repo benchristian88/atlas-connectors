@@ -76,7 +76,8 @@ def test_workflows_have_explicit_security_boundaries():
     preflight = next(i for i, step in enumerate(steps) if step.get('run') == 'python tools/publish_catalogue.py authorize')
     mint = next(i for i, step in enumerate(steps) if step.get('uses', '').startswith('actions/create-github-app-token@'))
     assert preflight < mint
-    assert steps[preflight]['env']['ATLAS_PUBLICATION_TOKEN'] == '${{ github.token }}'
+    assert 'ATLAS_PUBLICATION_TOKEN' not in steps[preflight].get('env', {})
+    assert job['needs'] == 'preflight'
     assert steps[mint]['with'] == {
         'app-id': '${{ vars.PUBLICATION_APP_ID }}', 'private-key': '${{ secrets.PUBLICATION_APP_PRIVATE_KEY }}',
         'owner': 'benchristian88', 'repositories': 'atlas-connectors',
@@ -91,10 +92,9 @@ def test_workflows_have_explicit_security_boundaries():
     for workflow in workflows.values():
         for job in workflow['jobs'].values():
             if 'uses' in job:
-                # The experiment pins reviewed signer S independently of caller C.
-                # Continue enforcing full SHAs on action steps.
-                assert job['uses']==('benchristian88/atlas-connectors/.github/workflows/verifier-signer-probe.yml'
-                                     '@260d83d529f89d00646771f8e66f32efd34826a3')
+                assert job['uses'] in {
+                    'benchristian88/atlas-connectors/.github/workflows/verifier-signer-probe.yml@260d83d529f89d00646771f8e66f32efd34826a3',
+                    'benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@da5562eeb21d5c1cc653cfea7ae8d025d2a9174a'}
                 assert 'steps' not in job and 'secrets' not in job
                 continue
             for step in job['steps']:

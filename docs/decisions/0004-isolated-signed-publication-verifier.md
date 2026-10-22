@@ -1,5 +1,7 @@
 # 0004 — Isolated signed publication transition verifier
 
+Superseded for authorization granularity by [ADR 0005](0005-lean-run-preflight.md). The V1 status and decision below are historical; P1/P2 integrity and credential-isolation principles remain in force.
+
 Status: **V1 foundation implemented; production acceptance BLOCKED; V2 not integrated**
 
 Date: 2026-10-23

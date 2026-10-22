@@ -121,12 +121,13 @@ uncommitted implementation exists at that commit.
 The per-release `index.json` is detached version metadata governed by the
 historical identity policy, not the aggregate global catalogue. [Official catalogue maintenance](catalogue/README.md) documents
 the separate checked-in release registry, deterministic catalogue builder and
-preparation/attestation workflow. [P1 publication foundations](catalogue/publication/README.md)
-add immutable numbered snapshots, separately signed selection, explicit single-maintainer authorization
-and failure recovery. Activation remains disabled pending owner configuration,
-separately approved [P2 legacy bootstrap](catalogue/publication/bootstrap.md)
-and Atlas consumer changes. P2 now implements disabled two-dispatch staging and
-activation foundations with exact historical bytes; no live migration is complete. Existing catalogue-v1 assets
+preparation/attestation workflow. [Lean V2 publication](catalogue/publication/README.md)
+adds one isolated signed security preflight before Publisher credentials, preserving
+P1 immutable snapshots, separately signed selection, single-maintainer authority
+and recovery. Production activation remains blocked on reviewed implementation pins,
+genuine signing/isolation acceptance, separately approved [P2 legacy bootstrap](catalogue/publication/bootstrap.md)
+and Atlas consumer decisions. The active policy is stage-enabled with root pins
+unset; verifier trust is unaccepted. No live migration is complete. Existing catalogue-v1 assets
 are preserved; that mutable legacy channel is not an accepted current source.
 This does not implement Atlas remote catalogue consumption or installation.
 

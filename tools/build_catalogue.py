@@ -183,11 +183,11 @@ def load_registry(source):
     return sequence, sorted(entries, key=lambda entry: (entry["manifest"]["id"], entry["manifest"]["version"]))
 
 
-def commit_timestamp():
+def commit_timestamp(source_root=None):
     """Fixed read-only Git command; no arguments come from catalogue data."""
     try:
         raw = subprocess.check_output(
-            ["git", "show", "-s", "--format=%ct", "HEAD"], cwd=ROOT, text=True,
+            ["git", "show", "-s", "--format=%ct", "HEAD"], cwd=source_root or ROOT, text=True,
         ).strip()
         if re.fullmatch(r"[0-9]{1,12}", raw) is None:
             raise ValueError
@@ -196,9 +196,9 @@ def commit_timestamp():
         raise ValueError("catalogue_commit_time_unavailable") from None
 
 
-def build(output=None):
-    sequence, entries = load_registry(ROOT / "catalogue")
-    generated = commit_timestamp()
+def build(output=None, *, source_root=None):
+    sequence, entries = load_registry((source_root or ROOT) / "catalogue")
+    generated = commit_timestamp(source_root) if source_root is not None else commit_timestamp()
     document = validate_catalogue({
         "schema_version": "1.0", "sequence": sequence,
         "generated_at": generated.strftime("%Y-%m-%dT%H:%M:%SZ"),

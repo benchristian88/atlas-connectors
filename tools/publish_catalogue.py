@@ -11,12 +11,13 @@ import argparse
 import os
 from pathlib import Path
 import re
+import subprocess
 import urllib.parse
 
 from atlas_connector_sdk.contracts import strict_json
 import build_catalogue
 from publication_contract import (API, ENVIRONMENT, MAX_BUNDLE_BYTES, MAX_CATALOGUE_BYTES,
-    AUTHORIZATION_MODE, REPOSITORY, PublicationError, canonical_json, check_app, check_authority, check_policy, check_rulesets,
+    AUTHORIZATION_MODE, REPOSITORY, PublicationError, canonical_json, check_app, check_authority, check_policy,
     digest, hexadecimal, parse_catalogue, parse_pointer, pointer_bytes, pointer_transition,
     positive_integer, require, sequence_transition, snapshot_tag)
 from publication_github import Github
@@ -24,6 +25,17 @@ from publication_verify import Verifier, read_regular
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "catalogue/publication/policy.json"
+
+
+def check_checkouts(source_root, implementation, source):
+    require(hexadecimal(implementation, 40) and hexadecimal(source, 40), "publication_checkout_identity")
+    for directory, expected in ((ROOT, implementation), (source_root, source)):
+        try:
+            observed = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=directory,
+                                               text=True, timeout=10).strip()
+        except (OSError, subprocess.SubprocessError, UnicodeError):
+            raise PublicationError("publication_checkout_identity") from None
+        require(observed == expected, "publication_checkout_identity")
 
 
 def release_identity(release, tag, *, immutable=False):
@@ -59,10 +71,37 @@ class Stage:
 
 
 class Publisher:
-    def __init__(self, api, verifier, policy, run_id, *, source_commit, token_identity=None):
+    def __init__(self, api, verifier, policy, run_id, *, source_commit, token_identity=None,
+                 preflight=None, policy_raw=None):
         self.api, self.verifier, self.policy, self.run_id = api, verifier, policy, run_id
         self.source_commit, self.token_identity = source_commit, token_identity
         self.policy_operation = "publish"
+        self.run_preflight = preflight
+        self.policy_raw = canonical_json(policy) if policy_raw is None else policy_raw
+
+    def require_preflight(self):
+        check_policy(self.policy, operation=self.policy_operation)
+        require(isinstance(self.run_preflight, dict), "signed_preflight_required")
+        source, execution = self.run_preflight.get("source", {}), self.run_preflight.get("execution", {})
+        require(source.get("commit") == self.source_commit
+            and source.get("policy_sha256") == digest(self.policy_raw)
+            and strict_json(self.policy_raw) == self.policy
+            and execution.get("run_id") == self.run_id and execution.get("run_attempt") == 1
+            and execution.get("operation") == self.policy_operation
+            and execution.get("acceptance_only") is False, "preflight_context_mismatch")
+
+    def release_inventory(self):
+        """Complete bounded draft-visible inventory, after Contents Write authentication."""
+        require(getattr(self.api, "draft_visibility", False) is True, "publisher_draft_visibility_required")
+        releases = []
+        for page in range(1, 5):
+            rows = self.api.json("GET", f"/releases?per_page=100&page={page}")
+            require(isinstance(rows, list) and len(rows) <= 100 and all(isinstance(r, dict)
+                and isinstance(r.get("tag_name"), str) for r in rows), "bootstrap_release_evidence")
+            releases.extend(rows)
+            if len(rows) < 100:
+                return releases
+        require(False, "bootstrap_release_limit")
 
     def run_authority(self, run_id, source_commit, *, historical=False, package_tag=None):
         check_policy(self.policy, operation=self.policy_operation)
@@ -92,7 +131,7 @@ class Publisher:
             run_id=run_id, source_commit=source_commit, historical=historical, package_tag=package_tag, operation=self.policy_operation)
 
     def authority(self):
-        check_policy(self.policy, operation=self.policy_operation)
+        self.require_preflight()
         authority = self.run_authority(self.run_id, self.source_commit)
         check_app(self.policy,
             self.api.json("GET", "/apps/" + self.policy["app_slug"], api_global=True),
@@ -102,7 +141,20 @@ class Publisher:
         rules = self.api.json("GET", "/rulesets?per_page=100")
         require(isinstance(rules, list) and len(rules) < 100 and all(positive_integer(r.get("id")) for r in rules),
                 "ruleset_response_limit")
-        check_rulesets(self.policy, [self.api.json("GET", f"/rulesets/{r['id']}") for r in rules], operation=self.policy_operation)
+        # Complete bypass evidence was authenticated by the isolated verifier at
+        # startup. Administration Read may omit bypass_actors here: never claim
+        # that omission is an empty array or a fresh complete bypass observation.
+        signed = self.run_preflight["rulesets"]["observations"]
+        require(sorted(r["id"] for r in rules) == sorted(r["id"] for r in signed),
+                "publication_ruleset_missing")
+        expected = {r["id"]: r for r in signed}
+        for row in rules:
+            observed = self.api.json("GET", f"/rulesets/{row['id']}")
+            prior = expected[row["id"]]
+            require(all(observed.get(k) == prior[k] for k in
+                ("id", "name", "target", "enforcement", "conditions", "rules")), "publication_ruleset_scope")
+            if "bypass_actors" in observed:
+                require(observed["bypass_actors"] == prior["bypass_actors"], "publication_ruleset_bypass")
         return authority
 
     def selection(self, raw, bundle):
@@ -176,6 +228,7 @@ class Publisher:
 
     def stage(self, raw):
         check_policy(self.policy)
+        require(self.policy_operation == "publish", "preflight_operation_mismatch")
         authority = self.authority()
         candidate = parse_catalogue(raw)
         name = snapshot_tag(candidate["sequence"]) + ".json"
@@ -190,11 +243,15 @@ class Publisher:
         tag = snapshot_tag(candidate["sequence"])
         # Supported publishers cannot allocate another sequence before selecting this
         # one. A pre-existing higher tag is an explicit operator conflict, never ignored.
-        if candidate["sequence"] < build_catalogue.MAX_INTEGER:
-            require(self.api.release(snapshot_tag(candidate["sequence"] + 1)) is None, "higher_snapshot_exists")
+        inventory = self.release_inventory()
+        catalogue_releases = [r for r in inventory if re.fullmatch(r"catalogue-[0-9]{6,16}", r["tag_name"])]
+        require(not any(int(r["tag_name"][10:]) > candidate["sequence"] for r in catalogue_releases),
+                "higher_snapshot_exists")
+        matches = [r for r in catalogue_releases if r["tag_name"] == tag]
+        require(len(matches) <= 1, "duplicate_snapshot_draft")
         require(self.api.channel()[0] == head, "channel_changed")
         source_tag(self.api, tag, authority.source_commit, allow_missing=True)
-        release = self.api.release(tag)
+        release = matches[0] if matches else None
         if release is None:
             release = self.api.json("POST", "/releases", payload={"tag_name": tag,
                 "target_commitish": authority.source_commit, "name": tag, "draft": True,
@@ -271,6 +328,7 @@ class Publisher:
         bytes or dispatching an arbitrary source ref. It never repairs a draft.
         """
         check_policy(self.policy)
+        require(self.policy_operation == "recover", "preflight_operation_mismatch")
         self.authority()
         head, previous_files, previous_raw = self.current()
         previous = parse_pointer(previous_files["current.json"])
@@ -303,7 +361,11 @@ def main():
     parser.add_argument("--bundle", type=Path)
     args = parser.parse_args()
     try:
-        policy = strict_json(read_regular(POLICY, 16384))
+        source_root = ROOT / os.environ.get("ATLAS_SOURCE_DIRECTORY", ".")
+        require(source_root in {ROOT, ROOT / "publication-source"}, "publication_source_directory")
+        policy_path = POLICY if source_root == ROOT else source_root / "catalogue/publication/policy.json"
+        policy_raw = read_regular(policy_path, 16384)
+        policy = strict_json(policy_raw)
         from bootstrap_catalogue import BootstrapPublisher, local_preflight
         if args.phase == "bootstrap-preflight":
             print(canonical_json(local_preflight(policy, Verifier())).decode(), end="")
@@ -317,16 +379,22 @@ def main():
                 and os.environ.get("GITHUB_REF") == "refs/heads/main"
                 and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
                 and os.environ.get("GITHUB_RUN_ATTEMPT") == "1", "untrusted_workflow_context")
+        from publication_authorization import job_preflight
+        trust = strict_json(read_regular(source_root / "catalogue/publication/verifier-trust.json", 16384))
+        if source_root != ROOT:
+            check_checkouts(source_root, os.environ.get("ATLAS_IMPLEMENTATION_REVISION"), os.environ.get("GITHUB_SHA"))
+        preflight = job_preflight(os.environ, policy_raw, trust, startup=args.phase == "authorize")
+        if args.phase == "authorize":
+            print("signed run preflight verified before publication credentials")
+            return
         publisher_type = BootstrapPublisher if operation == "bootstrap" else Publisher
-        publisher = publisher_type(Github(os.environ.get("ATLAS_PUBLICATION_TOKEN")),
-                              None if args.phase == "authorize" else Verifier(), policy,
+        publisher = publisher_type(Github(os.environ.get("ATLAS_PUBLICATION_TOKEN"), draft_visibility=True),
+                              Verifier(), policy,
                               int(os.environ.get("GITHUB_RUN_ID", "0")), source_commit=os.environ.get("GITHUB_SHA"),
                               token_identity={"app_slug": os.environ.get("ATLAS_APP_SLUG"),
-                                              "installation_id": int(os.environ.get("ATLAS_APP_INSTALLATION_ID", "0"))})
-        if args.phase == "authorize":
-            publisher.run_authority(publisher.run_id, publisher.source_commit)
-            print("single-maintainer dispatch identity verified against GitHub API")
-            return
+                                              "installation_id": int(os.environ.get("ATLAS_APP_INSTALLATION_ID", "0"))},
+                              preflight=preflight, policy_raw=policy_raw)
+        publisher.policy_operation = operation
         output = ROOT / "dist/publication"
         output.mkdir(parents=True, exist_ok=True)
         if args.phase == "bootstrap-stage":
@@ -347,7 +415,7 @@ def main():
         elif args.phase == "recover":
             receipt = publisher.recover()
         elif args.phase == "stage":
-            raw, _ = build_catalogue.build()
+            raw, _ = build_catalogue.build(source_root=source_root)
             staged = publisher.stage(raw)
             (output / "current.json").write_bytes(staged.pointer)
             if staged.bundle is not None:
@@ -359,7 +427,7 @@ def main():
                 with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
                     stream.write(f"needs_attestation={str(staged.bundle is None).lower()}\n")
         else:
-            raw, _ = build_catalogue.build()
+            raw, _ = build_catalogue.build(source_root=source_root)
             bundle_path = args.bundle or output / "current.sigstore.json"
             receipt = publisher.finish(raw, read_regular(output / "current.json", 1024),
                                        read_regular(bundle_path, MAX_BUNDLE_BYTES))
