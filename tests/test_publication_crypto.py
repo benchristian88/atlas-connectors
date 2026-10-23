@@ -52,6 +52,10 @@ def test_genuine_bootstrap_source_preflight_and_no_catalogue_as_selection():
     from publication_contract import pointer_bytes
     verifier = Verifier()
     policy = json.loads((ROOT / 'catalogue/publication/policy.json').read_bytes())
+    assert policy['bootstrap_operation'] == 'disabled'
+    # Historical activation fixture only; the closed production policy must not
+    # be reopened just to run the offline source-verification regression.
+    policy['bootstrap_operation'] = 'activate'
     result = local_preflight(policy, verifier)
     assert result['catalogue_bytes'] == 10585 and result['sha256'] == CATALOGUE_SHA256
     assert result['enabled'] is True and result['bootstrap_operation'] == 'activate'

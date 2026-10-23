@@ -65,7 +65,10 @@ class MemoryGithub(Github):
         for name, raw in self.files.items():
             self.add(release, name, raw)
         release.update(draft=False, immutable=True)
-        self.args[0]['bootstrap'] = {'sequence':1, 'pointer_sha256':digest(pointer)}
+        # Exercise normal publish/recover with bootstrap closed throughout this
+        # model suite. The synthetic anchor authenticates only this model's root.
+        self.args[0].update(bootstrap_operation='disabled',
+                            bootstrap={'sequence':1, 'pointer_sha256':digest(pointer)})
 
     def new_release(self, tag):
         self.counter += 1
