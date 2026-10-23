@@ -107,6 +107,8 @@ jobs:
           permission-contents: write
           permission-actions: read
           permission-administration: read
+          # This pinned action omits empty inputs; baseline permissions stay explicit.
+          permission-workflows: ${{ inputs.operation == 'bootstrap' && 'write' || '' }}
       - name: Authenticate candidate, authority, packages and history; stage exact assets
         if: inputs.operation == 'publish'
         id: stage

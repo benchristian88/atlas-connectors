@@ -16,7 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 from bootstrap_catalogue import *
-from publication_contract import PublicationError, check_rulesets
+from publication_contract import APP_PERMISSIONS, BOOTSTRAP_APP_PERMISSIONS, PublicationError, check_rulesets
 from publication_github import Github
 from publication_verify import Evidence
 from test_publication_state import MemoryGithub, StructuralVerifier, structural_bundle, COMMIT, admit_model, recover_model
@@ -41,6 +41,7 @@ class BootstrapGithub(MemoryGithub):
         self.tree, self.commit = None, None
         self.verifier = ModelVerifier()
         self.args[0].update(bootstrap_operation='stage', bootstrap={'sequence': None, 'pointer_sha256': None})
+        self.app['permissions'] = dict(BOOTSTRAP_APP_PERMISSIONS)
         self.rules.append({'id': 5, 'name': 'atlas-bootstrap-lock', 'target': 'tag', 'enforcement': 'active',
             'conditions': {'ref_name': {'include': ['refs/tags/catalogue-bootstrap-root'], 'exclude': []}},
             'bypass_actors': [], 'rules': [{'type': 'update'}, {'type': 'deletion'}]})
@@ -208,7 +209,8 @@ def test_partial_draft_exact_byte_resume(bootstrap, name):
     (lambda a: a.rules.pop(), 'ruleset_missing'),
     (lambda a: a.rules[4]['bypass_actors'].append({'actor_id': 30}), 'ruleset_bypass'),
     (lambda a: a.rules[2].update(enforcement='disabled'), 'ruleset_scope'),
-    (lambda a: a.app['permissions'].update(workflows='write'), 'app_identity'),
+    (lambda a: a.app['permissions'].update(workflows='read'), 'app_identity'),
+    (lambda a: a.app['permissions'].update(checks='read'), 'app_identity'),
     (lambda a: a.token_identity.update(installation_id=999), 'app_installation'),
     (lambda a: a.app_scope.update(total_count=2), 'app_scope'),
     (lambda a: setattr(a, 'immutable_enabled', False), 'not_enabled'),
@@ -218,6 +220,20 @@ def test_bootstrap_uses_p1_authority_and_history_gates(bootstrap, mutation, code
     mutation(api)
     with pytest.raises(PublicationError, match=code): publisher.stage_bootstrap()
     assert not api.writes
+
+
+@pytest.mark.parametrize('mode', ['stage', 'activate'])
+def test_live_bootstrap_rejects_baseline_app_before_any_new_write(bootstrap, mode):
+    api, publisher = bootstrap
+    if mode == 'activate':
+        stage, _ = sealed(publisher)
+        approve(api, publisher, stage)
+    before = deepcopy(api.writes)
+    api.app['permissions'] = dict(APP_PERMISSIONS)
+    operation = publisher.stage_bootstrap if mode == 'stage' else publisher.activate_bootstrap
+    with pytest.raises(PublicationError, match='publication_app_identity'):
+        operation()
+    assert api.writes == before and api.ref is None and api.marker is None
 
 
 def test_wrong_draft_body_source_or_existing_bytes_never_overwritten(bootstrap):
@@ -330,6 +346,7 @@ def test_mutable_or_nonroot_never_selected(bootstrap, mutable, parent):
 
 def test_normal_publish_recover_stay_closed_before_bootstrap(bootstrap):
     api, publisher = bootstrap
+    api.app['permissions'] = dict(APP_PERMISSIONS)  # Ordinary operations use the baseline App.
     normal = Publisher(api, api.verifier, api.args[0], 60, source_commit=COMMIT, token_identity=api.token_identity)
     for operation in [lambda: normal.stage(RAW), lambda: recover_model(normal)]:
         with pytest.raises(PublicationError, match='approved_bootstrap_required'): operation()

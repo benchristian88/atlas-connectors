@@ -81,7 +81,8 @@ def test_workflows_have_explicit_security_boundaries():
     assert steps[mint]['with'] == {
         'app-id': '${{ vars.PUBLICATION_APP_ID }}', 'private-key': '${{ secrets.PUBLICATION_APP_PRIVATE_KEY }}',
         'owner': 'benchristian88', 'repositories': 'atlas-connectors',
-        'permission-contents': 'write', 'permission-actions': 'read', 'permission-administration': 'read'}
+        'permission-contents': 'write', 'permission-actions': 'read', 'permission-administration': 'read',
+        'permission-workflows': "${{ inputs.operation == 'bootstrap' && 'write' || '' }}"}
     for step in steps:
         if step.get('run') in {'python tools/publish_catalogue.py ' + phase for phase in ('stage', 'finish', 'recover')}:
             assert step['env']['ATLAS_APP_SLUG'] == '${{ steps.app.outputs.app-slug }}'

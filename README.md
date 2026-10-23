@@ -128,10 +128,11 @@ and recovery. Executable code is pinned to reviewed Lean V2 commit
 `5c66a50f61d013204eada0234c3389323b4a3f71` (S3), adding sanitized HTTP failure
 diagnostics without changing publication authority or permissions. S3 was accepted
 in genuine run **39887360792**, with Publisher skipped, and committed trust now has
-`live_signer_accepted: true`. After this approval merges, the owner must update
-the environment trust, then use a new controlled staging dispatch to investigate
-the original HTTP failure. Bootstrap staging remains uncompleted; follow the
-operator runbook.
+`live_signer_accepted: true`. Controlled run **39888883962** subsequently identified
+a release-creation POST 403. Temporary bootstrap Workflows Write support awaits
+separate S4 pinning, genuine acceptance with baseline App permissions, owner
+elevation and mandatory rollback; follow the operator runbook. Current S3 pins
+and trust are unchanged. Bootstrap staging remains uncompleted.
 Production bootstrap and Atlas consumer decisions remain pending. The active policy
 is stage-enabled with root pins unset; [P2 legacy bootstrap](catalogue/publication/bootstrap.md)
 still requires its separate approval sequence. No live migration is complete. Existing catalogue-v1 assets

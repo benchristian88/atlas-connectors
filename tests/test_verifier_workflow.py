@@ -159,6 +159,36 @@ def test_installed_dependencies_are_vendored_and_offline():
     assert "setup-python" not in source and "pip install -r requirements-dev" not in source
 
 
+def test_publisher_token_requires_bootstrap_permission_without_inheritance_or_fallback():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/catalogue-publish.yml").read_text())
+    job = workflow["jobs"]["publish"]
+    steps = job["steps"]
+    mints = [step for step in steps if step.get("uses", "").startswith("actions/create-github-app-token@")]
+    assert len(mints) == 1  # No ordinary-token retry/fallback after an elevated mint fails.
+    mint, = mints
+    assert mint["uses"] == "actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349"
+    assert mint["id"] == "app" and "if" not in mint and "continue-on-error" not in mint
+    assert "continue-on-error" not in job
+    assert mint["with"] == {
+        "app-id": "${{ vars.PUBLICATION_APP_ID }}", "private-key": "${{ secrets.PUBLICATION_APP_PRIVATE_KEY }}",
+        "owner": "benchristian88", "repositories": "atlas-connectors",
+        "permission-contents": "write", "permission-actions": "read", "permission-administration": "read",
+        "permission-workflows": "${{ inputs.operation == 'bootstrap' && 'write' || '' }}"}
+    # The pinned action ignores the empty workflows input for publish/recover.
+    # For bootstrap it requests workflows=write from GitHub, which must grant it
+    # on this installation. A denied mint stops the job; no local fallback exists.
+    assert "skip-token-revoke" not in mint["with"]
+    assert job["environment"] == "catalogue-publication" and "!inputs.acceptance_only" in job["if"]
+    index = steps.index(mint)
+    for step in steps[index + 1:]:
+        if "ATLAS_PUBLICATION_TOKEN" in step.get("env", {}):
+            assert step["env"]["ATLAS_PUBLICATION_TOKEN"] == "${{ steps.app.outputs.token }}"
+            assert step["env"]["ATLAS_APP_SLUG"] == "${{ steps.app.outputs.app-slug }}"
+            assert step["env"]["ATLAS_APP_INSTALLATION_ID"] == "${{ steps.app.outputs.installation-id }}"
+            assert "always()" not in step.get("if", "") and "failure()" not in step.get("if", "")
+            assert "secrets." not in str(step) and "continue-on-error" not in step
+
+
 def test_issuer_imports_with_only_standard_library_and_vendored_sdk():
     wheel, = (ROOT / "vendor/sdk").glob("*.whl")
     result = subprocess.run([sys.executable, "-S", "-c",

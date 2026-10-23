@@ -1,6 +1,6 @@
 # Lean V2 signed publication preflight
 
-Status: **S3 signer accepted after genuine verification; bootstrap staging remains uncompleted.**
+Status: **S3 signer accepted; bootstrap staging uncompleted; temporary permission support awaits S4 adoption.**
 [ADR 0005](decisions/0005-lean-run-preflight.md) supersedes the V1 transition-grant
 architecture. The [operator runbook](../catalogue/publication/README.md) is the active
 procedure; [V1 documentation](signed-publication-verifier-v1.md) is historical.
@@ -9,8 +9,9 @@ The checked-in publication policy is unchanged: enabled, bootstrap `stage`, with
 both root approval pins unset. Verifier trust is now
 `live_signer_accepted: true` for S3, with ruleset/environment pins preserved in
 [verifier-trust.json](../catalogue/publication/verifier-trust.json). The operator
-will copy that exact JSON into `catalogue-verification`'s `VERIFICATION_POLICY`
-environment variable separately after merge. No live workflow,
+must separately adopt and accept S4, synchronizing `catalogue-verification`'s
+`VERIFICATION_POLICY` at both stages as described in the operator runbook. This implementation
+preserves S3 trust. No live workflow,
 GitHub variable/settings mutation, release or ref write was performed by this task.
 
 ## One preflight, two Apps, one maintainer
@@ -31,8 +32,13 @@ environments, release immutability and all five exact ruleset IDs/details with
 complete bypass arrays. It reuses P1 authority/protection validators. There is no
 per-asset target, transition challenge, per-ref grant or challenge-consumption API.
 
-The Publisher App remains **5422372 / 174027755**, Contents Write, Actions Read,
-Administration Read and Metadata Read. Its key exists only in the Publisher job's
+The Publisher App remains **5422372 / 174027755**, with baseline Contents Write,
+Actions Read, Administration Read and Metadata Read. The pending S4 implementation
+requires exactly that baseline for acceptance-only signing and normal publish/recover;
+live bootstrap stage/activate require exactly baseline plus Workflows Write. Any
+other permission or missing field is rejected by both the signed security checks
+and Publisher checks. No policy mechanism or bypass is added. Its key exists only
+in the Publisher job's
 pinned token action; the Verifier key exists only in the isolated issuer step.
 The jobs never inherit each other's secrets. Only two public signed files cross
 jobs: `preflight.json` and `preflight.sigstore.json`, selected by artifact ID.
@@ -49,6 +55,17 @@ security observations and startup freshness. Missing, stale, substituted or
 unaccepted evidence stops before token creation. Each later CLI phase verifies
 the same signature/context again against its local startup receipt; it requests
 no new signed authorization.
+
+The pinned token action requests Workflows Write only when the signed dispatch
+operation is `bootstrap`; publish/recover retain their original explicit token
+permissions. Its empty-input parser omits Workflows Write in those ordinary
+operations rather than inheriting all App permissions. Registration elevation
+alone cannot authorize writes: GitHub must grant the requested permission on the
+existing single-repository installation or token minting fails and the job stops,
+without a lower-permission fallback. Automatic token revocation and `GITHUB_TOKEN`
+job permissions are unchanged. Acceptance-only skips the entire Publisher job,
+so S4 can be genuinely verified before elevating the Publisher App. Normal
+publication also rejects an elevated App registration until mandatory rollback.
 
 ## Independent implementation S and catalogue source C
 
@@ -83,11 +100,11 @@ Never derive S from current main or replace it with a moving reference.
 
 Repository trust pins verification environment **25016263801**, all five verified
 ruleset IDs and a **900-second** startup age. Its acceptance flag is true.
-After merge, the owner will update the independent GitHub environment variable
-with JSON identical to that file, including the true acceptance flag. S3's genuine
-acceptance run skipped Publisher; bootstrap staging and live Publisher HTTP
-validation remain separate. No remote configuration or dispatch is performed by
-this approval.
+The pending permission code is not active in S3. Its reviewed merge will become S4,
+followed by separate pin/trust adoption with an initially false acceptance flag,
+genuine baseline-permission signing, separate approval and matching environment
+trust. S3's genuine acceptance run skipped Publisher and does not accept S4.
+No remote configuration or dispatch is performed by this implementation task.
 
 ## Canonical contract and verification
 
@@ -192,28 +209,35 @@ passed signed authorization, offline historical verification and Publisher token
 creation, but staging failed with `github_request_failed`; no new draft was observed.
 The GET-only [diagnostic run 39883753194](https://github.com/benchristian88/atlas-connectors/actions/runs/39883753194)
 passed all 35 API requests using the existing Publisher permissions. This does not
-prove a release-creation failure or its cause. Historical workflow differences and
-a conditional release-creation permission restriction remain a hypothesis.
+prove a release-creation failure or its cause. Subsequent controlled S3
+[run 39888883962](https://github.com/benchristian88/atlas-connectors/actions/runs/39888883962)
+confirmed `github_http_failure method=POST route=release_create status=403` for
+`POST /repos/benchristian88/atlas-connectors/releases`. GitHub
+[documents Workflows Write for release targets with workflow differences](https://docs.github.com/en/rest/releases/releases#create-a-release),
+as applies to the fixed historical bootstrap target. This motivates the temporary
+permission profile; successful bootstrap under it is not yet live evidence.
 
 S3's reviewed transport reports terminal HTTP failures using only the method,
 fixed endpoint label, numeric status and validated, bounded GitHub request ID.
 Unknown endpoints use `other`; raw URLs, query strings, credentials, bodies and
 arbitrary provider text are excluded. Recovered read retries and expected missing
 404s stay silent. Exception categories, authentication, host/redirect restrictions
-and write/retry behavior are unchanged. These diagnostics are not live evidence
-until a separately approved S3 Publisher run actually executes them.
+and write/retry behavior are unchanged. Run 39888883962 supplies actual route/status
+evidence. This permission implementation does not change those diagnostics.
 
 ## Controlled acceptance and staged bootstrap
 
-Follow the [operator deployment sequence](../catalogue/publication/README.md#configured-pins-and-next-operator-action):
-merge this S3 approval after green CI, then manually update `VERIFICATION_POLICY`
-in `catalogue-verification` to match the committed accepted trust JSON. This task
-does not update that variable or dispatch any workflow.
+Follow the [S4 deployment and mandatory rollback sequence](../catalogue/publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only):
+merge the implementation, freeze S4, separately adopt unaccepted pins/trust and
+matching `VERIFICATION_POLICY`, then genuinely verify S4 with baseline App permissions
+and Publisher skipped. Separately approve S4 and synchronize environment trust
+before owner elevation and installation approval. This task changes neither S3
+pins/trust nor any GitHub setting or workflow run.
 Acceptance-only evidence continues to be ineligible to authorize publication.
 
-After merge and the matching environment update, a new controlled `bootstrap`,
-`acceptance_only: false` dispatch from protected main is required to observe the
-Publisher HTTP result with S3 diagnostics. It must obtain fresh signed authorization;
+Only after that sequence, perform a new controlled `bootstrap`,
+`acceptance_only: false` dispatch from protected main to observe the Publisher HTTP
+result using S4 and the preserved S3 diagnostics. It must obtain fresh signed authorization;
 do not replay the failed run or reuse its evidence. Bootstrap staging remains
 uncompleted. Follow the existing P2 two-dispatch
 bootstrap: stage/seal original bytes and stop; independently
@@ -223,3 +247,11 @@ immutable finalization, protected root marker, true current root and exact files
 Existing [bootstrap recovery rules](../catalogue/publication/bootstrap.md) remain
 mandatory. No successful bootstrap or secure installation of legacy Proxmox 0.2.0
 is claimed: that old mutable package remains ineligible.
+
+Immediately after successful activation, remove Workflows Write from the Publisher
+App and verify the installation also returned to the exact baseline. Disable
+bootstrap through reviewed policy while retaining approved root pins. Elevation
+does not expire automatically. A staging failure requires investigation before a
+fresh attempt, with partial drafts/evidence preserved and no automatic permission
+changes that could prevent recovery. Remove the GET-only diagnostic workflow only
+in a separate reviewed cleanup PR.
