@@ -127,15 +127,18 @@ P1 immutable snapshots, separately signed selection, single-maintainer authority
 and recovery. Executable code is pinned to reviewed Lean V2 commit
 `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285` (S4), merged through PR #30 with temporary
 bootstrap-only Workflows Write support and S3's preserved sanitized diagnostics.
-S4 has not completed genuine signing acceptance; committed trust has
-`live_signer_accepted: false`, blocking live publication. S3's genuine acceptance
-run **39887360792**, with Publisher skipped, remains historical evidence. The
+S4 passed genuine signing acceptance in run **39893809663**, with Publisher skipped
+and the Publisher App at baseline permissions. Committed trust now has
+`live_signer_accepted: true`, approving S4 for live publication subject to matching
+independent environment trust. S3's acceptance run **39887360792** remains historical
+evidence. The
 release-creation POST 403 confirmed in run **39888883962** remains unresolved.
-After this adoption merges, synchronize the environment trust and verify S4 in
-acceptance-only mode with baseline Publisher App permissions and Publisher skipped.
-Workflows Write must wait for successful genuine acceptance and subsequent
-separate approval; follow the operator runbook. Bootstrap staging and activation
-remain incomplete.
+After this approval merges, synchronize `catalogue-verification`'s
+`VERIFICATION_POLICY` to the committed trust JSON before granting and approving
+temporary Publisher Workflows Write, which has not yet been granted. Ordinary
+publish/recover retain baseline permissions. Remove Workflows Write after successful
+bootstrap activation and independently verify rollback; follow the operator runbook.
+Bootstrap staging and activation remain incomplete.
 Production bootstrap and Atlas consumer decisions remain pending. The active policy
 is stage-enabled with root pins unset; [P2 legacy bootstrap](catalogue/publication/bootstrap.md)
 still requires its separate approval sequence. No live migration is complete. Existing catalogue-v1 assets
