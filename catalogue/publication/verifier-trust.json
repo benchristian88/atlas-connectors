@@ -1,7 +1,7 @@
 {
   "schema": "atlas-publication-verifier-trust/v2",
   "live_signer_accepted": false,
-  "signer_revision": "d12d47111dec137e4a6af261879f1e49b8db05e2",
+  "signer_revision": "00c85f688a43fb6da44acb3fa713d938e30a6da9",
   "ruleset_ids": {
     "atlas-main": 25618213,
     "atlas-history-lock": 25618809,

@@ -36,6 +36,10 @@ Administration Read and Metadata Read. Its key exists only in the Publisher job'
 pinned token action; the Verifier key exists only in the isolated issuer step.
 The jobs never inherit each other's secrets. Only two public signed files cross
 jobs: `preflight.json` and `preflight.sigstore.json`, selected by artifact ID.
+The caller explicitly maps only `VERIFICATION_APP_PRIVATE_KEY` to the reusable
+workflow's one required secret. The key remains stored in `catalogue-verification`,
+which the called job explicitly uses; do not copy it to repository secrets or
+`catalogue-publication`. Local workflow tests do not prove real secret delivery.
 
 The Publisher job depends on preflight success and is skipped unconditionally for
 acceptance-only dispatches. Before its App token action, trusted code independently
@@ -69,8 +73,9 @@ an explicit reviewed pin change, including the call, Publisher checkout and
 `ATLAS_IMPLEMENTATION_REVISION` literal, plus independent environment trust.
 
 **Frozen implementation:** S is
-`d12d47111dec137e4a6af261879f1e49b8db05e2`, the reviewed Lean V2 implementation
-merged into protected main with passing CI. All three executable workflow pins
+`00c85f688a43fb6da44acb3fa713d938e30a6da9` (S2), the reviewed Lean V2 implementation
+including the required verifier secret declaration, merged into protected main
+with passing CI. All three executable workflow pins
 and repository signer trust now identify S. The next protected-main merge of
 these configuration changes becomes C; its actual SHA is not yet known, and
 C must differ from S. The catalogue/source checkout stays `${{ github.sha }}`.
