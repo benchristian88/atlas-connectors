@@ -32,16 +32,19 @@ bootstrap; the six-field catalogue and complete embedded Manifest stay unchanged
 
 The checked-in policy currently has `enabled: true`, `bootstrap_operation: stage`,
 and null `bootstrap.sequence` / `bootstrap.pointer_sha256`. V2 verifier trust pins
-S3 with `live_signer_accepted: true` after genuine acceptance run **39887360792**,
-which skipped Publisher. Bootstrap staging remains uncompleted.
+S4 (`2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`) with `live_signer_accepted: false`.
+S4 merged through PR #30 and is frozen, but genuine signing acceptance remains
+pending. S3's run **39887360792**, which skipped Publisher, is historical evidence.
+Bootstrap staging and activation remain incomplete.
 S3 diagnostics confirmed a release-creation POST 403 in controlled run
 **39888883962**, following the generic failure in **39880692187** and successful
-GET-only diagnostic **39883753194**. Temporary bootstrap Workflows Write support
-is implemented for a future S4; this change leaves S3 pins and trust unchanged.
+GET-only diagnostic **39883753194**. The HTTP 403 remains unresolved. S4's temporary
+bootstrap Workflows Write implementation is unchanged by this pin/trust adoption.
 Follow the [S4 adoption, genuine acceptance, elevation and rollback sequence](README.md#s4-deployment-and-mandatory-rollback--owner-actions-only)
 before another controlled staging dispatch. Both stage and activation require
 the exact baseline-plus-Workflows-Write App and token profiles; acceptance-only
-verification uses the baseline App and skips Publisher. Actual pointer
+verification must use the baseline App and skip Publisher. Do not enable Workflows
+Write until S4 passes genuine acceptance and receives separate approval. Actual pointer
 approval remains a separate owner action. No real target release ID, asset ID, pointer
 digest, selection signature or root commit exists as a result of this task.
 

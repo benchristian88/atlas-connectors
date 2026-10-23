@@ -1,17 +1,18 @@
 # Lean V2 signed publication preflight
 
-Status: **S3 signer accepted; bootstrap staging uncompleted; temporary permission support awaits S4 adoption.**
+Status: **S4 frozen and pinned for signing acceptance; signer unaccepted; bootstrap staging and activation incomplete.**
 [ADR 0005](decisions/0005-lean-run-preflight.md) supersedes the V1 transition-grant
 architecture. The [operator runbook](../catalogue/publication/README.md) is the active
 procedure; [V1 documentation](signed-publication-verifier-v1.md) is historical.
 
 The checked-in publication policy is unchanged: enabled, bootstrap `stage`, with
 both root approval pins unset. Verifier trust is now
-`live_signer_accepted: true` for S3, with ruleset/environment pins preserved in
+`live_signer_accepted: false` for S4, with ruleset/environment pins preserved in
 [verifier-trust.json](../catalogue/publication/verifier-trust.json). The operator
-must separately adopt and accept S4, synchronizing `catalogue-verification`'s
-`VERIFICATION_POLICY` at both stages as described in the operator runbook. This implementation
-preserves S3 trust. No live workflow,
+must synchronize `catalogue-verification`'s `VERIFICATION_POLICY` after this
+adoption merges, then genuinely verify S4 with baseline Publisher App permissions
+and Publisher skipped. Separate approval is required before enabling Workflows
+Write. This adoption changes no executable code or permission behavior. No live workflow,
 GitHub variable/settings mutation, release or ref write was performed by this task.
 
 ## One preflight, two Apps, one maintainer
@@ -33,7 +34,7 @@ complete bypass arrays. It reuses P1 authority/protection validators. There is n
 per-asset target, transition challenge, per-ref grant or challenge-consumption API.
 
 The Publisher App remains **5422372 / 174027755**, with baseline Contents Write,
-Actions Read, Administration Read and Metadata Read. The pending S4 implementation
+Actions Read, Administration Read and Metadata Read. The frozen S4 implementation
 requires exactly that baseline for acceptance-only signing and normal publish/recover;
 live bootstrap stage/activate require exactly baseline plus Workflows Write. Any
 other permission or missing field is rejected by both the signed security checks
@@ -90,21 +91,24 @@ an explicit reviewed pin change, including the call, Publisher checkout and
 `ATLAS_IMPLEMENTATION_REVISION` literal, plus independent environment trust.
 
 **Frozen implementation:** S is
-`5c66a50f61d013204eada0234c3389323b4a3f71` (S3), the reviewed implementation
-including sanitized Publisher HTTP failure diagnostics, merged into protected main.
-It preserves S2's required verifier secret declaration, permissions and publication
-behavior. All three executable workflow pins
+`2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285` (S4), the reviewed implementation merged
+through [PR #30](https://github.com/benchristian88/atlas-connectors/pull/30). It adds
+strictly scoped temporary bootstrap Workflows Write support, preserving S3's
+sanitized diagnostics and the isolated Verifier configuration. This adoption
+changes neither executable code nor token-permission behavior. All three executable workflow pins
 and repository signer trust identify S. Caller/source C advances independently
 and must differ from S. The catalogue/source checkout stays `${{ github.sha }}`.
 Never derive S from current main or replace it with a moving reference.
 
 Repository trust pins verification environment **25016263801**, all five verified
-ruleset IDs and a **900-second** startup age. Its acceptance flag is true.
-The pending permission code is not active in S3. Its reviewed merge will become S4,
-followed by separate pin/trust adoption with an initially false acceptance flag,
-genuine baseline-permission signing, separate approval and matching environment
-trust. S3's genuine acceptance run skipped Publisher and does not accept S4.
-No remote configuration or dispatch is performed by this implementation task.
+ruleset IDs and a **900-second** startup age. Its acceptance flag is false.
+S4 is merged and frozen but has not completed genuine signing acceptance. After
+this adoption merges, update the independent environment trust to the same
+unaccepted JSON, then perform acceptance-only signing at baseline Publisher App
+permissions with Publisher skipped. Only successful genuine review and subsequent
+separate approval may precede Workflows Write elevation. S3's genuine acceptance
+remains historical evidence and does not accept S4. No remote configuration or
+dispatch is performed by this adoption task.
 
 ## Canonical contract and verification
 
@@ -201,8 +205,8 @@ Owner-reviewed genuine [S3 acceptance run 39887360792](https://github.com/benchr
 verified frozen signer `5c66a50f61d013204eada0234c3389323b4a3f71` and caller
 `2e2ddb70a1da254c0adaa857deb121aa2b0f7dfa` on attempt **1**. Preflight, Verifier App
 authentication, Sigstore attestation and offline cryptographic verification passed;
-Publisher was **skipped**. This genuine review accepts S3; it does not complete
-bootstrap staging or establish the cause of the original Publisher HTTP failure.
+Publisher was **skipped**. This historical review accepted S3; it does not accept
+S4, complete bootstrap staging or establish the cause of the original Publisher HTTP failure.
 
 The first live bootstrap staging [run 39880692187](https://github.com/benchristian88/atlas-connectors/actions/runs/39880692187)
 passed signed authorization, offline historical verification and Publisher token
@@ -216,6 +220,7 @@ confirmed `github_http_failure method=POST route=release_create status=403` for
 [documents Workflows Write for release targets with workflow differences](https://docs.github.com/en/rest/releases/releases#create-a-release),
 as applies to the fixed historical bootstrap target. This motivates the temporary
 permission profile; successful bootstrap under it is not yet live evidence.
+The HTTP 403 remains unresolved.
 
 S3's reviewed transport reports terminal HTTP failures using only the method,
 fixed endpoint label, numeric status and validated, bounded GitHub request ID.
@@ -223,23 +228,23 @@ Unknown endpoints use `other`; raw URLs, query strings, credentials, bodies and
 arbitrary provider text are excluded. Recovered read retries and expected missing
 404s stay silent. Exception categories, authentication, host/redirect restrictions
 and write/retry behavior are unchanged. Run 39888883962 supplies actual route/status
-evidence. This permission implementation does not change those diagnostics.
+evidence. This S4 adoption does not change those diagnostics.
 
 ## Controlled acceptance and staged bootstrap
 
 Follow the [S4 deployment and mandatory rollback sequence](../catalogue/publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only):
-merge the implementation, freeze S4, separately adopt unaccepted pins/trust and
-matching `VERIFICATION_POLICY`, then genuinely verify S4 with baseline App permissions
-and Publisher skipped. Separately approve S4 and synchronize environment trust
-before owner elevation and installation approval. This task changes neither S3
-pins/trust nor any GitHub setting or workflow run.
+S4's implementation merge and freezing are complete. Merge this unaccepted S4
+pin/trust adoption, synchronize `VERIFICATION_POLICY`, then genuinely verify S4
+with baseline Publisher App permissions and Publisher skipped. Separately approve
+S4 and synchronize environment trust before owner elevation and installation
+approval. This task changes no GitHub setting or workflow run.
 Acceptance-only evidence continues to be ineligible to authorize publication.
 
 Only after that sequence, perform a new controlled `bootstrap`,
 `acceptance_only: false` dispatch from protected main to observe the Publisher HTTP
 result using S4 and the preserved S3 diagnostics. It must obtain fresh signed authorization;
-do not replay the failed run or reuse its evidence. Bootstrap staging remains
-uncompleted. Follow the existing P2 two-dispatch
+do not replay the failed run or reuse its evidence. Bootstrap staging and activation
+remain incomplete. Follow the existing P2 two-dispatch
 bootstrap: stage/seal original bytes and stop; independently
 approve the actual staged pointer digest through a policy PR; activate in a new
 first-attempt dispatch. Each dispatch obtains its own startup preflight. Verify
