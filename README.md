@@ -125,9 +125,11 @@ preparation/attestation workflow. [Lean V2 publication](catalogue/publication/RE
 adds one isolated signed security preflight before Publisher credentials, preserving
 P1 immutable snapshots, separately signed selection, single-maintainer authority
 and recovery. Executable code is pinned to reviewed Lean V2 commit
-`00c85f688a43fb6da44acb3fa713d938e30a6da9`. Genuine verifier acceptance succeeded in
-run **39878342565**, with Publisher skipped; committed verifier trust is accepted.
-The owner will update the independent environment trust after this change merges.
+`5c66a50f61d013204eada0234c3389323b4a3f71` (S3), adding sanitized HTTP failure
+diagnostics. S2 was previously accepted in run **39878342565**, with Publisher
+skipped; S3 is pinned with `live_signer_accepted: false` and live publication blocked.
+Follow the operator runbook for matching environment trust, genuine S3 acceptance
+and separate approval before considering another controlled staging attempt.
 Production bootstrap and Atlas consumer decisions remain pending. The active policy
 is stage-enabled with root pins unset; [P2 legacy bootstrap](catalogue/publication/bootstrap.md)
 still requires its separate approval sequence. No live migration is complete. Existing catalogue-v1 assets

@@ -31,12 +31,15 @@ bootstrap; the six-field catalogue and complete embedded Manifest stay unchanged
 ## Configuration checklist and authority
 
 The checked-in policy currently has `enabled: true`, `bootstrap_operation: stage`,
-and null `bootstrap.sequence` / `bootstrap.pointer_sha256`. V2 verifier trust now
-accepts frozen S2 after reviewed genuine run **39878342565**, which skipped Publisher.
-After merge, the owner will separately copy the committed trust JSON into the
-verification environment variable; see the [current operator runbook](README.md).
-Live Publisher/bootstrap validation and actual pointer approval remain separate
-owner actions. No real target release ID, asset ID, pointer
+and null `bootstrap.sequence` / `bootstrap.pointer_sha256`. V2 verifier trust pins
+S3 with `live_signer_accepted: false`, blocking live publication. S2 was previously
+accepted after genuine run **39878342565**; that acceptance does not transfer to S3.
+S3 adds sanitized HTTP diagnostics for the unresolved staging failure in run
+**39880692187**. Successful GET-only run **39883753194** did not test release creation.
+Follow the [current operator runbook](README.md) for unaccepted environment trust,
+genuine S3 acceptance with Publisher skipped, and separate approval before another
+controlled live staging attempt. Actual pointer approval remains a separate owner
+action. No real target release ID, asset ID, pointer
 digest, selection signature or root commit exists as a result of this task.
 
 Configured identities are maintainer **93822871**, publication environment
