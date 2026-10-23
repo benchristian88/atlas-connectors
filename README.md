@@ -131,17 +131,28 @@ S4 passed genuine signing acceptance in run **39893809663**, with Publisher skip
 and the Publisher App at baseline permissions. Committed trust now has
 `live_signer_accepted: true`, approving S4 for live publication subject to matching
 independent environment trust. S3's acceptance run **39887360792** remains historical
-evidence. The
-release-creation POST 403 confirmed in run **39888883962** remains unresolved.
-After this approval merges, synchronize `catalogue-verification`'s
-`VERIFICATION_POLICY` to the committed trust JSON before granting and approving
-temporary Publisher Workflows Write, which has not yet been granted. Ordinary
-publish/recover retain baseline permissions. Remove Workflows Write after successful
-bootstrap activation and independently verify rollback; follow the operator runbook.
-Bootstrap staging and activation remain incomplete.
-Production bootstrap and Atlas consumer decisions remain pending. The active policy
-is stage-enabled with root pins unset; [P2 legacy bootstrap](catalogue/publication/bootstrap.md)
-still requires its separate approval sequence. No live migration is complete. Existing catalogue-v1 assets
+evidence. Genuine [bootstrap staging run 39896288128](https://github.com/benchristian88/atlas-connectors/actions/runs/39896288128),
+attempt **1**, completed and was independently verified: `staged_requires_separate_approval`,
+sealed draft `catalogue-000001` (release **421426993**, snapshot asset **667867351**),
+with all four required assets. Its staging source is
+`8ce0b80c74d6ceb8ce75ac7ec8693f5bba78b305`. The separately prepared activation policy
+sets sequence **1** and approves exactly pointer SHA-256
+`a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372`, independently
+hashed from the actual receipt's `current.json`. Activation has **not** run:
+`published: false`, `immutable: false`, with current branch and bootstrap-root tag absent.
+Temporary Publisher Workflows Write is active and must remain available through
+successful activation; ordinary publish/recover require baseline permissions.
+Merge the exact policy approval through protected main, require successful CI,
+then dispatch a **new**, first-attempt `bootstrap`, `acceptance_only: false` run
+with a fresh independent signed preflight. Independently verify activation,
+immutable release, root/current/fence and final receipt; remove Workflows Write
+and verify rollback; disable bootstrap through a separate reviewed policy update;
+then complete independent Atlas consumer acceptance. See the
+[operator sequence](catalogue/publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only)
+and [P2 bootstrap](catalogue/publication/bootstrap.md). This task prepares approval
+only; catalogue immutability and Atlas consumer acceptance remain outstanding.
+Historical Proxmox **0.2.0 remains ineligible for remote installation** because its
+package release is mutable. Existing catalogue-v1 assets
 are preserved; that mutable legacy channel is not an accepted current source.
 This does not implement Atlas remote catalogue consumption or installation.
 

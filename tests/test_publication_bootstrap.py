@@ -378,16 +378,58 @@ def test_local_disabled_preflight_and_unauthorized_inputs(bootstrap):
         with pytest.raises(PublicationError): check_policy(api.args[0], operation=operation)
 
 
-def test_checked_in_policy_authorizes_only_bootstrap_staging(bootstrap):
-    api, _ = bootstrap
+def test_checked_in_policy_approves_exact_staged_bootstrap_and_forbids_staging(bootstrap, monkeypatch):
+    api, publisher = bootstrap
     policy = json.loads((ROOT / 'catalogue/publication/policy.json').read_bytes())
-    assert policy['enabled'] is True and policy['bootstrap_operation'] == 'stage'
-    assert policy['bootstrap'] == {'sequence': None, 'pointer_sha256': None}
+    assert policy['enabled'] is True and policy['bootstrap_operation'] == 'activate'
+    assert policy['bootstrap'] == {'sequence': 1,
+        'pointer_sha256': 'a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372'}
     check_policy(policy, operation='bootstrap')
     assert local_preflight(policy, api.verifier)['remote_checks_performed'] is False
+    publisher.policy.update(bootstrap_operation=policy['bootstrap_operation'], bootstrap=policy['bootstrap'])
+    def forbidden(*args, **kwargs): pytest.fail('activation policy staging reached GitHub')
+    monkeypatch.setattr(api, 'json', forbidden)
+    for operation in [publisher.stage_bootstrap, lambda: publisher.seal_bootstrap(b'{}', b'{}')]:
+        with pytest.raises(PublicationError, match='^bootstrap_stage_not_authorized$'):
+            operation()
+    assert not api.writes
+
+
+@pytest.mark.parametrize('pins', [
+    {'sequence': 1}, {'sequence': 1, 'pointer_sha256': None},
+    {'sequence': 1, 'pointer_sha256': ''}, {'sequence': 1, 'pointer_sha256': 'f' * 63},
+    {'sequence': 1, 'pointer_sha256': 'f' * 65}, {'sequence': 1, 'pointer_sha256': 'g' * 64},
+    {'sequence': 1, 'pointer_sha256': 123},
+])
+def test_activation_requires_well_formed_approval_digest_before_api_access(bootstrap, monkeypatch, pins):
+    api, publisher = bootstrap
+    publisher.policy.update(bootstrap_operation='activate', bootstrap=pins)
+    def forbidden(*args, **kwargs): pytest.fail('invalid activation approval reached GitHub')
+    monkeypatch.setattr(api, 'json', forbidden)
+    with pytest.raises(PublicationError, match='^approved_bootstrap_required$'):
+        publisher.activate_bootstrap()
+    assert not api.writes
+
+
+def test_checked_in_approval_cannot_activate_another_staged_pointer(bootstrap):
+    api, publisher = bootstrap
+    stage, _ = sealed(publisher)  # Simulated IDs/signature, not the approved live selection.
+    approve(api, publisher, stage)
+    policy = json.loads((ROOT / 'catalogue/publication/policy.json').read_bytes())
+    publisher.policy['bootstrap'] = policy['bootstrap']
+    admit_model(publisher)
+    api.writes.clear()
+    with pytest.raises(PublicationError, match='^bootstrap_approval_mismatch$'):
+        publisher.activate_bootstrap()
+    assert not api.writes and api.release(TAG)['draft']
+    assert api.ref is None and api.marker is None
+
+
+def test_unset_approval_cannot_authorize_ordinary_publish_or_recover(bootstrap):
+    api, _ = bootstrap
     for operation in ['publish', 'recover']:
         with pytest.raises(PublicationError, match='^approved_bootstrap_required$'):
-            check_policy(policy, operation=operation)
+            check_policy(api.args[0], operation=operation)
 
 
 @pytest.mark.parametrize('pins', [

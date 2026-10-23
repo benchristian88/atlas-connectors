@@ -1,18 +1,23 @@
 # Lean V2 signed publication preflight
 
-Status: **S4 signer accepted; independent environment trust must be synchronized; bootstrap staging and activation incomplete.**
+Status: **S4 signer accepted; staging completed and verified; exact activation approval being prepared.**
+Activation has not run, catalogue immutability is not established and independent
+Atlas consumer acceptance remains outstanding.
 [ADR 0005](decisions/0005-lean-run-preflight.md) supersedes the V1 transition-grant
 architecture. The [operator runbook](../catalogue/publication/README.md) is the active
 procedure; [V1 documentation](signed-publication-verifier-v1.md) is historical.
 
-The checked-in publication policy is unchanged: enabled, bootstrap `stage`, with
-both root approval pins unset. Verifier trust is now
+The proposed publication policy remains enabled and sets bootstrap `activate`,
+sequence **1** and exactly pointer SHA-256
+`a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372`.
+Only those three policy values change; all identities remain unchanged. Verifier trust remains
 `live_signer_accepted: true` for S4, with ruleset/environment pins preserved in
 [verifier-trust.json](../catalogue/publication/verifier-trust.json). The operator
-must synchronize `catalogue-verification`'s `VERIFICATION_POLICY` after this
-approval merges, before granting and approving temporary Publisher Workflows Write.
+must reconfirm matching independent `catalogue-verification` `VERIFICATION_POLICY`
+before activation. Temporary Publisher Workflows Write is active and must remain
+available until successful activation.
 S4 passed genuine signing acceptance in run **39893809663** with baseline Publisher
-App permissions and Publisher skipped. Workflows Write has not yet been granted.
+App permissions and Publisher skipped.
 This approval changes no executable code or permission behavior. No live workflow,
 GitHub variable/settings mutation, release or ref write was performed by this task.
 
@@ -104,8 +109,8 @@ Never derive S from current main or replace it with a moving reference.
 Repository trust pins verification environment **25016263801**, all five verified
 ruleset IDs and a **900-second** startup age. Its acceptance flag is true.
 S4's genuine acceptance approves its signer for live publication, subject to
-matching independent environment trust. After this approval merges, copy the
-complete accepted JSON to `VERIFICATION_POLICY` before owner permission elevation.
+matching independent environment trust. Reconfirm that `VERIFICATION_POLICY`
+matches the complete unchanged accepted trust JSON before activation.
 S3's acceptance remains historical evidence; S4's separate review is recorded below.
 No remote configuration or dispatch is performed by this approval task.
 
@@ -212,7 +217,7 @@ verified frozen signer `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285` and caller
 `605553a556632ace6f21216bf6cd22fdc17ed528` on attempt **1**. Preflight, Verifier App
 authentication, repository ruleset verification, Sigstore attestation and offline
 cryptographic verification passed; Publisher was **skipped**. The Publisher App
-still has baseline permissions, without Workflows Write. This genuine review
+had baseline permissions, without Workflows Write. This genuine review
 accepts S4's signer; it does not establish bootstrap staging or activation success.
 
 The first live bootstrap staging [run 39880692187](https://github.com/benchristian88/atlas-connectors/actions/runs/39880692187)
@@ -226,8 +231,8 @@ confirmed `github_http_failure method=POST route=release_create status=403` for
 `POST /repos/benchristian88/atlas-connectors/releases`. GitHub
 [documents Workflows Write for release targets with workflow differences](https://docs.github.com/en/rest/releases/releases#create-a-release),
 as applies to the fixed historical bootstrap target. This motivates the temporary
-permission profile; successful bootstrap under it is not yet live evidence.
-The HTTP 403 remains unresolved.
+permission profile. Later successful staging in run **39896288128** provides live
+draft creation/sealing evidence with that profile; immutable activation is still pending.
 
 S3's reviewed transport reports terminal HTTP failures using only the method,
 fixed endpoint label, numeric status and validated, bounded GitHub request ID.
@@ -235,36 +240,41 @@ Unknown endpoints use `other`; raw URLs, query strings, credentials, bodies and
 arbitrary provider text are excluded. Recovered read retries and expected missing
 404s stay silent. Exception categories, authentication, host/redirect restrictions
 and write/retry behavior are unchanged. Run 39888883962 supplies actual route/status
-evidence. This S4 approval does not change those diagnostics.
+evidence. This activation-policy approval does not change those diagnostics.
 
 ## Controlled acceptance and staged bootstrap
 
 Follow the [S4 deployment and mandatory rollback sequence](../catalogue/publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only):
-S4's implementation merge, adoption and genuine baseline-permission signing
-acceptance are complete. Merge this formal approval, then synchronize
-`catalogue-verification`'s `VERIFICATION_POLICY` to the complete committed accepted
-trust JSON before owner elevation and installation approval. The Publisher App
-has not yet been granted Workflows Write. This task changes no GitHub setting or
-workflow run.
-Acceptance-only evidence continues to be ineligible to authorize publication.
+S4's implementation merge, adoption, signer approval and genuine baseline-permission
+signing acceptance are complete. Owner-verified genuine [staging run 39896288128](https://github.com/benchristian88/atlas-connectors/actions/runs/39896288128),
+attempt **1**, from source `8ce0b80c74d6ceb8ce75ac7ec8693f5bba78b305` returned
+`staged_requires_separate_approval`. The owner independently confirmed sealed draft
+`catalogue-000001`, release **421426993**, snapshot asset **667867351**, and all four
+required assets in GitHub. Catalogue SHA-256 is unchanged:
+`55533ca67e7e9a14f82961e0a8c34ad78e2596049b3db02fde787494e3975afd`.
+The actual receipt's `current.json` was independently hashed to the approved pointer
+digest above. `published: false`, `immutable: false`; current branch and bootstrap-root
+tag are absent. This task prepares only the separate activation approval and changes
+no GitHub setting or workflow run. Acceptance-only evidence remains ineligible to
+authorize publication.
 
-Only after that sequence, perform a new controlled `bootstrap`,
-`acceptance_only: false` dispatch from protected main to observe the Publisher HTTP
-result using S4 and the preserved S3 diagnostics. It must obtain fresh signed authorization;
-do not replay the failed run or reuse its evidence. Bootstrap staging and activation
-remain incomplete. Follow the existing P2 two-dispatch
-bootstrap: stage/seal original bytes and stop; independently
-approve the actual staged pointer digest through a policy PR; activate in a new
-first-attempt dispatch. Each dispatch obtains its own startup preflight. Verify
-immutable finalization, protected root marker, true current root and exact files.
-Existing [bootstrap recovery rules](../catalogue/publication/bootstrap.md) remain
-mandatory. No successful bootstrap or secure installation of legacy Proxmox 0.2.0
-is claimed: that old mutable package remains ineligible.
+Commit and merge this exact activation-policy approval through protected main and
+require successful CI. Then dispatch a **NEW**, first-attempt `bootstrap`,
+`acceptance_only: false` run with a fresh independent signed preflight. Never rerun
+the staging workflow or reuse its evidence as activation authorization. The existing
+checks must reauthenticate both original signatures, exact approved pointer, same
+release ID and unchanged four assets. Independently verify successful activation,
+immutable finalisation **before** current creation, parentless root and exact files,
+current branch, protected fence and final receipt. Existing
+[bootstrap recovery rules](../catalogue/publication/bootstrap.md) remain mandatory.
+Historical Proxmox **0.2.0 remains ineligible for remote installation** because its
+package release is mutable.
 
 Immediately after successful activation, remove Workflows Write from the Publisher
 App and verify the installation also returned to the exact baseline. Disable
-bootstrap through reviewed policy while retaining approved root pins. Elevation
-does not expire automatically. A staging failure requires investigation before a
+bootstrap through a **separately reviewed** policy update while retaining approved
+root pins, then complete independent Atlas consumer acceptance. Elevation
+does not expire automatically. A partial-operation failure requires investigation before a
 fresh attempt, with partial drafts/evidence preserved and no automatic permission
 changes that could prevent recovery. Remove the GET-only diagnostic workflow only
 in a separate reviewed cleanup PR.
