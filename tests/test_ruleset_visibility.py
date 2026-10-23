@@ -14,6 +14,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW = ROOT / "tests/fixtures/historical_workflows/ruleset-visibility-experiment.yml"
 sys.path.insert(0, str(ROOT / "tools"))
 import ruleset_visibility as visibility
 
@@ -636,7 +637,7 @@ def test_mint_body_read_failure_is_request_failure(monkeypatch, capsys):
 
 
 def test_workflow_contract():
-    path = ROOT / ".github/workflows/ruleset-visibility-experiment.yml"
+    path = WORKFLOW
     # BaseLoader preserves YAML's 'on' key (SafeLoader interprets YAML 1.1 booleans).
     workflow = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
     assert workflow["on"] == {"workflow_dispatch": ""}
@@ -660,7 +661,7 @@ def test_workflow_contract():
 
 @pytest.mark.parametrize("failure", [None, "sha", "status", "link", "size", "redirect"])
 def test_workflow_helper_download_is_pinned_get_and_silent_on_failure(monkeypatch, tmp_path, capsys, failure):
-    workflow = yaml.load((ROOT / ".github/workflows/ruleset-visibility-experiment.yml").read_text(),
+    workflow = yaml.load(WORKFLOW.read_text(),
                          Loader=yaml.BaseLoader)
     shell = workflow["jobs"]["verify"]["steps"][0]["run"]
     source = shell.split("\n", 1)[1].rsplit("\nPY", 1)[0]

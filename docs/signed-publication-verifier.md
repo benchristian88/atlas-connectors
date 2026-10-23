@@ -270,6 +270,8 @@ tested by that acceptance-only run. This closure disables bootstrap and retains
 ordinary publication/recovery authority without requiring Workflows Write. Review
 and merge the closure through protected main/CI; independently check installed
 baseline access and complete Atlas consumer verification/acceptance separately.
-The diagnostic workflow remains for its own separately reviewed cleanup PR.
+The diagnostic workflow is retired; its unchanged
+[historical fixture](../tests/fixtures/historical_workflows/diagnose-catalogue-publisher.yml)
+and security regression coverage are preserved outside the active Actions directory.
 Historical Proxmox **0.2.0 remains ineligible for remote installation** because
 its original package release is mutable. No production operation is performed here.

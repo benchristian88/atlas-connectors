@@ -11,7 +11,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / '.github/workflows/diagnose-catalogue-publisher.yml'
+WORKFLOW = ROOT / 'tests/fixtures/historical_workflows/diagnose-catalogue-publisher.yml'
 PREFIX = '/repos/benchristian88/atlas-connectors'
 
 

@@ -10,6 +10,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+HISTORICAL_WORKFLOWS = ROOT / "tests/fixtures/historical_workflows"
 sys.path.insert(0, str(ROOT / "tools"))
 import verifier_signer_experiment as experiment
 from publication_contract import PublicationError, canonical_json, digest
@@ -21,7 +22,7 @@ BUNDLE = canonical_json({"mediaType": "application/vnd.dev.sigstore.bundle.v0.3+
 
 
 def workflow(name):
-    return yaml.load((ROOT / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
+    return yaml.load((HISTORICAL_WORKFLOWS / name).read_text(), Loader=yaml.BaseLoader)
 
 
 def environment(tmp_path):
@@ -70,11 +71,11 @@ def test_workflows_are_manual_main_first_attempt_and_isolated():
                 assert re.fullmatch(r"actions/[a-z-]+@[0-9a-f]{40}", step["uses"])
     probe = callee["jobs"]["probe"]
     assert probe["runs-on"] == caller["jobs"]["inspect"]["runs-on"] == "ubuntu-24.04"
-    signer_source = (ROOT / ".github/workflows/verifier-signer-probe.yml").read_text()
+    signer_source = (HISTORICAL_WORKFLOWS / "verifier-signer-probe.yml").read_text()
     for forbidden in ("secrets.", "VERIFICATION_APP", "checkout@", "download-artifact@", "git clone",
                       "authorization.json", "catalogue-publication", "contents: write", "packages: write"):
         assert forbidden not in signer_source
-    caller_source = (ROOT / ".github/workflows/verifier-signer-experiment.yml").read_text()
+    caller_source = (HISTORICAL_WORKFLOWS / "verifier-signer-experiment.yml").read_text()
     for forbidden in ("secrets.", "APP_PRIVATE_KEY", "PUBLISHER_APP", "VERIFICATION_APP", "environment:",
                       "catalogue-verifier.yml", "catalogue-publish.yml", "authorization.json", "gh release",
                       "git push", "contents: write", "packages: write"):
@@ -103,7 +104,7 @@ def test_workflows_are_manual_main_first_attempt_and_isolated():
 
 def test_caller_and_original_probe_at_s_keep_exact_caller_restriction():
     # Reviewed bytes at S; works in CI's shallow checkout without fetching S.
-    original = (ROOT / experiment.SIGNER).read_bytes()
+    original = (HISTORICAL_WORKFLOWS / Path(experiment.SIGNER).name).read_bytes()
     assert digest(original) == "eb857b04baa61f4c1ba082ac2a8a614a2a1bceb4886b946d728bd815c24fdd05"
     callee = yaml.load(original, Loader=yaml.BaseLoader)
     for job in [callee["jobs"]["probe"], *workflow("verifier-signer-experiment.yml")["jobs"].values()]:

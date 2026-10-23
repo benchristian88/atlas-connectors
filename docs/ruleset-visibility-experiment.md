@@ -1,5 +1,11 @@
 # Ruleset bypass visibility experiment
 
+Status: **Retired historical experiment.** The unchanged workflow is archived as
+[test data](../tests/fixtures/historical_workflows/ruleset-visibility-experiment.yml)
+outside `.github/workflows/` and is no longer dispatchable. The description below
+preserves its original behavior and security investigation. For current publication
+operations, use the [operator runbook](../catalogue/publication/README.md).
+
 This isolated manual experiment checks whether verifier App **5424851**, installation
 **174088125**, can retrieve explicit `bypass_actors` evidence for exactly five
 repository rulesets. Local tests do not establish live GitHub visibility.
@@ -169,7 +175,7 @@ readiness, and does not replace the existing publication verifier.
 
 ```bash
 .venv/bin/python -m pytest -q tests/test_ruleset_visibility.py tests/test_publication_packaging.py::test_workflows_have_explicit_security_boundaries
-actionlint .github/workflows/ruleset-visibility-experiment.yml
+actionlint tests/fixtures/historical_workflows/ruleset-visibility-experiment.yml
 git diff --check
 ```
 
