@@ -1,13 +1,24 @@
 # Official catalogue publication — Lean V2 operator runbook
 
-**Verifier signing is accepted; bootstrap remains pending.** The current policy remains stage-enabled,
+**S3 is pinned but unaccepted; live publication is blocked.** The current policy remains stage-enabled,
 with no approved root digest. Verifier trust is configured for frozen reviewed
-implementation **S = S2 = `00c85f688a43fb6da44acb3fa713d938e30a6da9`**, with
-`live_signer_accepted: true`, following owner-reviewed genuine production-profile
-acceptance in [run 39878342565](https://github.com/benchristian88/atlas-connectors/actions/runs/39878342565).
-Publisher was skipped. Caller/source **C** advances independently and must differ
+implementation **S = S3 = `5c66a50f61d013204eada0234c3389323b4a3f71`**, with
+`live_signer_accepted: false`. S3 adds reviewed, sanitized Publisher HTTP failure
+diagnostics without changing permissions or publication behavior. Caller/source
+**C** advances independently and must differ
 from S. No live operation or GitHub environment change is performed by this
-acceptance configuration change.
+configuration adoption.
+
+Previously accepted **S2 = `00c85f688a43fb6da44acb3fa713d938e30a6da9`** passed
+genuine production-profile verification in [run 39878342565](https://github.com/benchristian88/atlas-connectors/actions/runs/39878342565),
+with Publisher skipped. That acceptance does not transfer to S3. The first live
+bootstrap staging attempt, [run 39880692187](https://github.com/benchristian88/atlas-connectors/actions/runs/39880692187),
+passed signed authorization, offline historical verification and Publisher token
+creation, then failed with `github_request_failed`; no new draft was observed.
+The subsequent GET-only [diagnostic run 39883753194](https://github.com/benchristian88/atlas-connectors/actions/runs/39883753194)
+passed all 35 API requests. Those reads do not establish whether release creation
+was attempted or why it failed. The historical target's workflow differences and
+a possible release-creation permission restriction remain a hypothesis.
 
 The [security contract](../../docs/signed-publication-verifier.md) and
 [ADR 0005](../../docs/decisions/0005-lean-run-preflight.md) define the one-preflight
@@ -41,7 +52,7 @@ old per-transition grants and disabled-policy descriptions.
 4. **After merge, next operator action:** update the GitHub environment variable
    `VERIFICATION_POLICY` in environment **catalogue-verification** with JSON
    identical to the committed [verifier-trust.json](verifier-trust.json). Copy the
-   complete file verbatim, preserving `live_signer_accepted: true`; do not set
+   complete file verbatim, preserving `live_signer_accepted: false`; do not set
    this variable in a different environment or pass it as a workflow input.
    This task does not create or modify the GitHub variable. The configured
    verification environment ID is **25016263801**, with `can_admins_bypass: false`
@@ -56,24 +67,28 @@ secrets:
   VERIFICATION_APP_PRIVATE_KEY: ${{ secrets.VERIFICATION_APP_PRIVATE_KEY }}
 ```
 
-S2 declares that secret as required under `on.workflow_call.secrets`. The called
+S3 retains that secret as required under `on.workflow_call.secrets`. The called
 verifier job retains `environment: catalogue-verification`, including its existing
 restrictions, and injects the key only into the issuer step. Keep the key in that
 environment; do not copy it to a repository-level secret or `catalogue-publication`.
 Never use `secrets: inherit`, pass either App's credentials to the other job, or
 put the key in an input, output, artifact, command-line argument or log.
 
-The remaining configuration steps, not executed by this task, are:
+The required deployment sequence, not executed by this task, is:
 
-1. Merge this change into protected main after green CI, establishing C != S2.
+1. Merge this S3 configuration change into protected main after green CI,
+   establishing C != S3.
 2. Update `VERIFICATION_POLICY` in `catalogue-verification` to match the complete
-   committed trust JSON, preserving `live_signer_accepted: true`.
-
-Run 39878342565 authenticated the Verifier App, repository authority, all five
-rulesets, immutable-release protection, signed preflight and exact caller/signer
-identities. That reviewed genuine result establishes signer acceptance; local
-synthetic tests do not prove real secret delivery or live Publisher behavior.
-Bootstrap staging and activation retain the separate procedure below.
+   committed trust JSON, including `live_signer_accepted: false`.
+3. Dispatch one fresh `catalogue-publish.yml` run on protected `main`, selecting
+   `bootstrap` and `acceptance_only: true`. Require `publish` to be skipped.
+4. Review the actual S3 Sigstore signer identity, exact caller C, authority evidence
+   and successful credential/job isolation using the checklist below.
+5. Only after successful genuine review, separately approve S3 through protected
+   main by changing `live_signer_accepted` to true. Local tests are not acceptance.
+6. Update the GitHub environment variable to match that reviewed approval.
+7. Only then consider another controlled live bootstrap staging attempt. Preserve
+   the existing stage/seal, separate pointer approval and activation procedure.
 
 The committed trust pins these verified ruleset identities:
 
@@ -87,8 +102,8 @@ The committed trust pins these verified ruleset identities:
 
 ## Minimum genuine signing/isolation acceptance
 
-S2's genuine signing acceptance is complete in the reviewed run above. For a
-future signer implementation, the minimum acceptance test is **one manual dispatch** of
+S2's previous acceptance does not accept S3. After the configuration merge and
+matching unaccepted environment trust, the next test is **one manual dispatch** of
 `catalogue-publish.yml`, branch **main**, **operation bootstrap**, and
 **acceptance_only true**. Record actual C and require C != S.
 This is the default safe mode. The Publisher job must be skipped entirely. Its
@@ -98,7 +113,7 @@ public preflight evidence. No production acceptance flag is needed for this mode
 Only attempt one is permitted; do not use **Re-run jobs**. This task does not
 perform the dispatch.
 
-Before accepting a future implementation, independently review:
+Before accepting S3, independently review:
 
 - Exact executed S, checked-out S and caller C; no caller code or downloads in
   the Verifier job, no inherited secrets, and only the issuer step receives its key.
@@ -117,11 +132,14 @@ Before accepting a future implementation, independently review:
 Preserve public evidence before retention expires. Wrong/missing claims, failed
 signing, unexpected isolation, unavailable complete configuration or an unexpected
 Publisher job blocks acceptance. Do not broaden permissions or bypass checks to pass.
-S2's reviewed acceptance is recorded in the committed trust file. The owner will
-update the environment copy after merge. This task performs no environment update
-or workflow dispatch.
+Keep both copies of S3 trust unaccepted until this review succeeds. Acceptance
+then requires a separate protected-main approval and matching environment update
+as listed above. This task performs neither action nor any workflow dispatch.
 
 ## Bootstrap in two publication dispatches
+
+This procedure remains gated on genuine S3 acceptance and matching approved trust
+in the repository and verification environment.
 
 1. **Stage:** with current policy `bootstrap_operation: stage` and both root pins
    null, dispatch **bootstrap, acceptance_only false** from reviewed main. A fresh

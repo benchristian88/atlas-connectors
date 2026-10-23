@@ -1,13 +1,13 @@
 # Lean V2 signed publication preflight
 
-Status: **S2 signer accepted after genuine production-profile verification; bootstrap and live Publisher acceptance remain pending.**
+Status: **S3 pinned for genuine acceptance; signer unaccepted and live publication blocked. S2 was previously accepted.**
 [ADR 0005](decisions/0005-lean-run-preflight.md) supersedes the V1 transition-grant
 architecture. The [operator runbook](../catalogue/publication/README.md) is the active
 procedure; [V1 documentation](signed-publication-verifier-v1.md) is historical.
 
 The checked-in publication policy is unchanged: enabled, bootstrap `stage`, with
 both root approval pins unset. Verifier trust is now
-`live_signer_accepted: true`, with signer/ruleset/environment pins preserved in
+`live_signer_accepted: false` for S3, with ruleset/environment pins preserved in
 [verifier-trust.json](../catalogue/publication/verifier-trust.json). The operator
 will copy that exact JSON into `catalogue-verification`'s `VERIFICATION_POLICY`
 environment variable separately after merge. No live workflow,
@@ -73,19 +73,21 @@ an explicit reviewed pin change, including the call, Publisher checkout and
 `ATLAS_IMPLEMENTATION_REVISION` literal, plus independent environment trust.
 
 **Frozen implementation:** S is
-`00c85f688a43fb6da44acb3fa713d938e30a6da9` (S2), the reviewed Lean V2 implementation
-including the required verifier secret declaration, merged into protected main
-with passing CI. All three executable workflow pins
+`5c66a50f61d013204eada0234c3389323b4a3f71` (S3), the reviewed implementation
+including sanitized Publisher HTTP failure diagnostics, merged into protected main.
+It preserves S2's required verifier secret declaration, permissions and publication
+behavior. All three executable workflow pins
 and repository signer trust identify S. Caller/source C advances independently
 and must differ from S. The catalogue/source checkout stays `${{ github.sha }}`.
 Never derive S from current main or replace it with a moving reference.
 
 Repository trust pins verification environment **25016263801**, all five verified
-ruleset IDs and a **900-second** startup age. Its acceptance flag is now true.
+ruleset IDs and a **900-second** startup age. Its acceptance flag is false.
 After merge, the owner will update the independent GitHub environment variable
-with JSON identical to that file. The reviewed genuine acceptance run skipped
-Publisher; bootstrap and live Publisher validation remain separate. No remote
-configuration or dispatch is performed by this acceptance configuration change.
+with JSON identical to that file, including the false acceptance flag, before a
+fresh acceptance-only dispatch. S2's earlier acceptance does not accept S3.
+Publisher must be skipped during this test; bootstrap and live Publisher validation
+remain separate. No remote configuration or dispatch is performed by this adoption.
 
 ## Canonical contract and verification
 
@@ -173,18 +175,40 @@ experiment. Those earlier experiments establish the mechanism. Separately, the
 owner reviewed genuine production-profile [run 39878342565](https://github.com/benchristian88/atlas-connectors/actions/runs/39878342565),
 which authenticated the Verifier App, repository authority, all five rulesets,
 immutable-release protection, signed preflight and exact caller/signer identities.
-Publisher was skipped. That review accepts S2; synthetic verified-output tests
-remain local regression evidence, not proof of live acceptance.
+Publisher was skipped. That review accepted S2
+(`00c85f688a43fb6da44acb3fa713d938e30a6da9`), not the newly pinned S3.
+Synthetic verified-output tests remain local regression evidence, not proof of
+live acceptance.
+
+The first live bootstrap staging [run 39880692187](https://github.com/benchristian88/atlas-connectors/actions/runs/39880692187)
+passed signed authorization, offline historical verification and Publisher token
+creation, but staging failed with `github_request_failed`; no new draft was observed.
+The GET-only [diagnostic run 39883753194](https://github.com/benchristian88/atlas-connectors/actions/runs/39883753194)
+passed all 35 API requests using the existing Publisher permissions. This does not
+prove a release-creation failure or its cause. Historical workflow differences and
+a conditional release-creation permission restriction remain a hypothesis.
+
+S3's reviewed transport reports terminal HTTP failures using only the method,
+fixed endpoint label, numeric status and validated, bounded GitHub request ID.
+Unknown endpoints use `other`; raw URLs, query strings, credentials, bodies and
+arbitrary provider text are excluded. Recovered read retries and expected missing
+404s stay silent. Exception categories, authentication, host/redirect restrictions
+and write/retry behavior are unchanged. These diagnostics are not live evidence
+until a separately approved S3 Publisher run actually executes them.
 
 ## Controlled acceptance and staged bootstrap
 
-Follow the [operator checklist](../catalogue/publication/README.md). S2's genuine
-verifier acceptance is complete; Publisher was skipped. This acceptance does not
-establish live Publisher startup or complete bootstrap. Acceptance-only evidence
-continues to be ineligible to authorize publication.
+Follow the [operator deployment sequence](../catalogue/publication/README.md#configured-pins-and-next-operator-action):
+merge this configuration after green CI; copy unaccepted S3 trust into the
+verification environment; dispatch one fresh `bootstrap`, `acceptance_only: true`
+run on protected main; and review actual S3/caller identities, authority evidence
+and isolation with Publisher skipped. Only after successful review may a separate
+protected-main change approve S3, followed by a matching environment trust update.
+Acceptance-only evidence continues to be ineligible to authorize publication.
 
-After this acceptance change merges and the owner updates the environment trust,
-follow the existing P2 two-dispatch bootstrap: stage/seal original bytes and stop; independently
+Only after that separate approval and environment update may the owner consider
+another controlled live staging attempt. Then follow the existing P2 two-dispatch
+bootstrap: stage/seal original bytes and stop; independently
 approve the actual staged pointer digest through a policy PR; activate in a new
 first-attempt dispatch. Each dispatch obtains its own startup preflight. Verify
 immutable finalization, protected root marker, true current root and exact files.
