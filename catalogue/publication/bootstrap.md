@@ -1,6 +1,8 @@
 # Sequence-one bootstrap operator runbook
 
-Status: **P2 machinery retained under Lean V2; production activation and live P2 acceptance remain blocked**.
+Status: **Staging completed and verified; exact activation approval being prepared; activation not yet performed**.
+Catalogue immutability is not established and independent Atlas consumer acceptance
+remains outstanding. See the [remaining operator sequence](README.md#s4-deployment-and-mandatory-rollback--owner-actions-only).
 Every publication dispatch first needs the [Lean V2 preflight and acceptance gates](README.md). Acceptance-only signing never executes the Publisher job.
 The [bootstrap ADR](../../docs/decisions/0003-sequence-one-bootstrap.md) records the
 new two-dispatch approval boundary and one-time fence. The [P1 runbook](README.md)
@@ -30,28 +32,38 @@ bootstrap; the six-field catalogue and complete embedded Manifest stay unchanged
 
 ## Configuration checklist and authority
 
-The checked-in policy currently has `enabled: true`, `bootstrap_operation: stage`,
-and null `bootstrap.sequence` / `bootstrap.pointer_sha256`. V2 verifier trust pins
+The proposed activation policy has `enabled: true`, `bootstrap_operation: activate`,
+`bootstrap.sequence: 1` and exactly
+`bootstrap.pointer_sha256: a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372`.
+It awaits protected-main review/merge and successful CI. V2 verifier trust pins
 S4 (`2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`) with `live_signer_accepted: true`.
 S4 passed genuine signing acceptance in run **39893809663**, attempt 1, with
 Publisher skipped and the Publisher App at baseline permissions. It is approved
 for live publication subject to matching independent environment trust.
 S3's run **39887360792** remains historical evidence.
-Bootstrap staging and activation remain incomplete.
-S3 diagnostics confirmed a release-creation POST 403 in controlled run
+S3 diagnostics previously confirmed a release-creation POST 403 in controlled run
 **39888883962**, following the generic failure in **39880692187** and successful
-GET-only diagnostic **39883753194**. The HTTP 403 remains unresolved. S4's temporary
-bootstrap Workflows Write implementation is unchanged by this approval.
-Follow the [S4 adoption, genuine acceptance, elevation and rollback sequence](README.md#s4-deployment-and-mandatory-rollback--owner-actions-only)
-before another controlled staging dispatch. Both stage and activation require
+GET-only diagnostic **39883753194**. Later genuine [staging run 39896288128](https://github.com/benchristian88/atlas-connectors/actions/runs/39896288128),
+attempt **1**, succeeded from staging source
+`8ce0b80c74d6ceb8ce75ac7ec8693f5bba78b305` with `staged_requires_separate_approval`.
+The owner independently verified sealed draft **catalogue-000001**, release
+**421426993**, snapshot asset **667867351** and all four required assets. Catalogue
+SHA-256 remains `55533ca67e7e9a14f82961e0a8c34ad78e2596049b3db02fde787494e3975afd`.
+The actual receipt's `current.json` was independently hashed to the exact approved
+pointer digest above. The receipt reports `published: false`, `immutable: false`;
+current branch and bootstrap-root tag are absent. Preserve those staged identities
+and exact bytes; this approval creates no release, asset, signature or root commit.
+
+S4's temporary bootstrap Workflows Write implementation is unchanged. Both stage and activation require
 the exact baseline-plus-Workflows-Write App and token profiles; acceptance-only
-verification must use the baseline App and skip Publisher. Workflows Write has not
-yet been granted. After this approval merges, update `catalogue-verification`'s
-`VERIFICATION_POLICY` to match the committed trust JSON before granting and approving
-temporary Workflows Write. Ordinary publish/recover remain at baseline; remove the
+verification must use the baseline App and skip Publisher. Temporary Workflows Write
+is active and must remain available until successful activation. Before the new
+activation dispatch, reconfirm `catalogue-verification`'s `VERIFICATION_POLICY`
+matches the unchanged committed accepted trust JSON. Ordinary publish/recover require baseline; remove the
 temporary permission after successful activation and independently verify rollback.
-Actual pointer approval remains a separate owner action. No real target release ID, asset ID, pointer
-digest, selection signature or root commit exists as a result of this task.
+Activation requires this separate exact-pointer policy approval and a **new**
+first-attempt manual dispatch from protected main with a fresh independent signed
+preflight. Never activate from or rerun staging run **39896288128**.
 
 Configured identities are maintainer **93822871**, publication environment
 **24999137498**, package environment **24617213627**, App **5422372** /
@@ -76,21 +88,21 @@ Before any live dispatch, the owner must review and validate:
   independent Atlas consumer trust decision. No self-approval or fake identity
   substitutes for the explicit single-maintainer policy.
 
-## Exact future procedure — owner actions, not performed here
+## Two-dispatch procedure and completed staging checkpoint
 
 1. **Source validation (offline).** With the pinned SDK/verifier installed, run
    `python tools/publish_catalogue.py bootstrap-preflight`. This supports the
-   current stage-enabled configuration as well as disabled policy, authenticates real original evidence and
+   activation, stage and disabled configurations, authenticates real original evidence and
    prints sanitized JSON. It makes no GitHub requests or writes. It does not prove
    live protections, legacy release identity or empty history. The workflow's
    read-only remote preflight performs those checks with the scoped App after
    dispatch authorization; all remote checks must succeed before its first write.
-2. **Approve historical identity and staging.** Review the table above, P1 settings,
-   new fence rule and ADR. Through the human-controlled protected-main process,
-   set `enabled: true`, `bootstrap_operation: stage`, leaving both bootstrap pins
-   null. Wait for exact-source successful validate CI. This authorizes only draft
-   staging; normal publish/recover still cannot initialize a channel.
-3. **Live draft staging.** The configured maintainer manually dispatches
+2. **Approve historical identity and staging — completed.** Review the table above, P1 settings,
+   new fence rule and ADR were reviewed through the human-controlled protected-main
+   process. The staging policy set `enabled: true`, `bootstrap_operation: stage`,
+   leaving both bootstrap pins null, with successful exact-source validate CI.
+   That policy authorized only draft staging; normal publish/recover cannot initialize a channel.
+3. **Live draft staging — completed in run 39896288128, attempt 1.** The configured maintainer manually dispatched
    `catalogue-publish.yml` on main with `operation=bootstrap`, `acceptance_only=false`.
    Attempt 1 only. The workflow validates policy/App ID and independent dispatch
    records before minting its bootstrap-only Workflows Write App token, requiring
@@ -98,7 +110,7 @@ Before any live dispatch, the owner must review and validate:
    that token, then repeats complete P1 authority/settings and legacy/history
    checks before writes. The draft targets the historical source SHA, not the
    dispatch SHA. Its deterministic operation body allows exact-byte recovery.
-4. **Genuine selection evidence and approval checkpoint.** GitHub assigns the real
+4. **Genuine selection evidence and approval checkpoint — completed and verified.** GitHub assigns the real
    release and snapshot asset IDs. The workflow writes the seven-field canonical
    pointer with sequence 1 and null predecessor, then uses the pinned existing
    `actions/attest` in catalogue-publish.yml to attest `current.json`. It verifies
@@ -109,33 +121,37 @@ Before any live dispatch, the owner must review and validate:
    using the pinned verifier, release/asset IDs, original source and public signing
    run/attempt/actor/workflow/CI evidence. Compute SHA-256 over actual canonical
    `current.json` bytes. Do not use the catalogue digest as the pointer digest.
-5. **Separate trust activation approval.** Through a later protected-main policy
+5. **Separate trust activation approval — being prepared.** Through a later protected-main policy
    change, set `bootstrap.sequence: 1`, `bootstrap.pointer_sha256` to that exact
    verified pointer digest, and `bootstrap_operation: activate`. This later commit
    must differ from the authenticated selection-signing source. Wait for CI and
    dispatch a **new** `operation=bootstrap` run on main; never rerun the old run.
    No release IDs, URLs, digests, source refs or signers are workflow inputs.
-6. **Immutable finalisation.** Activation obtains the existing fully staged release
+6. **Immutable finalisation — not yet performed.** Activation obtains the existing fully staged release
    from complete bounded provider inventory, reauthenticates both signatures and
    checks the approved digest, fresh dispatch and protections. It publishes with
    `make_latest=false` and requires non-draft/non-prerelease, `immutable: true`,
    exact tag/source, unchanged four asset IDs and exact original bytes. A mutable
    result stops; no branch is created. Activation does not repair incomplete drafts.
-7. **Root creation and rechecks.** Only after those checks does it create a Git tree
+7. **Root creation and rechecks — not yet performed.** Only after those checks does it create a Git tree
    containing exactly the pointer/bundle, create a parentless commit, and verify
    its tree/blob identities. After renewed authority checks it creates the protected
    root-intent tag, then creates `catalogue-current` at that SHA using POST only.
    It verifies root, current, fence, exact files and immutable evidence again. No
    forced update, existing-ref overwrite, deletion or ordinary-publish fallback exists.
-8. **Acceptance receipt and consumer trust approval.** Preserve the sanitized receipt:
+8. **Activation receipt and independent verification.** Preserve the sanitized receipt:
    catalogue identity, original signer/source/bundle, actual release and all asset
    IDs, pointer digest, root SHA, selection signer/run/source, activation run/source,
    observed published/immutable state and explicit legacy warning. A receipt is
-   diagnostic evidence, not Atlas authorization. Independently implement/review
-   the [consumer handoff](consumer-handoff.md), approve its own root digest and
-   policy identities, and demonstrate live acceptance before claiming P2 complete.
-9. **Close bootstrap and advance normally.** Set `bootstrap_operation: disabled`
-   through reviewed source while retaining the approved root pins. The provider
+   diagnostic evidence, not Atlas authorization. Independently verify the immutable
+   release, parentless root, current branch, fence and exact files before cleanup.
+9. **Close bootstrap and complete consumer acceptance.** After successful activation,
+   remove temporary Publisher Workflows Write and verify baseline restoration on
+   both App and installation. Set `bootstrap_operation: disabled` through a separately
+   reviewed policy update while retaining the approved root pins. Then independently
+   implement/review the [consumer handoff](consumer-handoff.md), approve Atlas's own
+   root digest and policy identities, and demonstrate live acceptance before claiming
+   P2 complete. The provider
    fence and existing current already terminate bootstrap authority regardless of
    this cleanup. Future manual publish/recover dispatches automatically enforce
    contiguous sequence and predecessor validation; there is no scheduled publisher.

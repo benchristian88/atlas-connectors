@@ -54,15 +54,17 @@ def test_genuine_bootstrap_source_preflight_and_no_catalogue_as_selection():
     policy = json.loads((ROOT / 'catalogue/publication/policy.json').read_bytes())
     result = local_preflight(policy, verifier)
     assert result['catalogue_bytes'] == 10585 and result['sha256'] == CATALOGUE_SHA256
-    assert result['enabled'] is True and result['bootstrap_operation'] == 'stage'
-    assert policy['bootstrap'] == {'sequence': None, 'pointer_sha256': None}
+    assert result['enabled'] is True and result['bootstrap_operation'] == 'activate'
+    assert policy['bootstrap'] == {'sequence': 1,
+        'pointer_sha256': 'a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372'}
     assert result['remote_checks_performed'] is False
     pointer = pointer_bytes({'schema_version': '1.0', 'sequence': 1, 'release_tag': 'catalogue-000001',
                             'release_id': 123, 'asset_id': 456, 'sha256': CATALOGUE_SHA256,
                             'previous_pointer_sha256': None})  # Test-only IDs, never approval.
     bundle = (ROOT / 'tests/fixtures/publication/catalogue.sigstore.json').read_bytes()
-    with pytest.raises(ValueError):
-        verifier.verify(pointer, bundle, profile='pointer', name='current.json')
+    for selection_bundle in [b'{}', bundle]:  # Unsigned or catalogue evidence cannot sign a pointer.
+        with pytest.raises(ValueError):
+            verifier.verify(pointer, selection_bundle, profile='pointer', name='current.json')
     tampered = json.loads(bundle)
     tampered['dsseEnvelope']['signatures'][0]['sig'] = 'AAAA'
     with pytest.raises(ValueError):

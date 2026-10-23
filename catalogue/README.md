@@ -2,12 +2,13 @@
 
 The [P1 publication contract](publication/README.md) defines separate immutable
 numbered releases and a separately authenticated current-pointer branch. Local
-foundations use explicit single-maintainer authorization behind disabled policy. Owner settings, bootstrap
-migration, package-history decisions and Atlas consumer support remain required;
-no live publication or settings changes were performed by this implementation.
-[P2 bootstrap foundations](publication/bootstrap.md) now provide explicitly gated
-staging and later activation of the unchanged historical sequence. Both live
-dispatches and independent consumer acceptance remain outstanding.
+foundations use explicit single-maintainer authorization. [P2 bootstrap](publication/bootstrap.md)
+staging completed and was independently verified in run **39896288128**, attempt 1.
+The separate activation-policy approval is being prepared for sequence **1** and
+exact pointer SHA-256 `a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372`.
+Activation has not run; catalogue immutability and independent Atlas consumer
+acceptance remain outstanding. Temporary Publisher Workflows Write is active
+through successful activation. Follow the [remaining operator sequence](publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only).
 
 The legacy aggregate v1 sequence 1 remains at the
 [official release](https://github.com/benchristian88/atlas-connectors/releases/tag/catalogue-v1).

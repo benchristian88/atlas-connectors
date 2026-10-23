@@ -14,8 +14,9 @@ repository ID **1414494920**, owner ID **93822871**, environment IDs, dedicated 
 ID/slug/bot-user ID, and approved bootstrap sequence/pointer SHA-256. Record the
 reviewed producer workflow/policy source revision at activation. Neither pointer
 fields nor a downloaded `policy.json` may supply authoritative identity, roots,
-mode or bootstrap values. The producer defaults disabled; publisher identities are configured in source,
-while the bootstrap sequence/pointer pins remain null.
+mode or bootstrap values. Producer activation requires its separate reviewed
+exact-pointer policy; publisher identities and the proposed exact sequence/pointer
+approval are recorded in source, independently of Atlas consumer trust.
 Do not assume that the repository owner's numeric ID is the authorized maintainer.
 
 Only the explicit single-maintainer mode is implemented. A future independent-
@@ -162,15 +163,15 @@ unexpected or compromised App paths, and every existing immutable/history/recove
 boundary. Include future compatible Connector fixtures without vendor conditionals.
 
 Producer tests simulate these GitHub responses and selection signatures. Genuine
-frozen B1.2 catalogue/package signatures are tested separately; **there is no new
-genuine signed pointer or live immutable-publication acceptance evidence**. Obtain
-real public run/identity/workflow/CI observations and verify a genuine signed
-selection with the pinned verifier after configuration and explicit live-test
-approval. Confirm anonymous consumer evidence availability; any inaccessible
+frozen B1.2 catalogue/package signatures are tested separately. **A genuine signed
+pointer now exists in the verified sealed draft; live immutable-publication and
+Atlas consumer acceptance remain outstanding.** Independently obtain public
+run/identity/workflow/CI observations and verify that exact signed selection with
+the consumer's pinned verifier. Confirm anonymous consumer evidence availability; any inaccessible
 required endpoint blocks acceptance rather than introducing a token fallback.
 
-Remaining prerequisites are actual reviewed identities/settings/App credentials,
-an approved bootstrap migration and digest, non-installable legacy history handling,
+Remaining prerequisites include reviewed activation-policy merge and execution,
+independent consumer identity/root approval, non-installable legacy history handling,
 consumer policy implementation and genuine acceptance. The one-human model removes
 the second-maintainer blocker; it adds no independent human veto against maintainer
 account compromise. Unknown policy modes fail closed until deliberately reviewed.
@@ -180,10 +181,15 @@ account compromise. Unknown policy modes fail closed until deliberately reviewed
 The [two-dispatch producer bootstrap](bootstrap.md) and
 [ADR 0003](../../docs/decisions/0003-sequence-one-bootstrap.md) implement source
 preservation, signed draft staging, separate pointer-digest approval, immutable
-finalisation and create-only root selection. No migration has run. The producer
-policy retains `enabled: false`, `bootstrap_operation: disabled`, sequence null
-and pointer digest null. No actual target release/asset IDs, new signature or root
-SHA may be invented for consumer configuration.
+finalisation and create-only root selection. Owner-verified staging completed in
+run **39896288128**, attempt 1, with sealed draft **421426993** and snapshot asset
+**667867351**. The separate activation approval is being prepared: `enabled: true`,
+`bootstrap_operation: activate`, sequence **1**, exact pointer SHA-256
+`a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372`.
+Activation has not run; catalogue immutability, root creation and independent Atlas
+consumer acceptance remain outstanding. See the [verified staging evidence and remaining operator actions](README.md).
+No root SHA may be invented for consumer configuration; producer approval does not
+grant Atlas consumer trust.
 
 Atlas's existing B1.3 adapter still targets legacy catalogue-v1 and rejects
 `publication_not_immutable`; even an immutable legacy release reaches
@@ -217,7 +223,7 @@ entry without changing its identity, and include a newly qualified immutable
 release through ordinary generic gates. P1 checks all active entries and will
 otherwise reject advancement carrying that mutable package as active.
 
-Genuine new pointer verification, live public API/protection observations, immutable
+Independent Atlas verification of the genuine staged pointer and public API/protection observations, immutable
 release/root receipt, explicit consumer root approval, durable first acceptance,
 unchanged confirmation, advancement and restart/last-known-good acceptance remain
 outstanding. Offline original-source verification and model tests do not satisfy
