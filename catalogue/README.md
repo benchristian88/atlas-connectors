@@ -3,12 +3,18 @@
 The [P1 publication contract](publication/README.md) defines separate immutable
 numbered releases and a separately authenticated current-pointer branch. Local
 foundations use explicit single-maintainer authorization. [P2 bootstrap](publication/bootstrap.md)
-staging completed and was independently verified in run **39896288128**, attempt 1.
-The separate activation-policy approval is being prepared for sequence **1** and
-exact pointer SHA-256 `a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372`.
-Activation has not run; catalogue immutability and independent Atlas consumer
-acceptance remain outstanding. Temporary Publisher Workflows Write is active
-through successful activation. Follow the [remaining operator sequence](publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only).
+is completed provider-side: staging run **39896288128** and activation run
+**39912401767** established published immutable `catalogue-000001`, release
+**421426993**, and root `a1597730687be993d766ddb465a0d3362aef2d02`.
+Immutable catalogue publication is active. The closure policy disables bootstrap
+while retaining sequence **1**, approved pointer SHA-256
+`a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372` and ordinary
+publication/recovery authorization. Publisher Workflows Write was removed;
+acceptance-only run **39913094643** confirmed baseline App registration, without
+independently testing installed effective access. Independent Atlas consumer
+verification/acceptance and B3 remote installation remain outstanding. Historical
+Proxmox 0.2.0 remains ineligible because its original package release is mutable.
+See the [exact production evidence and remaining operator actions](publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only).
 
 The legacy aggregate v1 sequence 1 remains at the
 [official release](https://github.com/benchristian88/atlas-connectors/releases/tag/catalogue-v1).

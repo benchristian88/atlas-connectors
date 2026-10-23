@@ -1,30 +1,34 @@
 # Lean V2 signed publication preflight
 
-Status: **S4 signer accepted; staging completed and verified; exact activation approval being prepared.**
-Activation has not run, catalogue immutability is not established and independent
-Atlas consumer acceptance remains outstanding.
+Status: **S4 signer accepted; provider-side sequence-1 bootstrap completed;
+bootstrap operation disabled; immutable catalogue publication active.**
+Independent Atlas consumer verification and acceptance remain outstanding; Atlas B3
+remote installation is not ready.
 [ADR 0005](decisions/0005-lean-run-preflight.md) supersedes the V1 transition-grant
 architecture. The [operator runbook](../catalogue/publication/README.md) is the active
 procedure; [V1 documentation](signed-publication-verifier-v1.md) is historical.
 
-The proposed publication policy remains enabled and sets bootstrap `activate`,
-sequence **1** and exactly pointer SHA-256
-`a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372`.
-Only those three policy values change; all identities remain unchanged. Verifier trust remains
-`live_signer_accepted: true` for S4, with ruleset/environment pins preserved in
-[verifier-trust.json](../catalogue/publication/verifier-trust.json). The operator
-must reconfirm matching independent `catalogue-verification` `VERIFICATION_POLICY`
-before activation. Temporary Publisher Workflows Write is active and must remain
-available until successful activation.
-S4 passed genuine signing acceptance in run **39893809663** with baseline Publisher
-App permissions and Publisher skipped.
-This approval changes no executable code or permission behavior. No live workflow,
-GitHub variable/settings mutation, release or ref write was performed by this task.
+The closure policy keeps publication enabled and sets `bootstrap_operation: disabled`,
+retaining sequence **1**, all identities, single-maintainer authorization and exactly
+pointer SHA-256 `a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372`.
+Normal `publish` and `recover` remain available with their existing signed preflight,
+immutable-release, contiguous-sequence and previous-pointer checks. New bootstrap
+staging/activation is rejected and missing current never enables another initializer.
+Verifier trust, all three frozen S4 executable pins and independent Verifier App
+permissions are unchanged. This closure changes no executable code or remote state.
+
+The owner removed Publisher Workflows Write. Genuine first-attempt signed
+acceptance-only [verification run 39913094643](https://github.com/benchristian88/atlas-connectors/actions/runs/39913094643)
+passed preflight/verify with Publisher skipped, confirming baseline **App registration**:
+Contents Write, Actions Read, Administration Read, Metadata Read, Workflows **No access**.
+It did not independently test the installed App's effective access. See
+[production evidence](../catalogue/publication/README.md) for exact release/assets/root.
 
 ## One preflight, two Apps, one maintainer
 
-A fresh manual main dispatch selects `bootstrap`, `publish` or `recover` and
-`acceptance_only` (default true). The verifier is a separate SHA-pinned reusable
+A fresh manual main dispatch selects `publish` or `recover` and
+`acceptance_only` (default true); the retained `bootstrap` option is rejected by the
+closed policy. The verifier is a separate SHA-pinned reusable
 job in `catalogue-verification`. Its exact App/installation remains **5424851 /
 174088125** with Administration Write, Contents Read, Actions Read, Checks Read and
 Metadata Read, scoped to repository **1414494920**, owner **93822871**. Its only POST
@@ -42,7 +46,8 @@ per-asset target, transition challenge, per-ref grant or challenge-consumption A
 The Publisher App remains **5422372 / 174027755**, with baseline Contents Write,
 Actions Read, Administration Read and Metadata Read. The frozen S4 implementation
 requires exactly that baseline for acceptance-only signing and normal publish/recover;
-live bootstrap stage/activate require exactly baseline plus Workflows Write. Any
+the frozen historical bootstrap stage/activate paths require exactly baseline plus
+Workflows Write, but are now disabled by policy. Any
 other permission or missing field is rejected by both the signed security checks
 and Publisher checks. No policy mechanism or bypass is added. Its key exists only
 in the Publisher job's
@@ -110,7 +115,7 @@ Repository trust pins verification environment **25016263801**, all five verifie
 ruleset IDs and a **900-second** startup age. Its acceptance flag is true.
 S4's genuine acceptance approves its signer for live publication, subject to
 matching independent environment trust. Reconfirm that `VERIFICATION_POLICY`
-matches the complete unchanged accepted trust JSON before activation.
+matches the complete unchanged accepted trust JSON before normal publication/recovery.
 S3's acceptance remains historical evidence; S4's separate review is recorded below.
 No remote configuration or dispatch is performed by this approval task.
 
@@ -232,7 +237,8 @@ confirmed `github_http_failure method=POST route=release_create status=403` for
 [documents Workflows Write for release targets with workflow differences](https://docs.github.com/en/rest/releases/releases#create-a-release),
 as applies to the fixed historical bootstrap target. This motivates the temporary
 permission profile. Later successful staging in run **39896288128** provides live
-draft creation/sealing evidence with that profile; immutable activation is still pending.
+draft creation/sealing evidence with that profile; immutable activation and
+permission rollback subsequently completed as recorded below.
 
 S3's reviewed transport reports terminal HTTP failures using only the method,
 fixed endpoint label, numeric status and validated, bounded GitHub request ID.
@@ -240,41 +246,30 @@ Unknown endpoints use `other`; raw URLs, query strings, credentials, bodies and
 arbitrary provider text are excluded. Recovered read retries and expected missing
 404s stay silent. Exception categories, authentication, host/redirect restrictions
 and write/retry behavior are unchanged. Run 39888883962 supplies actual route/status
-evidence. This activation-policy approval does not change those diagnostics.
+evidence. This bootstrap closure does not change those diagnostics.
 
-## Controlled acceptance and staged bootstrap
+## Completed bootstrap and permission rollback
 
-Follow the [S4 deployment and mandatory rollback sequence](../catalogue/publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only):
-S4's implementation merge, adoption, signer approval and genuine baseline-permission
-signing acceptance are complete. Owner-verified genuine [staging run 39896288128](https://github.com/benchristian88/atlas-connectors/actions/runs/39896288128),
-attempt **1**, from source `8ce0b80c74d6ceb8ce75ac7ec8693f5bba78b305` returned
-`staged_requires_separate_approval`. The owner independently confirmed sealed draft
-`catalogue-000001`, release **421426993**, snapshot asset **667867351**, and all four
-required assets in GitHub. Catalogue SHA-256 is unchanged:
+Owner-verified [staging run 39896288128](https://github.com/benchristian88/atlas-connectors/actions/runs/39896288128),
+attempt **1**, used source `8ce0b80c74d6ceb8ce75ac7ec8693f5bba78b305` and returned
+`staged_requires_separate_approval`. A separate exact-pointer policy revision and
+fresh [activation run 39912401767](https://github.com/benchristian88/atlas-connectors/actions/runs/39912401767)
+from `51f8693fbcca1e4c6c9615662bca368839ea0757` returned `bootstrapped`,
+`published: true`, `immutable: true`. GitHub reports release **421426993**,
+`catalogue-000001`, as `draft: false`, `immutable: true`; all four original asset
+identities and bytes were independently verified unchanged. Catalogue SHA-256 is
 `55533ca67e7e9a14f82961e0a8c34ad78e2596049b3db02fde787494e3975afd`.
-The actual receipt's `current.json` was independently hashed to the approved pointer
-digest above. `published: false`, `immutable: false`; current branch and bootstrap-root
-tag are absent. This task prepares only the separate activation approval and changes
-no GitHub setting or workflow run. Acceptance-only evidence remains ineligible to
-authorize publication.
+Parentless root `a1597730687be993d766ddb465a0d3362aef2d02` contains exactly
+`current.json` and `current.sigstore.json`; both `refs/heads/catalogue-current` and
+`refs/tags/catalogue-bootstrap-root` resolve there. The approved pointer digest
+above remains pinned. See the [full evidence table](../catalogue/publication/README.md).
 
-Commit and merge this exact activation-policy approval through protected main and
-require successful CI. Then dispatch a **NEW**, first-attempt `bootstrap`,
-`acceptance_only: false` run with a fresh independent signed preflight. Never rerun
-the staging workflow or reuse its evidence as activation authorization. The existing
-checks must reauthenticate both original signatures, exact approved pointer, same
-release ID and unchanged four assets. Independently verify successful activation,
-immutable finalisation **before** current creation, parentless root and exact files,
-current branch, protected fence and final receipt. Existing
-[bootstrap recovery rules](../catalogue/publication/bootstrap.md) remain mandatory.
-Historical Proxmox **0.2.0 remains ineligible for remote installation** because its
-package release is mutable.
-
-Immediately after successful activation, remove Workflows Write from the Publisher
-App and verify the installation also returned to the exact baseline. Disable
-bootstrap through a **separately reviewed** policy update while retaining approved
-root pins, then complete independent Atlas consumer acceptance. Elevation
-does not expire automatically. A partial-operation failure requires investigation before a
-fresh attempt, with partial drafts/evidence preserved and no automatic permission
-changes that could prevent recovery. Remove the GET-only diagnostic workflow only
-in a separate reviewed cleanup PR.
+Workflows Write removal and baseline App-registration verification in run
+**39913094643** are complete; installed effective access was not independently
+tested by that acceptance-only run. This closure disables bootstrap and retains
+ordinary publication/recovery authority without requiring Workflows Write. Review
+and merge the closure through protected main/CI; independently check installed
+baseline access and complete Atlas consumer verification/acceptance separately.
+The diagnostic workflow remains for its own separately reviewed cleanup PR.
+Historical Proxmox **0.2.0 remains ineligible for remote installation** because
+its original package release is mutable. No production operation is performed here.

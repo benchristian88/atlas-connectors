@@ -118,6 +118,27 @@ def test_each_operation_has_one_complete_run_preflight_and_no_draft_claim(operat
     assert b"synthetic-key" not in raw and b"synthetic-installation-token" not in raw
 
 
+@pytest.mark.parametrize("operation", ["publish", "recover"])
+@pytest.mark.parametrize("acceptance_only", [False, True])
+def test_closed_checked_in_policy_keeps_normal_signed_authorization(operation, acceptance_only):
+    api, env, request, trust, _ = fixture(operation, acceptance_only=acceptance_only)
+    policy_raw = (ROOT / "catalogue/publication/policy.json").read_bytes()
+    policy = json.loads(policy_raw)
+    assert policy["bootstrap_operation"] == "disabled" and policy["enabled"] is True
+    api.rows[BASE + "/contents/catalogue/publication/policy.json?ref=" + SOURCE] = file_response(
+        policy_raw, "catalogue/publication/policy.json")
+    api.rows[BASE + "/environments/catalogue-publication"]["id"] = policy["environment_id"]
+    request["policy_sha256"] = digest(policy_raw)
+    data = api, env, request, trust, policy_raw
+    value = json.loads(issue_fixture(data))
+    assert auth.check_authorization(value, trust, policy) == request
+    assert value["security"]["publisher_app"]["permissions"] == APP_PERMISSIONS
+    assert "workflows" not in value["security"]["publisher_app"]["permissions"]
+    value["execution"]["operation"] = "bootstrap"
+    with pytest.raises(ValueError, match="^bootstrap_operation_disabled$"):
+        auth.check_authorization(value, trust, policy)
+
+
 @pytest.mark.parametrize("operation", ["bootstrap", "publish", "recover"])
 @pytest.mark.parametrize("acceptance_only", [False, True])
 @pytest.mark.parametrize("elevated", [False, True])

@@ -28,7 +28,7 @@ BUNDLE = (ROOT / 'tests/fixtures/publication/catalogue.sigstore.json').read_byte
 class ModelVerifier(StructuralVerifier):
     def verify(self, raw, bundle, **context):
         if context['profile'] == 'catalogue':
-            assert raw == RAW and bundle == BUNDLE and context['commit'] == SOURCE
+            assert raw == RAW and bundle == BUNDLE and context.get('commit', SOURCE) == SOURCE
             return Evidence('catalogue', digest(raw), SOURCE, 'simulated-original-result')
         return super().verify(raw, bundle, **context)
 
@@ -356,6 +356,38 @@ def test_normal_publish_recover_stay_closed_before_bootstrap(bootstrap):
     assert not api.writes
 
 
+@pytest.mark.parametrize('operation', ['publish', 'recover'])
+def test_closed_bootstrap_pins_do_not_authorize_alternative_initialization(bootstrap, operation):
+    api, publisher = bootstrap
+    publisher.policy.update(bootstrap_operation='disabled',
+                            bootstrap={'sequence': 1, 'pointer_sha256': 'f'*64})
+    api.app['permissions'] = dict(APP_PERMISSIONS)
+    normal = Publisher(api, StructuralVerifier(), publisher.policy, 60, source_commit=COMMIT,
+                       token_identity=api.token_identity)
+    admit_model(normal, operation)
+    with pytest.raises(PublicationError, match='^approved_bootstrap_required$'):
+        normal.stage(RAW) if operation == 'publish' else normal.recover()
+    assert not api.writes and api.ref is None and api.marker is None
+
+
+def test_closing_bootstrap_preserves_authenticated_model_root_and_assets(bootstrap):
+    api, publisher = bootstrap
+    stage, _ = sealed(publisher)
+    approve(api, publisher, stage)
+    publisher.activate_bootstrap()
+    before = deepcopy((api.ref, api.marker, api.files, api.releases, api.by_release, api.data, api.writes))
+    publisher.policy['bootstrap_operation'] = 'disabled'
+    api.app['permissions'] = dict(APP_PERMISSIONS)
+    normal = Publisher(api, api.verifier, publisher.policy, 70, source_commit=api.next_source,
+                       token_identity=api.token_identity)
+    admit_model(normal)
+    assert normal.current() == (api.ref, api.files, RAW)
+    assert recover_model(normal)['result'] == 'no_interrupted_snapshot'
+    with pytest.raises(PublicationError, match='^bootstrap_activation_not_authorized$'):
+        publisher.activate_bootstrap()
+    assert (api.ref, api.marker, api.files, api.releases, api.by_release, api.data, api.writes) == before
+
+
 def test_legacy_entry_is_not_promoted_through_package_gate(bootstrap):
     api, publisher = bootstrap
     with pytest.raises(PublicationError): publisher.packages(parse_catalogue(RAW))
@@ -378,21 +410,46 @@ def test_local_disabled_preflight_and_unauthorized_inputs(bootstrap):
         with pytest.raises(PublicationError): check_policy(api.args[0], operation=operation)
 
 
-def test_checked_in_policy_approves_exact_staged_bootstrap_and_forbids_staging(bootstrap, monkeypatch):
+def test_checked_in_policy_closes_bootstrap_and_preserves_approved_anchor(bootstrap, monkeypatch):
     api, publisher = bootstrap
     policy = json.loads((ROOT / 'catalogue/publication/policy.json').read_bytes())
-    assert policy['enabled'] is True and policy['bootstrap_operation'] == 'activate'
+    assert policy['enabled'] is True and policy['bootstrap_operation'] == 'disabled'
     assert policy['bootstrap'] == {'sequence': 1,
         'pointer_sha256': 'a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372'}
-    check_policy(policy, operation='bootstrap')
-    assert local_preflight(policy, api.verifier)['remote_checks_performed'] is False
+    for operation in ['publish', 'recover']:
+        check_policy(policy, operation=operation)
+    with pytest.raises(PublicationError, match='^bootstrap_operation_disabled$'):
+        check_policy(policy, operation='bootstrap')
+    # Frozen S4's offline disabled mode supports only unconfigured (null) pins.
+    # Closing live bootstrap retains the pins rather than reopening that mode.
+    with pytest.raises(PublicationError, match='^bootstrap_staging_pins_must_be_unset$'):
+        local_preflight(policy, api.verifier)
     publisher.policy.update(bootstrap_operation=policy['bootstrap_operation'], bootstrap=policy['bootstrap'])
-    def forbidden(*args, **kwargs): pytest.fail('activation policy staging reached GitHub')
+    def forbidden(*args, **kwargs): pytest.fail('closed bootstrap policy reached GitHub')
     monkeypatch.setattr(api, 'json', forbidden)
-    for operation in [publisher.stage_bootstrap, lambda: publisher.seal_bootstrap(b'{}', b'{}')]:
-        with pytest.raises(PublicationError, match='^bootstrap_stage_not_authorized$'):
+    for operation, code in [(publisher.preflight, 'bootstrap_operation_disabled'),
+                            (publisher.stage_bootstrap, 'bootstrap_stage_not_authorized'),
+                            (lambda: publisher.seal_bootstrap(b'{}', b'{}'), 'bootstrap_stage_not_authorized'),
+                            (publisher.activate_bootstrap, 'bootstrap_activation_not_authorized')]:
+        with pytest.raises(PublicationError, match='^' + code + '$'):
             operation()
     assert not api.writes
+
+
+@pytest.mark.parametrize('phase', ['authorize', 'bootstrap-stage', 'bootstrap-seal', 'bootstrap-activate'])
+def test_closed_bootstrap_cli_stops_before_preflight_transport_or_builder(monkeypatch, phase):
+    import publish_catalogue as cli
+    import publication_authorization as auth
+    monkeypatch.setenv('PUBLICATION_OPERATION', 'bootstrap')
+    monkeypatch.delenv('ATLAS_SOURCE_DIRECTORY', raising=False)
+    monkeypatch.setattr(sys, 'argv', ['publish_catalogue.py', phase])
+    def forbidden(*args, **kwargs): pytest.fail('closed bootstrap reached authorization or execution')
+    monkeypatch.setattr(auth, 'job_preflight', forbidden)
+    monkeypatch.setattr(cli, 'Github', forbidden)
+    monkeypatch.setattr(cli.build_catalogue, 'build', forbidden)
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+    assert error.value.code == 1
 
 
 @pytest.mark.parametrize('pins', [
