@@ -1,6 +1,6 @@
 {
   "schema": "atlas-publication-verifier-trust/v2",
-  "live_signer_accepted": false,
+  "live_signer_accepted": true,
   "signer_revision": "00c85f688a43fb6da44acb3fa713d938e30a6da9",
   "ruleset_ids": {
     "atlas-main": 25618213,

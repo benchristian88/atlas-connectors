@@ -1,11 +1,13 @@
 # Official catalogue publication — Lean V2 operator runbook
 
-**Production activation is blocked.** The current policy remains stage-enabled,
+**Verifier signing is accepted; bootstrap remains pending.** The current policy remains stage-enabled,
 with no approved root digest. Verifier trust is configured for frozen reviewed
-implementation **S = S2 = `00c85f688a43fb6da44acb3fa713d938e30a6da9`**, but
-`live_signer_accepted` remains **false**. The next protected-main configuration
-merge becomes caller/source **C**, which must differ from S. No live operation or
-GitHub environment change was performed by this configuration task.
+implementation **S = S2 = `00c85f688a43fb6da44acb3fa713d938e30a6da9`**, with
+`live_signer_accepted: true`, following owner-reviewed genuine production-profile
+acceptance in [run 39878342565](https://github.com/benchristian88/atlas-connectors/actions/runs/39878342565).
+Publisher was skipped. Caller/source **C** advances independently and must differ
+from S. No live operation or GitHub environment change is performed by this
+acceptance configuration change.
 
 The [security contract](../../docs/signed-publication-verifier.md) and
 [ADR 0005](../../docs/decisions/0005-lean-run-preflight.md) define the one-preflight
@@ -36,10 +38,10 @@ old per-transition grants and disabled-policy descriptions.
    and publication-tag rules; main, history-lock and bootstrap-lock have no bypass.
    See the [configuration tables](publication-v1-reference.md#operator-configuration--do-not-execute-publication-yet)
    and [bootstrap fence](bootstrap.md#configuration-checklist-and-authority).
-4. **Next operator action:** configure the GitHub environment variable
+4. **After merge, next operator action:** update the GitHub environment variable
    `VERIFICATION_POLICY` in environment **catalogue-verification** with JSON
    identical to the committed [verifier-trust.json](verifier-trust.json). Copy the
-   complete file verbatim, preserving `live_signer_accepted: false`; do not set
+   complete file verbatim, preserving `live_signer_accepted: true`; do not set
    this variable in a different environment or pass it as a workflow input.
    This task does not create or modify the GitHub variable. The configured
    verification environment ID is **25016263801**, with `can_admins_bypass: false`
@@ -61,16 +63,17 @@ environment; do not copy it to a repository-level secret or `catalogue-publicati
 Never use `secrets: inherit`, pass either App's credentials to the other job, or
 put the key in an input, output, artifact, command-line argument or log.
 
-The remaining manual acceptance steps, not executed by this task, are:
+The remaining configuration steps, not executed by this task, are:
 
 1. Merge this change into protected main after green CI, establishing C != S2.
 2. Update `VERIFICATION_POLICY` in `catalogue-verification` to match the complete
-   committed trust JSON, preserving `live_signer_accepted: false`.
-3. Dispatch one fresh `catalogue-publish.yml` run from protected `main`, selecting
-   `bootstrap` and `acceptance_only: true`.
-4. Inspect the genuine verification results using the checklist below, including
-   actual environment-secret delivery. Local synthetic tests do not prove delivery.
-5. Require the `publish` job to be skipped, with no Publisher credentials or writes.
+   committed trust JSON, preserving `live_signer_accepted: true`.
+
+Run 39878342565 authenticated the Verifier App, repository authority, all five
+rulesets, immutable-release protection, signed preflight and exact caller/signer
+identities. That reviewed genuine result establishes signer acceptance; local
+synthetic tests do not prove real secret delivery or live Publisher behavior.
+Bootstrap staging and activation retain the separate procedure below.
 
 The committed trust pins these verified ruleset identities:
 
@@ -84,8 +87,8 @@ The committed trust pins these verified ruleset identities:
 
 ## Minimum genuine signing/isolation acceptance
 
-After the configuration merge passes CI and the environment variable matches the
-committed trust file, the next test is **one manual dispatch** of
+S2's genuine signing acceptance is complete in the reviewed run above. For a
+future signer implementation, the minimum acceptance test is **one manual dispatch** of
 `catalogue-publish.yml`, branch **main**, **operation bootstrap**, and
 **acceptance_only true**. Record actual C and require C != S.
 This is the default safe mode. The Publisher job must be skipped entirely. Its
@@ -95,7 +98,7 @@ public preflight evidence. No production acceptance flag is needed for this mode
 Only attempt one is permitted; do not use **Re-run jobs**. This task does not
 perform the dispatch.
 
-Before accepting the implementation, independently review:
+Before accepting a future implementation, independently review:
 
 - Exact executed S, checked-out S and caller C; no caller code or downloads in
   the Verifier job, no inherited secrets, and only the issuer step receives its key.
@@ -114,8 +117,9 @@ Before accepting the implementation, independently review:
 Preserve public evidence before retention expires. Wrong/missing claims, failed
 signing, unexpected isolation, unavailable complete configuration or an unexpected
 Publisher job blocks acceptance. Do not broaden permissions or bypass checks to pass.
-After review, separately approve identical real trust with `live_signer_accepted:
-true` in both locations. This task performs none of these owner actions.
+S2's reviewed acceptance is recorded in the committed trust file. The owner will
+update the environment copy after merge. This task performs no environment update
+or workflow dispatch.
 
 ## Bootstrap in two publication dispatches
 

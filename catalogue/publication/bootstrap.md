@@ -31,11 +31,12 @@ bootstrap; the six-field catalogue and complete embedded Manifest stay unchanged
 ## Configuration checklist and authority
 
 The checked-in policy currently has `enabled: true`, `bootstrap_operation: stage`,
-and null `bootstrap.sequence` / `bootstrap.pointer_sha256`. V2 verifier trust is
-configured for frozen S but remains unaccepted, so publication is blocked despite
-stage-enabled policy. Copy the committed trust JSON into the verification
-environment variable and follow the [acceptance-only checklist](README.md) first.
-Trust activation and actual pointer approval require separate reviewed owner action. No real target release ID, asset ID, pointer
+and null `bootstrap.sequence` / `bootstrap.pointer_sha256`. V2 verifier trust now
+accepts frozen S2 after reviewed genuine run **39878342565**, which skipped Publisher.
+After merge, the owner will separately copy the committed trust JSON into the
+verification environment variable; see the [current operator runbook](README.md).
+Live Publisher/bootstrap validation and actual pointer approval remain separate
+owner actions. No real target release ID, asset ID, pointer
 digest, selection signature or root commit exists as a result of this task.
 
 Configured identities are maintainer **93822871**, publication environment

@@ -313,19 +313,24 @@ def test_issuer_erases_step_scoped_key_before_openssl_and_exports_no_credentials
         assert secret not in raw
 
 
-def test_checked_in_trust_cannot_enable_publication():
+def test_checked_in_trust_accepts_reviewed_signer_and_rejects_unaccepted_trust():
     trust = json.loads((ROOT / "catalogue/publication/verifier-trust.json").read_bytes())
-    assert trust == {"schema": "atlas-publication-verifier-trust/v2", "live_signer_accepted": False,
+    assert trust == {"schema": "atlas-publication-verifier-trust/v2", "live_signer_accepted": True,
         "signer_revision": "00c85f688a43fb6da44acb3fa713d938e30a6da9",
         "ruleset_ids": {"atlas-main": 25618213, "atlas-history-lock": 25618809,
             "atlas-bootstrap-lock": 25628137, "atlas-catalogue-current": 25618684,
             "atlas-publication-tags": 25618901},
         "verification_environment_id": 25016263801, "max_observation_age_seconds": 900}
     auth.check_trust(trust, acceptance_only=True)
+    auth.check_trust(trust)
+    assert auth.AuthorizationVerifier(trust, fixture()[4]).trust == trust
+    unaccepted = deepcopy(trust)
+    unaccepted["live_signer_accepted"] = False
+    auth.check_trust(unaccepted, acceptance_only=True)
     with pytest.raises(ValueError, match="live_acceptance"):
-        auth.check_trust(trust)
+        auth.check_trust(unaccepted)
     with pytest.raises(ValueError, match="live_acceptance"):
-        auth.AuthorizationVerifier(trust, fixture()[4])
+        auth.AuthorizationVerifier(unaccepted, fixture()[4])
     incomplete = deepcopy(trust)
     incomplete["signer_revision"] = None
     with pytest.raises(ValueError):
