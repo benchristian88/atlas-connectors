@@ -343,24 +343,24 @@ def test_issuer_erases_step_scoped_key_before_openssl_and_exports_no_credentials
         assert secret not in raw
 
 
-def test_checked_in_s3_trust_is_accepted_and_rejects_unaccepted_trust():
+def test_checked_in_s4_trust_permits_acceptance_only_and_blocks_publication():
     trust = json.loads((ROOT / "catalogue/publication/verifier-trust.json").read_bytes())
-    assert trust == {"schema": "atlas-publication-verifier-trust/v2", "live_signer_accepted": True,
-        "signer_revision": "5c66a50f61d013204eada0234c3389323b4a3f71",
+    assert trust == {"schema": "atlas-publication-verifier-trust/v2", "live_signer_accepted": False,
+        "signer_revision": "2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285",
         "ruleset_ids": {"atlas-main": 25618213, "atlas-history-lock": 25618809,
             "atlas-bootstrap-lock": 25628137, "atlas-catalogue-current": 25618684,
             "atlas-publication-tags": 25618901},
         "verification_environment_id": 25016263801, "max_observation_age_seconds": 900}
     auth.check_trust(trust, acceptance_only=True)
-    auth.check_trust(trust)
-    assert auth.AuthorizationVerifier(trust, fixture()[4]).trust == trust
-    unaccepted = deepcopy(trust)
-    unaccepted["live_signer_accepted"] = False
-    auth.check_trust(unaccepted, acceptance_only=True)
     with pytest.raises(ValueError, match="live_acceptance"):
-        auth.check_trust(unaccepted)
+        auth.check_trust(trust)
     with pytest.raises(ValueError, match="live_acceptance"):
-        auth.AuthorizationVerifier(unaccepted, fixture()[4])
+        auth.AuthorizationVerifier(trust, fixture()[4])
+    # A synthetic future approval is not evidence of genuine S4 acceptance.
+    accepted = deepcopy(trust)
+    accepted["live_signer_accepted"] = True
+    auth.check_trust(accepted)
+    assert auth.AuthorizationVerifier(accepted, fixture()[4]).trust == accepted
     incomplete = deepcopy(trust)
     incomplete["signer_revision"] = None
     with pytest.raises(ValueError):
