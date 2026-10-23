@@ -186,8 +186,9 @@ Remaining operator actions:
 3. Complete independent Atlas consumer verification, explicit consumer root approval,
    implementation and genuine acceptance using the [consumer handoff](consumer-handoff.md).
    Producer activation grants no Atlas trust or package eligibility.
-4. Retain the GET-only diagnostic workflow. Its removal requires a separate
-   reviewed cleanup PR.
+4. Preserve the retired GET-only diagnostic's unchanged
+   [historical fixture](../../tests/fixtures/historical_workflows/diagnose-catalogue-publisher.yml)
+   and regression coverage. It is no longer an active Actions entry point.
 
 Keep Contents Write, Actions/Administration/Metadata Read and Workflows **No access**
 as the Publisher baseline. Token revocation alone is not a permissions rollback.

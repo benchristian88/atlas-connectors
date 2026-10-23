@@ -1,5 +1,12 @@
 # Pinned reusable-workflow signer experiment (C != S)
 
+Status: **Retired historical experiment.** Both workflows are preserved unchanged
+as [historical test fixtures](../tests/fixtures/historical_workflows/README.md),
+outside the active GitHub Actions directory. The descriptions, dispatch procedure
+and acceptance gates below record the experiment at the time; they are not current
+operator instructions. Use the [production runbook](../catalogue/publication/README.md)
+for current activation status and publication operations.
+
 This experiment gathers signing evidence and cannot publish a catalogue. Local
 tests do not establish genuine C != S signer acceptance. A real GitHub-hosted run,
 after these changes reach protected `main`, is required. The production
@@ -29,13 +36,13 @@ prove the separate revision bindings below.
 ## Architecture and boundaries
 
 The manual caller is
-[verifier-signer-experiment.yml](../.github/workflows/verifier-signer-experiment.yml).
+[verifier-signer-experiment.yml](../tests/fixtures/historical_workflows/verifier-signer-experiment.yml).
 It has no inputs, runs only in `benchristian88/atlas-connectors` with the pinned
 numeric repository/owner identities, and requires `refs/heads/main`,
 `workflow_dispatch`, the exact caller workflow identity, and attempt one.
 
 Its `sign` job calls
-[verifier-signer-probe.yml](../.github/workflows/verifier-signer-probe.yml) using
+[verifier-signer-probe.yml](../tests/fixtures/historical_workflows/verifier-signer-probe.yml) using
 the literal immutable reference:
 
 ```yaml
@@ -102,7 +109,7 @@ listing. Redirects and incomplete/paginated results fail closed. Only allowliste
 `referenced_workflows` fields and named step timings are retained; raw responses
 and tokens are never exported. No App transport or credentials are involved.
 
-## Run after merge
+## Historical run procedure after merge
 
 1. Review and merge these changes into protected `main`, preserving literal S in
    both the caller and inspector. The probe at S already exists and must remain
