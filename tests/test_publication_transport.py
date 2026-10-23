@@ -10,6 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
 from publication_github import Github
+import publication_github
 from publication_contract import PublicationError, canonical_json, digest
 
 
@@ -258,3 +259,203 @@ def test_verifier_distribution_redirect_is_github_only(destination):
     handler=DistributionRedirect()
     with pytest.raises(PublicationError):
         handler.redirect_request(urllib.request.Request('https://github.com/x'),None,302,'',{},destination)
+
+
+REQUEST_ID = 'F076:1D8066:29BC837:2C58523:666EAA62'
+
+
+def diagnostic(capsys):
+    captured = capsys.readouterr()
+    assert captured.out == ''
+    assert all(value not in captured.err for value in (
+        'do-not-log', 'synthetic-not-a-credential', 'Authorization', 'Bearer',
+        'https://', 'Location', 'Set-Cookie', 'private-key', '?', 'sig='))
+    return captured.err
+
+
+@pytest.mark.parametrize('status', [401, 403, 404, 500])
+@pytest.mark.parametrize('method,path,label', [
+    ('GET', '/releases', 'release_list'),
+    ('POST', '/releases', 'release_create'),
+    ('PATCH', '/releases/23', 'release_update'),
+])
+def test_terminal_http_failure_has_one_fixed_record_and_same_error_code(capsys, monkeypatch, status, method, path, label):
+    monkeypatch.setattr(publication_github.time, 'sleep', lambda _: None)
+    count = 3 if method == 'GET' and status == 500 else 1
+    api = client(*(failure(status, **{'X-GitHub-Request-Id': REQUEST_ID,
+        'Authorization': 'Bearer do-not-log', 'Set-Cookie': 'do-not-log',
+        'Location': 'https://release-assets.githubusercontent.com/private?sig=do-not-log'}) for _ in range(count)))
+    with pytest.raises(PublicationError) as error:
+        api.request(method, path, payload={'private-key': 'do-not-log'} if method != 'GET' else None)
+    assert str(error.value) == 'github_request_failed'
+    assert len(api.opener.calls) == count
+    assert diagnostic(capsys) == f'github_http_failure method={method} route={label} status={status} request_id={REQUEST_ID}\n'
+
+
+@pytest.mark.parametrize('method,status', [('GET', 200), ('POST', 201), ('PATCH', 200)])
+def test_successful_requests_have_no_failure_record(capsys, method, status):
+    api = client(Response(status=status))
+    assert api.request(method, '/releases', payload={} if method != 'GET' else None) == b'{}'
+    assert diagnostic(capsys) == ''
+
+
+@pytest.mark.parametrize('path', ['/git/ref/heads/catalogue-current', '/git/ref/tags/catalogue-bootstrap-root',
+                                  '/releases/tags/not-present'])
+def test_expected_missing_404_has_no_failure_record(capsys, path):
+    api = client(failure(404, **{'X-GitHub-Request-Id': REQUEST_ID}))
+    assert api.request('GET', path, missing=True) is None
+    assert len(api.opener.calls) == 1 and diagnostic(capsys) == ''
+
+
+@pytest.mark.parametrize('status,headers', [(500, {}), (502, {}), (503, {}), (504, {}),
+    (429, {'Retry-After': '1'}), (403, {'X-RateLimit-Remaining': '0', 'Retry-After': '2'})])
+def test_recovered_read_retries_emit_no_terminal_record(capsys, monkeypatch, status, headers):
+    sleeps = []
+    monkeypatch.setattr(publication_github.time, 'sleep', sleeps.append)
+    api = client(failure(status, **headers), failure(status, **headers), Response())
+    assert api.request('GET', '/releases') == b'{}'
+    assert len(api.opener.calls) == 3 and sleeps == [int(headers.get('Retry-After', '1'))] * 2
+    assert diagnostic(capsys) == ''
+
+
+def test_exhausted_read_retries_report_only_the_last_response(capsys, monkeypatch):
+    monkeypatch.setattr(publication_github.time, 'sleep', lambda _: None)
+    api = client(failure(500, **{'X-GitHub-Request-Id': 'AA:BB'}), failure(502),
+                 failure(503, **{'X-GitHub-Request-Id': REQUEST_ID}))
+    with pytest.raises(PublicationError, match='^github_request_failed$'):
+        api.request('GET', '/releases')
+    assert len(api.opener.calls) == 3
+    assert diagnostic(capsys) == f'github_http_failure method=GET route=release_list status=503 request_id={REQUEST_ID}\n'
+
+
+@pytest.mark.parametrize('status,headers,method,code,count', [
+    (409, {}, 'POST', 'github_conflict_reread_required', 1),
+    (422, {}, 'PATCH', 'github_conflict_reread_required', 1),
+    (429, {}, 'POST', 'github_rate_limited', 1),
+    (429, {}, 'GET', 'github_rate_limited', 3),
+    (403, {'X-RateLimit-Remaining': '0'}, 'PATCH', 'github_rate_limited', 1),
+    (429, {'Retry-After': '999'}, 'GET', 'github_rate_limited', 1),
+    (500, {'Retry-After': '99'}, 'GET', 'github_unavailable', 1),
+    (503, {}, 'POST', 'github_request_failed', 1),
+    (503, {}, 'PATCH', 'github_request_failed', 1),
+])
+def test_existing_terminal_categories_and_no_ambiguous_write_retry(capsys, monkeypatch, status, headers, method, code, count):
+    monkeypatch.setattr(publication_github.time, 'sleep', lambda _: None)
+    api = client(*(failure(status, **headers) for _ in range(count)), Response())
+    with pytest.raises(PublicationError) as error:
+        api.request(method, '/releases', payload={} if method != 'GET' else None)
+    assert str(error.value) == code and len(api.opener.calls) == count
+    assert diagnostic(capsys).splitlines() == [
+        f'github_http_failure method={method} route={"other" if method == "PATCH" else "release_list" if method == "GET" else "release_create"} status={status}']
+
+
+@pytest.mark.parametrize('path,label', [
+    ('/do-not-log?secret=do-not-log', 'other'),
+    ('/releases/do-not-log?private-key=do-not-log', 'other'),
+    ('/unknown/%0A%3A%3Aerror%3A%3Ado-not-log?secret=do-not-log', 'other'),
+    ('/releases?unknown=sensitive&sig=do-not-log', 'release_list'),
+])
+def test_unknown_paths_and_queries_are_never_echoed(capsys, path, label):
+    api = client(failure(403))
+    with pytest.raises(PublicationError, match='^github_request_failed$'):
+        api.request('GET', path)
+    assert diagnostic(capsys) == f'github_http_failure method=GET route={label} status=403\n'
+
+
+@pytest.mark.parametrize('path', ['https://do-not-log.example/?token=do-not-log', '//do-not-log.example',
+                                 '/x\n::error::do-not-log', '/x\\do-not-log', '/%2e%2e/do-not-log'])
+def test_rejected_paths_remain_silent_and_do_not_make_requests(capsys, path):
+    api = client()
+    with pytest.raises(PublicationError, match='^invalid_api_path$'):
+        api.request('GET', path)
+    assert not api.opener.calls and diagnostic(capsys) == ''
+
+
+@pytest.mark.parametrize('identity', [None, '', 'A' * 129, 'A' * 33 + ':B', '::',
+    'AA:BB\n::error::do-not-log', 'AA:BB\rdo-not-log', 'AA:BB\x1b[31m',
+    'Authorization: Bearer do-not-log', 'https://do-not-log.example', 'ＡＡ:BB', 'AA：BB'])
+def test_invalid_request_ids_are_omitted(capsys, identity):
+    api = client(failure(403, **{'X-GitHub-Request-Id': identity}))
+    with pytest.raises(PublicationError, match='^github_request_failed$'):
+        api.request('POST', '/releases', payload={})
+    assert diagnostic(capsys) == 'github_http_failure method=POST route=release_create status=403\n'
+
+
+@pytest.mark.parametrize('identity', [REQUEST_ID, 'aa:12:bb:34', ':'.join(['A' * 32] * 3 + ['B' * 29])])
+def test_valid_bounded_request_ids_are_retained(capsys, identity):
+    assert len(identity) <= 128
+    api = client(failure(403, **{'X-GitHub-Request-Id': identity}))
+    with pytest.raises(PublicationError):
+        api.request('POST', '/releases', payload={})
+    assert diagnostic(capsys) == f'github_http_failure method=POST route=release_create status=403 request_id={identity}\n'
+
+
+def test_upload_failure_has_fixed_host_label_and_never_echoes_asset_name(capsys):
+    api = client(failure(403))
+    with pytest.raises(PublicationError, match='^github_request_failed$'):
+        api.request('POST', '/releases/23/assets?name=do-not-log.json', binary=b'do-not-log')
+    assert api.opener.calls[0].full_url.startswith('https://uploads.github.com/')
+    assert diagnostic(capsys) == 'github_http_failure method=POST route=asset_upload status=403\n'
+
+
+@pytest.mark.parametrize('redirected', [False, True])
+def test_asset_failure_distinguishes_api_and_distribution_hosts_without_urls(capsys, redirected):
+    responses = [failure(302, Location='https://release-assets.githubusercontent.com/private?sig=do-not-log')] if redirected else []
+    api = client(*responses, failure(403, **{'X-GitHub-Request-Id': REQUEST_ID}))
+    with pytest.raises(PublicationError, match='^github_request_failed$'):
+        api.request('GET', '/releases/assets/23', asset=True)
+    assert len(api.opener.calls) == (2 if redirected else 1)
+    assert api.opener.calls[-1].get_header('Authorization') == (None if redirected else 'Bearer synthetic-not-a-credential')
+    label = 'asset_download_distribution' if redirected else 'asset_download_api'
+    assert diagnostic(capsys) == f'github_http_failure method=GET route={label} status=403 request_id={REQUEST_ID}\n'
+
+
+def test_successful_asset_redirect_and_download_emit_no_failure_record(capsys):
+    api = client(failure(302, Location='https://release-assets.githubusercontent.com/private?sig=do-not-log'), Response(b'bytes'))
+    assert api.request('GET', '/releases/assets/23', asset=True) == b'bytes'
+    assert diagnostic(capsys) == ''
+
+
+def test_rejected_asset_redirect_logs_only_original_api_route_and_status(capsys):
+    api = client(failure(302, Location='https://do-not-log.example/private?sig=do-not-log'))
+    with pytest.raises(PublicationError, match='^github_redirect$'):
+        api.request('GET', '/releases/assets/23', asset=True)
+    assert len(api.opener.calls) == 1
+    assert diagnostic(capsys) == 'github_http_failure method=GET route=asset_download_api status=302\n'
+
+
+@pytest.mark.parametrize('error', [urllib.error.URLError('do-not-log'), TimeoutError('do-not-log'), OSError('do-not-log')])
+def test_transport_failures_keep_their_category_without_inventing_http_status(capsys, error):
+    api = client(error)
+    with pytest.raises(PublicationError, match='^github_transport_failure$'):
+        api.request('POST', '/releases', payload={})
+    assert len(api.opener.calls) == 1 and diagnostic(capsys) == ''
+
+
+def test_transient_http_then_transport_failure_does_not_log_an_obsolete_http_status(capsys, monkeypatch):
+    monkeypatch.setattr(publication_github.time, 'sleep', lambda _: None)
+    api = client(failure(500), urllib.error.URLError('do-not-log'))
+    with pytest.raises(PublicationError, match='^github_transport_failure$'):
+        api.request('GET', '/releases')
+    assert len(api.opener.calls) == 2 and diagnostic(capsys) == ''
+
+
+def test_stderr_failure_cannot_replace_the_original_http_error(capsys, monkeypatch):
+    class Unwritable:
+        def write(self, value):
+            raise OSError('do-not-log')
+    api = client(failure(403))
+    with monkeypatch.context() as context:
+        context.setattr(publication_github.sys, 'stderr', Unwritable())
+        with pytest.raises(PublicationError, match='^github_request_failed$'):
+            api.request('POST', '/releases', payload={})
+    assert len(api.opener.calls) == 1 and diagnostic(capsys) == ''
+
+
+@pytest.mark.parametrize('changes', [{'status': '403 do-not-log'}, {'status': True}, {'status': 999},
+    {'method': 'POST\ndo-not-log'}, {'scope': 'https://do-not-log.example'}, {'path': None}])
+def test_unsafe_diagnostic_metadata_is_suppressed(capsys, changes):
+    arguments = dict(method='POST', path='/releases', scope='repository', status=403, headers={})
+    arguments.update(changes)
+    publication_github._http_failure(**arguments)
+    assert diagnostic(capsys) == ''

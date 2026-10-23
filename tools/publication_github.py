@@ -2,6 +2,7 @@
 """Bounded GitHub-only transport. Writes are explicit; ambiguous writes never retry."""
 import base64
 import re
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -11,6 +12,67 @@ from atlas_connector_sdk.contracts import strict_json
 from publication_contract import (API, MAX_BUNDLE_BYTES, REPOSITORY, REPOSITORY_ID,
                                   PublicationError, canonical_json, digest, hexadecimal,
                                   parse_pointer, positive_integer, require)
+
+
+# Labels are constants, never provider URLs, caller paths, IDs or query values.
+HTTP_FAILURE_ROUTES = (
+    ("repository", "GET", r"/", "repository_get"),
+    ("repository", "GET", r"/branches/main", "main_branch_get"),
+    ("repository", "GET", r"/environments/[A-Za-z0-9_-]+", "environment_get"),
+    ("repository", "GET", r"/environments/[A-Za-z0-9_-]+/deployment-branch-policies", "environment_branch_policies"),
+    ("repository", "GET", r"/actions/runs/[1-9][0-9]*", "workflow_run_get"),
+    ("repository", "GET", r"/actions/runs/[1-9][0-9]*/attempts/1", "workflow_attempt_get"),
+    ("repository", "GET", r"/actions/workflows/[1-9][0-9]*", "workflow_get"),
+    ("repository", "GET", r"/commits/[a-f0-9]{40}/check-runs", "source_ci_get"),
+    ("repository", "GET", r"/immutable-releases", "release_immutability_get"),
+    ("repository", "GET", r"/rulesets", "ruleset_list"),
+    ("repository", "GET", r"/rulesets/[1-9][0-9]*", "ruleset_get"),
+    ("repository", "GET", r"/releases", "release_list"),
+    ("repository", "POST", r"/releases", "release_create"),
+    ("repository", "GET", r"/releases/tags/[A-Za-z0-9._%+-]+", "release_by_tag_get"),
+    ("repository", "GET", r"/releases/[1-9][0-9]*", "release_get"),
+    ("repository", "PATCH", r"/releases/[1-9][0-9]*", "release_update"),
+    ("repository", "GET", r"/releases/[1-9][0-9]*/assets", "release_asset_list"),
+    ("repository", "GET", r"/releases/assets/[1-9][0-9]*", "asset_download_api"),
+    ("upload", "POST", r"/releases/[1-9][0-9]*/assets", "asset_upload"),
+    ("asset", "GET", r"/releases/assets/[1-9][0-9]*", "asset_download_distribution"),
+    ("repository", "GET", r"/git/ref/(?:heads|tags)/[A-Za-z0-9._%+-]+", "git_ref_get"),
+    ("repository", "GET", r"/git/matching-refs/tags/catalogue-", "catalogue_tag_list"),
+    ("repository", "GET", r"/git/tags/[a-f0-9]{40}", "git_tag_get"),
+    ("repository", "GET", r"/git/commits/[a-f0-9]{40}", "git_commit_get"),
+    ("repository", "GET", r"/git/trees/[a-f0-9]{40}", "git_tree_get"),
+    ("repository", "POST", r"/git/trees", "git_tree_create"),
+    ("repository", "POST", r"/git/commits", "git_commit_create"),
+    ("repository", "POST", r"/git/refs", "git_ref_create"),
+    ("repository", "PATCH", r"/git/refs/heads/catalogue-current", "current_ref_update"),
+    ("repository", "GET", r"/contents/[A-Za-z0-9._-]+", "contents_get"),
+    ("repository", "GET", r"/compare/[a-f0-9]{40}\.\.\.main", "source_compare"),
+    ("repository", "GET", r"/attestations/sha256:[a-f0-9]{64}", "attestation_list"),
+    ("identity", "GET", r"/users/[A-Za-z0-9-]{1,100}(?:%5Bbot%5D)?", "actor_get"),
+    ("identity", "GET", r"/apps/[a-z0-9][a-z0-9-]{0,99}", "app_get"),
+    ("identity", "GET", r"/installation/repositories", "installation_repository_list"),
+)
+
+
+def _http_failure(method, path, scope, status, headers):
+    """Best-effort terminal diagnostics must never replace the original failure."""
+    try:
+        if (type(method) is not str or method not in {"GET", "POST", "PATCH"}
+                or type(path) is not str or type(scope) is not str
+                or scope not in {"repository", "identity", "upload", "asset"}
+                or type(status) is not int or not 100 <= status <= 599):
+            return
+        route = next((label for origin, verb, pattern, label in HTTP_FAILURE_ROUTES
+                      if origin == scope and verb == method and re.fullmatch(pattern, path.partition("?")[0])), "other")
+        record = f"github_http_failure method={method} route={route} status={status}"
+        identity = headers.get("X-GitHub-Request-Id")
+        if (type(identity) is str and len(identity) <= 128
+                and re.fullmatch(r"[A-Fa-f0-9]{1,32}(?::[A-Fa-f0-9]{1,32}){1,7}", identity)):
+            record += " request_id=" + identity
+        print(record, file=sys.stderr)
+    except Exception:
+        # No raw exception, body, fallback URL or provider string is safe to log.
+        return
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -38,6 +100,7 @@ class Github:
         # GitHub's repository metadata endpoint rejects a trailing slash.
         # Preserve every non-root path and the existing validation above.
         url = API if path == "/" else API + path
+        diagnostic_scope = "repository"
         if api_global:
             # Only identity/scope observations may escape the fixed repository;
             # never use a provider-selected URL or permit global writes.
@@ -46,9 +109,11 @@ class Github:
                          or re.fullmatch(r"/apps/[a-z0-9][a-z0-9-]{0,99}", path)
                          or path == "/installation/repositories?per_page=100"), "invalid_identity_endpoint")
             url = "https://api.github.com" + path
+            diagnostic_scope = "identity"
         if binary is not None:
             require(method == "POST" and path.startswith("/releases/"), "invalid_upload")
             url = f"https://uploads.github.com/repos/{REPOSITORY}" + path
+            diagnostic_scope = "upload"
         data = binary if binary is not None else canonical_json(payload) if payload is not None else None
         headers = {"Accept": "application/octet-stream" if asset else "application/vnd.github+json",
                    "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "atlas-publication-p1", "Accept-Encoding": "identity"}
@@ -76,27 +141,36 @@ class Github:
                     require(size is None or len(raw) == int(size), "github_truncated_response")
                     return bytes(raw)
             except urllib.error.HTTPError as error:
-                if error.code == 404 and missing:
-                    return None
-                # Asset redirects only, with no bearer token on the distribution host.
-                if error.code == 302 and asset and method == "GET" and path.startswith("/releases/assets/") and url.startswith(API):
-                    destination = error.headers.get("Location", "")
-                    parsed = urllib.parse.urlsplit(destination)
-                    require(parsed.scheme == "https" and parsed.hostname == "release-assets.githubusercontent.com"
-                            and parsed.port in {None, 443} and not parsed.username and not parsed.password
-                            and not parsed.fragment and "\\" not in destination, "github_redirect")
-                    url = destination
-                    headers.pop("Authorization", None)
-                    continue
-                if error.code in {409, 422}:
-                    raise PublicationError("github_conflict_reread_required") from None
-                rate = error.code == 429 or error.code == 403 and error.headers.get("X-RateLimit-Remaining") == "0"
-                if method == "GET" and attempt < 2 and (error.code in {500, 502, 503, 504} or rate):
-                    delay = error.headers.get("Retry-After", "1")
-                    require(delay.isdigit() and int(delay) <= 2, "github_rate_limited" if rate else "github_unavailable")
-                    time.sleep(int(delay))
-                    continue
-                raise PublicationError("github_rate_limited" if rate else "github_request_failed") from None
+                terminal = True
+                try:
+                    if error.code == 404 and missing:
+                        terminal = False
+                        return None
+                    # Asset redirects only, with no bearer token on the distribution host.
+                    if error.code == 302 and asset and method == "GET" and path.startswith("/releases/assets/") and url.startswith(API):
+                        destination = error.headers.get("Location", "")
+                        parsed = urllib.parse.urlsplit(destination)
+                        require(parsed.scheme == "https" and parsed.hostname == "release-assets.githubusercontent.com"
+                                and parsed.port in {None, 443} and not parsed.username and not parsed.password
+                                and not parsed.fragment and "\\" not in destination, "github_redirect")
+                        url = destination
+                        headers.pop("Authorization", None)
+                        diagnostic_scope = "asset"
+                        terminal = False
+                        continue
+                    if error.code in {409, 422}:
+                        raise PublicationError("github_conflict_reread_required") from None
+                    rate = error.code == 429 or error.code == 403 and error.headers.get("X-RateLimit-Remaining") == "0"
+                    if method == "GET" and attempt < 2 and (error.code in {500, 502, 503, 504} or rate):
+                        delay = error.headers.get("Retry-After", "1")
+                        require(delay.isdigit() and int(delay) <= 2, "github_rate_limited" if rate else "github_unavailable")
+                        time.sleep(int(delay))
+                        terminal = False
+                        continue
+                    raise PublicationError("github_rate_limited" if rate else "github_request_failed") from None
+                finally:
+                    if terminal:
+                        _http_failure(method, path, diagnostic_scope, error.code, error.headers)
             except (urllib.error.URLError, TimeoutError, OSError):
                 raise PublicationError("github_transport_failure") from None
         raise PublicationError("github_retry_limit")
