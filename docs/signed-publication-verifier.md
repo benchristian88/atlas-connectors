@@ -1,16 +1,16 @@
 # Lean V2 signed publication preflight
 
-Status: **Reviewed implementation frozen and acceptance trust configured; production activation BLOCKED pending genuine acceptance.**
+Status: **S2 signer accepted after genuine production-profile verification; bootstrap and live Publisher acceptance remain pending.**
 [ADR 0005](decisions/0005-lean-run-preflight.md) supersedes the V1 transition-grant
 architecture. The [operator runbook](../catalogue/publication/README.md) is the active
 procedure; [V1 documentation](signed-publication-verifier-v1.md) is historical.
 
 The checked-in publication policy is unchanged: enabled, bootstrap `stage`, with
-both root approval pins unset. That does not activate V2. Verifier trust remains
-`live_signer_accepted: false`, with signer/ruleset/environment pins configured in
+both root approval pins unset. Verifier trust is now
+`live_signer_accepted: true`, with signer/ruleset/environment pins preserved in
 [verifier-trust.json](../catalogue/publication/verifier-trust.json). The operator
-must copy that exact JSON into `catalogue-verification`'s `VERIFICATION_POLICY`
-environment variable before the first acceptance-only dispatch. No live workflow,
+will copy that exact JSON into `catalogue-verification`'s `VERIFICATION_POLICY`
+environment variable separately after merge. No live workflow,
 GitHub variable/settings mutation, release or ref write was performed by this task.
 
 ## One preflight, two Apps, one maintainer
@@ -76,17 +76,16 @@ an explicit reviewed pin change, including the call, Publisher checkout and
 `00c85f688a43fb6da44acb3fa713d938e30a6da9` (S2), the reviewed Lean V2 implementation
 including the required verifier secret declaration, merged into protected main
 with passing CI. All three executable workflow pins
-and repository signer trust now identify S. The next protected-main merge of
-these configuration changes becomes C; its actual SHA is not yet known, and
-C must differ from S. The catalogue/source checkout stays `${{ github.sha }}`.
+and repository signer trust identify S. Caller/source C advances independently
+and must differ from S. The catalogue/source checkout stays `${{ github.sha }}`.
 Never derive S from current main or replace it with a moving reference.
 
 Repository trust pins verification environment **25016263801**, all five verified
-ruleset IDs and a **900-second** startup age. Its acceptance flag remains false.
-Configure the independent GitHub environment variable with JSON identical to that
-file, then follow the [single bootstrap acceptance-only dispatch](../catalogue/publication/README.md#minimum-genuine-signingisolation-acceptance).
-The Publisher job must remain skipped. No remote configuration or dispatch is
-performed by this pinning task, and production activation remains blocked.
+ruleset IDs and a **900-second** startup age. Its acceptance flag is now true.
+After merge, the owner will update the independent GitHub environment variable
+with JSON identical to that file. The reviewed genuine acceptance run skipped
+Publisher; bootstrap and live Publisher validation remain separate. No remote
+configuration or dispatch is performed by this acceptance configuration change.
 
 ## Canonical contract and verification
 
@@ -170,24 +169,22 @@ marketplace governance or proof of uninterrupted provider protections.
 The preserved genuine [same-commit probe](../tests/fixtures/verifier_signer_probe/README.md)
 still verifies with real pinned gh and rejects tampering/substitution. The owner
 reports successful genuine distinct C/S verification from the separate pinned
-experiment. That establishes the mechanism; it does not accept this production
-workflow, new schema, App isolation, environments or startup path. No new genuine
-V2 fixture or live acceptance is claimed from synthetic verified-output tests.
+experiment. Those earlier experiments establish the mechanism. Separately, the
+owner reviewed genuine production-profile [run 39878342565](https://github.com/benchristian88/atlas-connectors/actions/runs/39878342565),
+which authenticated the Verifier App, repository authority, all five rulesets,
+immutable-release protection, signed preflight and exact caller/signer identities.
+Publisher was skipped. That review accepts S2; synthetic verified-output tests
+remain local regression evidence, not proof of live acceptance.
 
 ## Controlled acceptance and staged bootstrap
 
-Follow the [operator checklist](../catalogue/publication/README.md). The minimum
-credential/signing acceptance is one fresh `bootstrap`, `acceptance_only: true`
-main dispatch at the future C once `VERIFICATION_POLICY` matches the committed
-trust JSON for frozen S. Keep both copies of trust unaccepted. Verify the exported
-preflight offline, independently check
-C/S and run/attempt/operation/policy, complete rulesets, environments and immutability,
-and confirm the Publisher job was skipped and no publication credentials or writes
-occurred. Preserve public artifacts before their one-day expiry and review the
-actual isolation/configuration, not merely a green badge.
+Follow the [operator checklist](../catalogue/publication/README.md). S2's genuine
+verifier acceptance is complete; Publisher was skipped. This acceptance does not
+establish live Publisher startup or complete bootstrap. Acceptance-only evidence
+continues to be ineligible to authorize publication.
 
-Only a separate reviewed trust change can admit publication. Then execute the
-existing P2 two-dispatch bootstrap: stage/seal original bytes and stop; independently
+After this acceptance change merges and the owner updates the environment trust,
+follow the existing P2 two-dispatch bootstrap: stage/seal original bytes and stop; independently
 approve the actual staged pointer digest through a policy PR; activate in a new
 first-attempt dispatch. Each dispatch obtains its own startup preflight. Verify
 immutable finalization, protected root marker, true current root and exact files.
