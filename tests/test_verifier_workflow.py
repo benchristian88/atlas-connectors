@@ -128,7 +128,7 @@ def test_publisher_depends_on_isolated_preflight_before_credentials_and_executes
     assert match and signer["with"] == {"request": "${{ toJSON(inputs) }}"}
     assert match[1] == "5c66a50f61d013204eada0234c3389323b4a3f71"
     trust = json.loads((ROOT / "catalogue/publication/verifier-trust.json").read_text())
-    assert trust["signer_revision"] == match[1] and trust["live_signer_accepted"] is False
+    assert trust["signer_revision"] == match[1] and trust["live_signer_accepted"] is True
     workflow_source = (ROOT / ".github/workflows/catalogue-publish.yml").read_text()
     assert workflow_source.count(match[1]) == 3
     assert "da5562eeb21d5c1cc653cfea7ae8d025d2a9174a" not in workflow_source

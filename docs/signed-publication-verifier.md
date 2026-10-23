@@ -1,13 +1,13 @@
 # Lean V2 signed publication preflight
 
-Status: **S3 pinned for genuine acceptance; signer unaccepted and live publication blocked. S2 was previously accepted.**
+Status: **S3 signer accepted after genuine verification; bootstrap staging remains uncompleted.**
 [ADR 0005](decisions/0005-lean-run-preflight.md) supersedes the V1 transition-grant
 architecture. The [operator runbook](../catalogue/publication/README.md) is the active
 procedure; [V1 documentation](signed-publication-verifier-v1.md) is historical.
 
 The checked-in publication policy is unchanged: enabled, bootstrap `stage`, with
 both root approval pins unset. Verifier trust is now
-`live_signer_accepted: false` for S3, with ruleset/environment pins preserved in
+`live_signer_accepted: true` for S3, with ruleset/environment pins preserved in
 [verifier-trust.json](../catalogue/publication/verifier-trust.json). The operator
 will copy that exact JSON into `catalogue-verification`'s `VERIFICATION_POLICY`
 environment variable separately after merge. No live workflow,
@@ -82,12 +82,12 @@ and must differ from S. The catalogue/source checkout stays `${{ github.sha }}`.
 Never derive S from current main or replace it with a moving reference.
 
 Repository trust pins verification environment **25016263801**, all five verified
-ruleset IDs and a **900-second** startup age. Its acceptance flag is false.
+ruleset IDs and a **900-second** startup age. Its acceptance flag is true.
 After merge, the owner will update the independent GitHub environment variable
-with JSON identical to that file, including the false acceptance flag, before a
-fresh acceptance-only dispatch. S2's earlier acceptance does not accept S3.
-Publisher must be skipped during this test; bootstrap and live Publisher validation
-remain separate. No remote configuration or dispatch is performed by this adoption.
+with JSON identical to that file, including the true acceptance flag. S3's genuine
+acceptance run skipped Publisher; bootstrap staging and live Publisher HTTP
+validation remain separate. No remote configuration or dispatch is performed by
+this approval.
 
 ## Canonical contract and verification
 
@@ -176,9 +176,16 @@ owner reviewed genuine production-profile [run 39878342565](https://github.com/b
 which authenticated the Verifier App, repository authority, all five rulesets,
 immutable-release protection, signed preflight and exact caller/signer identities.
 Publisher was skipped. That review accepted S2
-(`00c85f688a43fb6da44acb3fa713d938e30a6da9`), not the newly pinned S3.
+(`00c85f688a43fb6da44acb3fa713d938e30a6da9`), separately from S3's review below.
 Synthetic verified-output tests remain local regression evidence, not proof of
 live acceptance.
+
+Owner-reviewed genuine [S3 acceptance run 39887360792](https://github.com/benchristian88/atlas-connectors/actions/runs/39887360792)
+verified frozen signer `5c66a50f61d013204eada0234c3389323b4a3f71` and caller
+`2e2ddb70a1da254c0adaa857deb121aa2b0f7dfa` on attempt **1**. Preflight, Verifier App
+authentication, Sigstore attestation and offline cryptographic verification passed;
+Publisher was **skipped**. This genuine review accepts S3; it does not complete
+bootstrap staging or establish the cause of the original Publisher HTTP failure.
 
 The first live bootstrap staging [run 39880692187](https://github.com/benchristian88/atlas-connectors/actions/runs/39880692187)
 passed signed authorization, offline historical verification and Publisher token
@@ -199,15 +206,16 @@ until a separately approved S3 Publisher run actually executes them.
 ## Controlled acceptance and staged bootstrap
 
 Follow the [operator deployment sequence](../catalogue/publication/README.md#configured-pins-and-next-operator-action):
-merge this configuration after green CI; copy unaccepted S3 trust into the
-verification environment; dispatch one fresh `bootstrap`, `acceptance_only: true`
-run on protected main; and review actual S3/caller identities, authority evidence
-and isolation with Publisher skipped. Only after successful review may a separate
-protected-main change approve S3, followed by a matching environment trust update.
+merge this S3 approval after green CI, then manually update `VERIFICATION_POLICY`
+in `catalogue-verification` to match the committed accepted trust JSON. This task
+does not update that variable or dispatch any workflow.
 Acceptance-only evidence continues to be ineligible to authorize publication.
 
-Only after that separate approval and environment update may the owner consider
-another controlled live staging attempt. Then follow the existing P2 two-dispatch
+After merge and the matching environment update, a new controlled `bootstrap`,
+`acceptance_only: false` dispatch from protected main is required to observe the
+Publisher HTTP result with S3 diagnostics. It must obtain fresh signed authorization;
+do not replay the failed run or reuse its evidence. Bootstrap staging remains
+uncompleted. Follow the existing P2 two-dispatch
 bootstrap: stage/seal original bytes and stop; independently
 approve the actual staged pointer digest through a policy PR; activate in a new
 first-attempt dispatch. Each dispatch obtains its own startup preflight. Verify

@@ -1,17 +1,24 @@
 # Official catalogue publication — Lean V2 operator runbook
 
-**S3 is pinned but unaccepted; live publication is blocked.** The current policy remains stage-enabled,
+**S3 signing is accepted; bootstrap staging remains uncompleted.** The current policy remains stage-enabled,
 with no approved root digest. Verifier trust is configured for frozen reviewed
 implementation **S = S3 = `5c66a50f61d013204eada0234c3389323b4a3f71`**, with
-`live_signer_accepted: false`. S3 adds reviewed, sanitized Publisher HTTP failure
+`live_signer_accepted: true`. S3 adds reviewed, sanitized Publisher HTTP failure
 diagnostics without changing permissions or publication behavior. Caller/source
 **C** advances independently and must differ
 from S. No live operation or GitHub environment change is performed by this
-configuration adoption.
+acceptance approval.
+
+Genuine S3 acceptance succeeded in owner-reviewed [run 39887360792](https://github.com/benchristian88/atlas-connectors/actions/runs/39887360792),
+attempt **1**, with caller **C = `2e2ddb70a1da254c0adaa857deb121aa2b0f7dfa`**.
+Preflight, Verifier App authentication, Sigstore attestation and offline
+cryptographic verification passed; Publisher was **skipped**. This accepts S3's
+signer identity and isolation, not completed bootstrap staging or live Publisher
+HTTP behavior. Publication authority and App permissions are unchanged.
 
 Previously accepted **S2 = `00c85f688a43fb6da44acb3fa713d938e30a6da9`** passed
 genuine production-profile verification in [run 39878342565](https://github.com/benchristian88/atlas-connectors/actions/runs/39878342565),
-with Publisher skipped. That acceptance does not transfer to S3. The first live
+with Publisher skipped. S3's separate acceptance is recorded above. The first live
 bootstrap staging attempt, [run 39880692187](https://github.com/benchristian88/atlas-connectors/actions/runs/39880692187),
 passed signed authorization, offline historical verification and Publisher token
 creation, then failed with `github_request_failed`; no new draft was observed.
@@ -52,7 +59,7 @@ old per-transition grants and disabled-policy descriptions.
 4. **After merge, next operator action:** update the GitHub environment variable
    `VERIFICATION_POLICY` in environment **catalogue-verification** with JSON
    identical to the committed [verifier-trust.json](verifier-trust.json). Copy the
-   complete file verbatim, preserving `live_signer_accepted: false`; do not set
+   complete file verbatim, preserving `live_signer_accepted: true`; do not set
    this variable in a different environment or pass it as a workflow input.
    This task does not create or modify the GitHub variable. The configured
    verification environment ID is **25016263801**, with `can_admins_bypass: false`
@@ -76,19 +83,17 @@ put the key in an input, output, artifact, command-line argument or log.
 
 The required deployment sequence, not executed by this task, is:
 
-1. Merge this S3 configuration change into protected main after green CI,
-   establishing C != S3.
+1. Merge this S3 acceptance approval into protected main after green CI. The
+   advancing caller/source remains independent of frozen S3.
 2. Update `VERIFICATION_POLICY` in `catalogue-verification` to match the complete
-   committed trust JSON, including `live_signer_accepted: false`.
+   committed trust JSON, including `live_signer_accepted: true`.
 3. Dispatch one fresh `catalogue-publish.yml` run on protected `main`, selecting
-   `bootstrap` and `acceptance_only: true`. Require `publish` to be skipped.
-4. Review the actual S3 Sigstore signer identity, exact caller C, authority evidence
-   and successful credential/job isolation using the checklist below.
-5. Only after successful genuine review, separately approve S3 through protected
-   main by changing `live_signer_accepted` to true. Local tests are not acceptance.
-6. Update the GitHub environment variable to match that reviewed approval.
-7. Only then consider another controlled live bootstrap staging attempt. Preserve
-   the existing stage/seal, separate pointer approval and activation procedure.
+   `bootstrap` and `acceptance_only: false`, for a controlled staging attempt.
+   This new run must obtain its own signed authorization; never rerun or reuse the
+   earlier attempt. Inspect the actual result and any sanitized HTTP failure
+   record to identify the Publisher failure. Preserve the existing stage/seal,
+   separate pointer approval and activation procedure. No dispatch is performed
+   by this approval task.
 
 The committed trust pins these verified ruleset identities:
 
@@ -102,8 +107,8 @@ The committed trust pins these verified ruleset identities:
 
 ## Minimum genuine signing/isolation acceptance
 
-S2's previous acceptance does not accept S3. After the configuration merge and
-matching unaccepted environment trust, the next test is **one manual dispatch** of
+S3's genuine signing acceptance is complete in run 39887360792 above, with
+Publisher skipped. For a future implementation, the minimum test is **one manual dispatch** of
 `catalogue-publish.yml`, branch **main**, **operation bootstrap**, and
 **acceptance_only true**. Record actual C and require C != S.
 This is the default safe mode. The Publisher job must be skipped entirely. Its
@@ -113,7 +118,7 @@ public preflight evidence. No production acceptance flag is needed for this mode
 Only attempt one is permitted; do not use **Re-run jobs**. This task does not
 perform the dispatch.
 
-Before accepting S3, independently review:
+Before accepting a future implementation, independently review:
 
 - Exact executed S, checked-out S and caller C; no caller code or downloads in
   the Verifier job, no inherited secrets, and only the issuer step receives its key.
@@ -132,9 +137,10 @@ Before accepting S3, independently review:
 Preserve public evidence before retention expires. Wrong/missing claims, failed
 signing, unexpected isolation, unavailable complete configuration or an unexpected
 Publisher job blocks acceptance. Do not broaden permissions or bypass checks to pass.
-Keep both copies of S3 trust unaccepted until this review succeeds. Acceptance
-then requires a separate protected-main approval and matching environment update
-as listed above. This task performs neither action nor any workflow dispatch.
+S3's reviewed acceptance is recorded in the committed trust file; the owner must
+update its environment counterpart after this approval merges. Future frozen
+implementations require their own genuine review. This task performs no merge,
+environment update or workflow dispatch.
 
 ## Bootstrap in two publication dispatches
 

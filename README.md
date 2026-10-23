@@ -126,10 +126,12 @@ adds one isolated signed security preflight before Publisher credentials, preser
 P1 immutable snapshots, separately signed selection, single-maintainer authority
 and recovery. Executable code is pinned to reviewed Lean V2 commit
 `5c66a50f61d013204eada0234c3389323b4a3f71` (S3), adding sanitized HTTP failure
-diagnostics. S2 was previously accepted in run **39878342565**, with Publisher
-skipped; S3 is pinned with `live_signer_accepted: false` and live publication blocked.
-Follow the operator runbook for matching environment trust, genuine S3 acceptance
-and separate approval before considering another controlled staging attempt.
+diagnostics without changing publication authority or permissions. S3 was accepted
+in genuine run **39887360792**, with Publisher skipped, and committed trust now has
+`live_signer_accepted: true`. After this approval merges, the owner must update
+the environment trust, then use a new controlled staging dispatch to investigate
+the original HTTP failure. Bootstrap staging remains uncompleted; follow the
+operator runbook.
 Production bootstrap and Atlas consumer decisions remain pending. The active policy
 is stage-enabled with root pins unset; [P2 legacy bootstrap](catalogue/publication/bootstrap.md)
 still requires its separate approval sequence. No live migration is complete. Existing catalogue-v1 assets
