@@ -1,15 +1,22 @@
 # Official catalogue publication — Lean V2 operator runbook
 
-**S4 is pinned for signing acceptance, but remains unaccepted; live publication is blocked.**
+**S4 signing is accepted; live publication requires matching independent environment trust.**
 Bootstrap staging and activation remain incomplete. The current policy remains
 stage-enabled, with no approved root digest. Reviewed implementation
 **S = S4 = `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`** was merged through
 [PR #30](https://github.com/benchristian88/atlas-connectors/pull/30) and is frozen.
-Committed trust has `live_signer_accepted: false`. S4 adds temporary bootstrap-only
+Committed trust has `live_signer_accepted: true`. S4 adds temporary bootstrap-only
 Workflows Write support and preserves S3's sanitized HTTP diagnostics.
-Caller/source **C** advances independently and must differ from S. Genuine S4
-signing acceptance has not completed; S3 acceptance does not accept S4. This
-adoption performs no live operation or GitHub environment change.
+Caller/source **C** advances independently and must differ from S. This formal
+approval performs no live operation or GitHub environment change.
+
+Owner-reviewed genuine [S4 acceptance run 39893809663](https://github.com/benchristian88/atlas-connectors/actions/runs/39893809663)
+passed on attempt **1**, with frozen S4 above and caller
+**C = `605553a556632ace6f21216bf6cd22fdc17ed528`**. Preflight, Verifier App
+authentication, repository ruleset verification, Sigstore attestation and offline
+cryptographic verification passed; Publisher was **skipped**. The Publisher App
+still has baseline permissions and has not been granted Workflows Write. This
+accepts S4's signer, not bootstrap staging/activation or resolution of the HTTP 403.
 
 Previously accepted **S3 = `5c66a50f61d013204eada0234c3389323b4a3f71`** succeeded
 in owner-reviewed [run 39887360792](https://github.com/benchristian88/atlas-connectors/actions/runs/39887360792),
@@ -46,8 +53,8 @@ old per-transition grants and disabled-policy descriptions.
 
 1. The reviewed V2 implementation is frozen at S above. The reusable workflow
    call, Publisher executable checkout and `ATLAS_IMPLEMENTATION_REVISION` all
-   pin that exact full S4 SHA. Merge this adoption through protected main and green
-   CI to establish a separate advancing caller C. Keep the source checkout
+   pin that exact full S4 SHA and are unchanged by this approval. Caller C
+   advances independently. Keep the source checkout
    at `${{ github.sha }}`; it advances independently and is read only as
    catalogue/policy/trust data. Never replace executable S with a moving branch,
    tag, local reusable call or latest-main lookup.
@@ -56,8 +63,9 @@ old per-transition grants and disabled-policy descriptions.
    Verifier App/installation **5424851 / 174088125**. Preserve the existing App
    baseline permissions: Publisher Contents Write, Actions/Administration/Metadata Read;
    Verifier Administration Write, Contents/Actions/Checks/Metadata Read. Both
-   installations must be selected for exactly this repository. Do not enable
-   Workflows Write until genuine S4 acceptance and subsequent separate approval.
+   installations must be selected for exactly this repository. The Publisher is
+   still at baseline. Grant Workflows Write only after this approval merges and
+   the independent environment trust is synchronized.
 3. Check protected main and all five active repository rulesets, complete bypass
    arrays, exact environment IDs/ref restrictions, no required reviewers/admin
    bypass, required successful `validate` CI, and release immutability. Keep the
@@ -65,11 +73,10 @@ old per-transition grants and disabled-policy descriptions.
    and publication-tag rules; main, history-lock and bootstrap-lock have no bypass.
    See the [configuration tables](publication-v1-reference.md#operator-configuration--do-not-execute-publication-yet)
    and [bootstrap fence](bootstrap.md#configuration-checklist-and-authority).
-4. **After this adoption merges, next operator action:** update the GitHub environment variable
+4. **After this approval merges, next operator action:** update the GitHub environment variable
    `VERIFICATION_POLICY` in environment **catalogue-verification** with JSON
    identical to the committed [verifier-trust.json](verifier-trust.json). Copy the
-   complete file verbatim, preserving `live_signer_accepted: false`. A later true
-   flag requires genuine review and separate approval; do not set
+   complete file verbatim, preserving `live_signer_accepted: true`; do not set
    this variable in a different environment or pass it as a workflow input.
    This task does not create or modify the GitHub variable. The configured
    verification environment ID is **25016263801**, with `can_admins_bypass: false`
@@ -125,24 +132,26 @@ Local tests do not prove the installation's real approval or a successful releas
 
 ## S4 deployment and mandatory rollback — owner actions only
 
-The implementation merge and freezing below are complete. This task prepares only
-the separate adoption; remaining deployment actions are not performed here.
+The implementation merge, adoption and genuine baseline-permission acceptance
+are complete. This task prepares only formal signer approval; remaining deployment
+actions are not performed here.
 
 1. **Complete:** the reviewed implementation merged through PR #30.
 2. **Complete:** its frozen implementation **S4** is
    `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`.
-3. Review and merge this separate adoption of all three executable workflow pins
-   and trust `signer_revision` at S4, with `live_signer_accepted: false`. Caller C
+3. **Complete:** separately adopt all three executable workflow pins and trust
+   `signer_revision` at S4, initially unaccepted. Caller C
    advances independently and must differ from S4.
-4. Update `catalogue-verification`'s `VERIFICATION_POLICY` to that exact unaccepted
-   trust JSON, preserving all other trust values.
-5. With the Publisher App still at baseline, perform one fresh protected-main
-   `catalogue-publish.yml`, `operation: bootstrap`, `acceptance_only: true`
-   dispatch. Review genuine S4 signing/isolation evidence; require Publisher skipped.
-6. Separately approve S4 through protected main, then synchronize
-   `VERIFICATION_POLICY` to the complete accepted trust JSON.
-7. Add **Workflows: Read and write** to Publisher App **5422372** and approve the
-   permission change on existing installation **174027755**, selected for this
+4. **Complete for acceptance:** synchronize the independent environment trust to
+   the initial S4 configuration. It must next receive the accepted JSON in step 6.
+5. **Complete:** genuine baseline-permission signing/isolation acceptance passed
+   in run **39893809663**, attempt 1, with Publisher skipped.
+6. Review and merge this formal S4 approval through protected main after green CI,
+   then update `catalogue-verification`'s `VERIFICATION_POLICY` to the complete
+   committed accepted trust JSON.
+7. **Only after step 6**, add **Workflows: Read and write** to Publisher App
+   **5422372** and approve the permission change on existing installation
+   **174027755**, selected for this
    repository only. Do not change the Verifier App, keys or bypass permissions.
 8. Independently verify exact App/installation identity, single-repository scope
    and the complete elevated permission profile before attempting a write.
@@ -182,9 +191,10 @@ The committed trust pins these verified ruleset identities:
 
 ## Minimum genuine signing/isolation acceptance
 
-S3's acceptance above remains historical evidence. S4 has not completed genuine
-signing acceptance. After this adoption merges and the environment trust matches,
-keep the Publisher App at its exact baseline permissions and perform **one manual dispatch** of
+S4's genuine signing acceptance is complete in run 39893809663 above, with
+Publisher skipped and baseline Publisher App permissions. For a future frozen
+implementation, keep the Publisher App at its exact baseline permissions and
+perform **one manual dispatch** of
 `catalogue-publish.yml`, branch **main**, **operation bootstrap**, and
 **acceptance_only true**. Record actual C and require C != S.
 This is the default safe mode. The Publisher job must be skipped entirely. Its
@@ -194,7 +204,7 @@ public preflight evidence. No production acceptance flag is needed for this mode
 Only attempt one is permitted; do not use **Re-run jobs**. This task does not
 perform the dispatch.
 
-Before accepting S4, independently review:
+Before accepting a future implementation, independently review:
 
 - Exact executed S, checked-out S and caller C; no caller code or downloads in
   the Verifier job, no inherited secrets, and only the issuer step receives its key.
@@ -213,15 +223,16 @@ Before accepting S4, independently review:
 Preserve public evidence before retention expires. Wrong/missing claims, failed
 signing, unexpected isolation, unavailable complete configuration or an unexpected
 Publisher job blocks acceptance. Do not broaden permissions or bypass checks to pass.
-Keep both S4 trust copies unaccepted until its genuine baseline-permission review
-succeeds and separate protected-main approval is merged. Then synchronize the
-environment trust. Do not enable Workflows Write before that separate approval.
+S4's genuine review is recorded in the committed accepted trust. After this
+approval merges, synchronize the independent environment trust before granting
+Workflows Write. Future frozen implementations need their own genuine review
+and separate approval; local tests are not live acceptance evidence.
 This task performs no merge, environment update or workflow dispatch.
 
 ## Bootstrap in two publication dispatches
 
-The next staging attempt remains gated on S4 adoption, genuine acceptance,
-matching approved trust and the exact elevated bootstrap permission profile above.
+The next staging attempt remains gated on this approval merging, matching
+independent accepted trust and the exact elevated bootstrap permission profile above.
 
 1. **Stage:** with current policy `bootstrap_operation: stage` and both root pins
    null, dispatch **bootstrap, acceptance_only false** from reviewed main. A fresh

@@ -1,18 +1,19 @@
 # Lean V2 signed publication preflight
 
-Status: **S4 frozen and pinned for signing acceptance; signer unaccepted; bootstrap staging and activation incomplete.**
+Status: **S4 signer accepted; independent environment trust must be synchronized; bootstrap staging and activation incomplete.**
 [ADR 0005](decisions/0005-lean-run-preflight.md) supersedes the V1 transition-grant
 architecture. The [operator runbook](../catalogue/publication/README.md) is the active
 procedure; [V1 documentation](signed-publication-verifier-v1.md) is historical.
 
 The checked-in publication policy is unchanged: enabled, bootstrap `stage`, with
 both root approval pins unset. Verifier trust is now
-`live_signer_accepted: false` for S4, with ruleset/environment pins preserved in
+`live_signer_accepted: true` for S4, with ruleset/environment pins preserved in
 [verifier-trust.json](../catalogue/publication/verifier-trust.json). The operator
 must synchronize `catalogue-verification`'s `VERIFICATION_POLICY` after this
-adoption merges, then genuinely verify S4 with baseline Publisher App permissions
-and Publisher skipped. Separate approval is required before enabling Workflows
-Write. This adoption changes no executable code or permission behavior. No live workflow,
+approval merges, before granting and approving temporary Publisher Workflows Write.
+S4 passed genuine signing acceptance in run **39893809663** with baseline Publisher
+App permissions and Publisher skipped. Workflows Write has not yet been granted.
+This approval changes no executable code or permission behavior. No live workflow,
 GitHub variable/settings mutation, release or ref write was performed by this task.
 
 ## One preflight, two Apps, one maintainer
@@ -94,21 +95,19 @@ an explicit reviewed pin change, including the call, Publisher checkout and
 `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285` (S4), the reviewed implementation merged
 through [PR #30](https://github.com/benchristian88/atlas-connectors/pull/30). It adds
 strictly scoped temporary bootstrap Workflows Write support, preserving S3's
-sanitized diagnostics and the isolated Verifier configuration. This adoption
+sanitized diagnostics and the isolated Verifier configuration. This approval
 changes neither executable code nor token-permission behavior. All three executable workflow pins
 and repository signer trust identify S. Caller/source C advances independently
 and must differ from S. The catalogue/source checkout stays `${{ github.sha }}`.
 Never derive S from current main or replace it with a moving reference.
 
 Repository trust pins verification environment **25016263801**, all five verified
-ruleset IDs and a **900-second** startup age. Its acceptance flag is false.
-S4 is merged and frozen but has not completed genuine signing acceptance. After
-this adoption merges, update the independent environment trust to the same
-unaccepted JSON, then perform acceptance-only signing at baseline Publisher App
-permissions with Publisher skipped. Only successful genuine review and subsequent
-separate approval may precede Workflows Write elevation. S3's genuine acceptance
-remains historical evidence and does not accept S4. No remote configuration or
-dispatch is performed by this adoption task.
+ruleset IDs and a **900-second** startup age. Its acceptance flag is true.
+S4's genuine acceptance approves its signer for live publication, subject to
+matching independent environment trust. After this approval merges, copy the
+complete accepted JSON to `VERIFICATION_POLICY` before owner permission elevation.
+S3's acceptance remains historical evidence; S4's separate review is recorded below.
+No remote configuration or dispatch is performed by this approval task.
 
 ## Canonical contract and verification
 
@@ -208,6 +207,14 @@ authentication, Sigstore attestation and offline cryptographic verification pass
 Publisher was **skipped**. This historical review accepted S3; it does not accept
 S4, complete bootstrap staging or establish the cause of the original Publisher HTTP failure.
 
+Owner-reviewed genuine [S4 acceptance run 39893809663](https://github.com/benchristian88/atlas-connectors/actions/runs/39893809663)
+verified frozen signer `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285` and caller
+`605553a556632ace6f21216bf6cd22fdc17ed528` on attempt **1**. Preflight, Verifier App
+authentication, repository ruleset verification, Sigstore attestation and offline
+cryptographic verification passed; Publisher was **skipped**. The Publisher App
+still has baseline permissions, without Workflows Write. This genuine review
+accepts S4's signer; it does not establish bootstrap staging or activation success.
+
 The first live bootstrap staging [run 39880692187](https://github.com/benchristian88/atlas-connectors/actions/runs/39880692187)
 passed signed authorization, offline historical verification and Publisher token
 creation, but staging failed with `github_request_failed`; no new draft was observed.
@@ -228,16 +235,17 @@ Unknown endpoints use `other`; raw URLs, query strings, credentials, bodies and
 arbitrary provider text are excluded. Recovered read retries and expected missing
 404s stay silent. Exception categories, authentication, host/redirect restrictions
 and write/retry behavior are unchanged. Run 39888883962 supplies actual route/status
-evidence. This S4 adoption does not change those diagnostics.
+evidence. This S4 approval does not change those diagnostics.
 
 ## Controlled acceptance and staged bootstrap
 
 Follow the [S4 deployment and mandatory rollback sequence](../catalogue/publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only):
-S4's implementation merge and freezing are complete. Merge this unaccepted S4
-pin/trust adoption, synchronize `VERIFICATION_POLICY`, then genuinely verify S4
-with baseline Publisher App permissions and Publisher skipped. Separately approve
-S4 and synchronize environment trust before owner elevation and installation
-approval. This task changes no GitHub setting or workflow run.
+S4's implementation merge, adoption and genuine baseline-permission signing
+acceptance are complete. Merge this formal approval, then synchronize
+`catalogue-verification`'s `VERIFICATION_POLICY` to the complete committed accepted
+trust JSON before owner elevation and installation approval. The Publisher App
+has not yet been granted Workflows Write. This task changes no GitHub setting or
+workflow run.
 Acceptance-only evidence continues to be ineligible to authorize publication.
 
 Only after that sequence, perform a new controlled `bootstrap`,

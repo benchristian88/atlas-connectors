@@ -32,20 +32,25 @@ bootstrap; the six-field catalogue and complete embedded Manifest stay unchanged
 
 The checked-in policy currently has `enabled: true`, `bootstrap_operation: stage`,
 and null `bootstrap.sequence` / `bootstrap.pointer_sha256`. V2 verifier trust pins
-S4 (`2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`) with `live_signer_accepted: false`.
-S4 merged through PR #30 and is frozen, but genuine signing acceptance remains
-pending. S3's run **39887360792**, which skipped Publisher, is historical evidence.
+S4 (`2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`) with `live_signer_accepted: true`.
+S4 passed genuine signing acceptance in run **39893809663**, attempt 1, with
+Publisher skipped and the Publisher App at baseline permissions. It is approved
+for live publication subject to matching independent environment trust.
+S3's run **39887360792** remains historical evidence.
 Bootstrap staging and activation remain incomplete.
 S3 diagnostics confirmed a release-creation POST 403 in controlled run
 **39888883962**, following the generic failure in **39880692187** and successful
 GET-only diagnostic **39883753194**. The HTTP 403 remains unresolved. S4's temporary
-bootstrap Workflows Write implementation is unchanged by this pin/trust adoption.
+bootstrap Workflows Write implementation is unchanged by this approval.
 Follow the [S4 adoption, genuine acceptance, elevation and rollback sequence](README.md#s4-deployment-and-mandatory-rollback--owner-actions-only)
 before another controlled staging dispatch. Both stage and activation require
 the exact baseline-plus-Workflows-Write App and token profiles; acceptance-only
-verification must use the baseline App and skip Publisher. Do not enable Workflows
-Write until S4 passes genuine acceptance and receives separate approval. Actual pointer
-approval remains a separate owner action. No real target release ID, asset ID, pointer
+verification must use the baseline App and skip Publisher. Workflows Write has not
+yet been granted. After this approval merges, update `catalogue-verification`'s
+`VERIFICATION_POLICY` to match the committed trust JSON before granting and approving
+temporary Workflows Write. Ordinary publish/recover remain at baseline; remove the
+temporary permission after successful activation and independently verify rollback.
+Actual pointer approval remains a separate owner action. No real target release ID, asset ID, pointer
 digest, selection signature or root commit exists as a result of this task.
 
 Configured identities are maintainer **93822871**, publication environment
