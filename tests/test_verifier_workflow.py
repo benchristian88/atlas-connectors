@@ -126,13 +126,15 @@ def test_publisher_depends_on_isolated_preflight_before_credentials_and_executes
     signer, publisher = caller["jobs"]["preflight"], caller["jobs"]["publish"]
     match = re.fullmatch(r"benchristian88/atlas-connectors/\.github/workflows/catalogue-verifier\.yml@([a-f0-9]{40})", signer["uses"])
     assert match and signer["with"] == {"request": "${{ toJSON(inputs) }}"}
-    assert match[1] == "d12d47111dec137e4a6af261879f1e49b8db05e2"
+    assert match[1] == "00c85f688a43fb6da44acb3fa713d938e30a6da9"
     trust = json.loads((ROOT / "catalogue/publication/verifier-trust.json").read_text())
     assert trust["signer_revision"] == match[1] and trust["live_signer_accepted"] is False
     workflow_source = (ROOT / ".github/workflows/catalogue-publish.yml").read_text()
     assert workflow_source.count(match[1]) == 3
     assert "da5562eeb21d5c1cc653cfea7ae8d025d2a9174a" not in workflow_source
-    assert "secrets" not in signer and "environment" not in signer
+    assert signer["secrets"] == {
+        "VERIFICATION_APP_PRIVATE_KEY": "${{ secrets.VERIFICATION_APP_PRIVATE_KEY }}"}
+    assert "environment" not in signer and "PUBLICATION_APP" not in str(signer)
     assert publisher["needs"] == "preflight" and "!inputs.acceptance_only" in publisher["if"]
     steps = publisher["steps"]
     implementation, source = steps[:2]
@@ -143,7 +145,7 @@ def test_publisher_depends_on_isolated_preflight_before_credentials_and_executes
     download = next(i for i, step in enumerate(steps) if "download-artifact@" in step.get("uses", ""))
     assert download < verify < mint
     assert steps[download]["with"]["artifact-ids"] == "${{ needs.preflight.outputs.artifact-id }}"
-    assert "VERIFICATION_APP" not in (ROOT / ".github/workflows/catalogue-publish.yml").read_text()
+    assert "VERIFICATION_APP" not in str(publisher)
     assert "PUBLICATION_APP_PRIVATE_KEY" not in (ROOT / ".github/workflows/catalogue-verifier.yml").read_text()
     for step in steps[:mint]:
         assert "secrets." not in str(step)

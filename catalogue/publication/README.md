@@ -2,7 +2,7 @@
 
 **Production activation is blocked.** The current policy remains stage-enabled,
 with no approved root digest. Verifier trust is configured for frozen reviewed
-implementation **S = `d12d47111dec137e4a6af261879f1e49b8db05e2`**, but
+implementation **S = S2 = `00c85f688a43fb6da44acb3fa713d938e30a6da9`**, but
 `live_signer_accepted` remains **false**. The next protected-main configuration
 merge becomes caller/source **C**, which must differ from S. No live operation or
 GitHub environment change was performed by this configuration task.
@@ -46,6 +46,31 @@ old per-transition grants and disabled-policy descriptions.
    and branch policy `protected_branches: true`, `custom_branch_policies: false`.
    The maximum startup age remains **900 seconds**. Store each App key only in
    its existing environment, never a caller input or inherited secret.
+
+The caller explicitly passes exactly one named secret to the reusable verifier:
+
+```yaml
+secrets:
+  VERIFICATION_APP_PRIVATE_KEY: ${{ secrets.VERIFICATION_APP_PRIVATE_KEY }}
+```
+
+S2 declares that secret as required under `on.workflow_call.secrets`. The called
+verifier job retains `environment: catalogue-verification`, including its existing
+restrictions, and injects the key only into the issuer step. Keep the key in that
+environment; do not copy it to a repository-level secret or `catalogue-publication`.
+Never use `secrets: inherit`, pass either App's credentials to the other job, or
+put the key in an input, output, artifact, command-line argument or log.
+
+The remaining manual acceptance steps, not executed by this task, are:
+
+1. Merge this change into protected main after green CI, establishing C != S2.
+2. Update `VERIFICATION_POLICY` in `catalogue-verification` to match the complete
+   committed trust JSON, preserving `live_signer_accepted: false`.
+3. Dispatch one fresh `catalogue-publish.yml` run from protected `main`, selecting
+   `bootstrap` and `acceptance_only: true`.
+4. Inspect the genuine verification results using the checklist below, including
+   actual environment-secret delivery. Local synthetic tests do not prove delivery.
+5. Require the `publish` job to be skipped, with no Publisher credentials or writes.
 
 The committed trust pins these verified ruleset identities:
 

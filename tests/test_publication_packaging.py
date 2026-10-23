@@ -94,8 +94,13 @@ def test_workflows_have_explicit_security_boundaries():
             if 'uses' in job:
                 assert job['uses'] in {
                     'benchristian88/atlas-connectors/.github/workflows/verifier-signer-probe.yml@260d83d529f89d00646771f8e66f32efd34826a3',
-                    'benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@d12d47111dec137e4a6af261879f1e49b8db05e2'}
-                assert 'steps' not in job and 'secrets' not in job
+                    'benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@00c85f688a43fb6da44acb3fa713d938e30a6da9'}
+                assert 'steps' not in job
+                if '/catalogue-verifier.yml@' in job['uses']:
+                    assert job['secrets'] == {
+                        'VERIFICATION_APP_PRIVATE_KEY': '${{ secrets.VERIFICATION_APP_PRIVATE_KEY }}'}
+                else:
+                    assert 'secrets' not in job
                 continue
             for step in job['steps']:
                 if 'uses' in step:
