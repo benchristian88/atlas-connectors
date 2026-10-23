@@ -20,6 +20,7 @@ PUBLICATION_WORKFLOW = ".github/workflows/catalogue-publish.yml"
 ENVIRONMENT = "catalogue-publication"
 AUTHORIZATION_MODE = "single-maintainer-v1"
 APP_PERMISSIONS = {"contents": "write", "actions": "read", "administration": "read", "metadata": "read"}
+BOOTSTRAP_APP_PERMISSIONS = {**APP_PERMISSIONS, "workflows": "write"}
 MAX_POINTER_BYTES = 1024
 MAX_BUNDLE_BYTES = 1024 * 1024
 POINTER_FIELDS = {"schema_version", "sequence", "release_tag", "release_id",
@@ -167,6 +168,13 @@ def check_repository(repository):
             "publication_repository")
 
 
+def publisher_permissions(operation, *, acceptance_only=False):
+    """Exact temporary bootstrap profile; signer acceptance needs only baseline."""
+    require(operation in {"publish", "recover", "bootstrap"} and type(acceptance_only) is bool,
+            "unsupported_publication_operation")
+    return BOOTSTRAP_APP_PERMISSIONS if operation == "bootstrap" and not acceptance_only else APP_PERMISSIONS
+
+
 def check_app(policy, app, token_repositories, token_identity, *, operation="publish"):
     """Public App metadata plus JWT-authenticated pinned token-action observations.
 
@@ -177,7 +185,8 @@ def check_app(policy, app, token_repositories, token_identity, *, operation="pub
     check_policy(policy, operation=operation)
     require(isinstance(app, dict) and type(app.get("id")) is int and app["id"] == policy["app_id"]
             and app.get("slug") == policy["app_slug"] and isinstance(app.get("owner"), dict)
-            and app["owner"].get("id") == OWNER_ID and app.get("permissions") == APP_PERMISSIONS,
+            and app["owner"].get("id") == OWNER_ID
+            and app.get("permissions") == publisher_permissions(operation),
             "publication_app_identity")
     require(isinstance(token_identity, dict) and type(token_identity.get("installation_id")) is int
             and token_identity == {"app_slug": policy["app_slug"], "installation_id": policy["app_installation_id"]},

@@ -34,12 +34,14 @@ The checked-in policy currently has `enabled: true`, `bootstrap_operation: stage
 and null `bootstrap.sequence` / `bootstrap.pointer_sha256`. V2 verifier trust pins
 S3 with `live_signer_accepted: true` after genuine acceptance run **39887360792**,
 which skipped Publisher. Bootstrap staging remains uncompleted.
-S3 adds sanitized HTTP diagnostics for the unresolved staging failure in run
-**39880692187**. Successful GET-only run **39883753194** did not test release creation.
-After this approval merges, the owner must update `VERIFICATION_POLICY` to match
-the committed accepted trust JSON, then use a new controlled staging dispatch to
-observe the actual Publisher HTTP result; see the [current operator runbook](README.md).
-S3 diagnostics change neither publication authority nor permissions. Actual pointer
+S3 diagnostics confirmed a release-creation POST 403 in controlled run
+**39888883962**, following the generic failure in **39880692187** and successful
+GET-only diagnostic **39883753194**. Temporary bootstrap Workflows Write support
+is implemented for a future S4; this change leaves S3 pins and trust unchanged.
+Follow the [S4 adoption, genuine acceptance, elevation and rollback sequence](README.md#s4-deployment-and-mandatory-rollback--owner-actions-only)
+before another controlled staging dispatch. Both stage and activation require
+the exact baseline-plus-Workflows-Write App and token profiles; acceptance-only
+verification uses the baseline App and skips Publisher. Actual pointer
 approval remains a separate owner action. No real target release ID, asset ID, pointer
 digest, selection signature or root commit exists as a result of this task.
 
@@ -81,9 +83,10 @@ Before any live dispatch, the owner must review and validate:
    null. Wait for exact-source successful validate CI. This authorizes only draft
    staging; normal publish/recover still cannot initialize a channel.
 3. **Live draft staging.** The configured maintainer manually dispatches
-   `catalogue-publish.yml` on main with the sole input `operation=bootstrap`.
+   `catalogue-publish.yml` on main with `operation=bootstrap`, `acceptance_only=false`.
    Attempt 1 only. The workflow validates policy/App ID and independent dispatch
-   records before minting its scoped App token. It verifies source offline before
+   records before minting its bootstrap-only Workflows Write App token, requiring
+   installation approval with no ordinary-token fallback. It verifies source offline before
    that token, then repeats complete P1 authority/settings and legacy/history
    checks before writes. The draft targets the historical source SHA, not the
    dispatch SHA. Its deterministic operation body allows exact-byte recovery.

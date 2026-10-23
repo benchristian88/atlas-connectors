@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import issue_publication_authorization as issuer
 import publication_authorization as auth
-from publication_contract import REPOSITORY, canonical_json, digest
+from publication_contract import APP_PERMISSIONS, BOOTSTRAP_APP_PERMISSIONS, REPOSITORY, canonical_json, digest
 from test_publication_contract import authority_fixture, rules_fixture
 from verification_github import BASE, INSTALLATION, LIST, PERMISSIONS
 
@@ -39,7 +39,7 @@ class SyntheticProvider:
         return deepcopy(self.rows["mint"])
 
 
-def fixture(operation="bootstrap"):
+def fixture(operation="bootstrap", *, acceptance_only=False):
     policy, repo, branch, environment, run, attempt, workflow, user, checks = authority_fixture()
     policy.update(allowed_maintainer_id=93822871, app_id=5422372, app_installation_id=174027755,
         app_slug="atlas-catalogue-publisher", app_bot_user_id=346232650, bootstrap_operation="stage")
@@ -62,17 +62,17 @@ def fixture(operation="bootstrap"):
         "verification_environment_id": 123, "max_observation_age_seconds": 900}
     policy_raw = canonical_json(policy)
     request = {"source_commit": SOURCE, "policy_sha256": digest(policy_raw), "run_id": 60,
-        "run_attempt": 1, "operation": operation, "acceptance_only": False}
+        "run_attempt": 1, "operation": operation, "acceptance_only": acceptance_only}
     env = {"GITHUB_REPOSITORY": REPOSITORY, "GITHUB_REPOSITORY_ID": "1414494920",
         "GITHUB_REPOSITORY_OWNER_ID": "93822871", "GITHUB_EVENT_NAME": "workflow_dispatch",
         "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": SOURCE, "GITHUB_RUN_ID": "60", "GITHUB_RUN_ATTEMPT": "1",
         "GITHUB_WORKFLOW_REF": REPOSITORY + "/" + auth.PUBLICATION_WORKFLOW + "@refs/heads/main",
         "RUNNER_ENVIRONMENT": "github-hosted", "VERIFIER_REVISION": REVISION,
         "VERIFIER_WORKFLOW_REF": REPOSITORY + "/" + auth.WORKFLOW + "@" + REVISION,
-        "DISPATCH_OPERATION": operation, "DISPATCH_ACCEPTANCE_ONLY": "false", "PUBLICATION_OPERATION": operation,
+        "DISPATCH_OPERATION": operation, "DISPATCH_ACCEPTANCE_ONLY": str(acceptance_only).lower(), "PUBLICATION_OPERATION": operation,
         "ATLAS_IMPLEMENTATION_REVISION": REVISION, "VERIFICATION_APP_ID": "5424851",
         "VERIFICATION_APP_INSTALLATION_ID": "174088125", "VERIFICATION_APP_PRIVATE_KEY": "synthetic-key"}
-    from publication_contract import APP_PERMISSIONS
+    publisher_permissions = BOOTSTRAP_APP_PERMISSIONS if operation == "bootstrap" and not acceptance_only else APP_PERMISSIONS
     rows = {BASE: repo, BASE + "/branches/main": branch,
         BASE + "/environments/catalogue-publication": environment,
         BASE + "/actions/runs/60": run, BASE + "/actions/runs/60/attempts/1": attempt,
@@ -86,7 +86,7 @@ def fixture(operation="bootstrap"):
         "mint": {"permissions": PERMISSIONS, "token": "synthetic-installation-token"},
         "/installation/repositories?per_page=2&page=1": {"total_count": 1, "repositories": [repo]},
         "/apps/atlas-catalogue-publisher": {"id": 5422372, "slug": policy["app_slug"],
-            "owner": {"id": 93822871}, "permissions": deepcopy(APP_PERMISSIONS)},
+            "owner": {"id": 93822871}, "permissions": deepcopy(publisher_permissions)},
         BASE + "/environments/catalogue-verification": {**environment, "id": 123, "name": "catalogue-verification"},
         BASE + "/immutable-releases": {"enabled": True}, LIST: rules}
     for row in rules:
@@ -116,6 +116,38 @@ def test_each_operation_has_one_complete_run_preflight_and_no_draft_claim(operat
     assert "target" not in value and "transition" not in value["execution"] and "challenge" not in value["execution"]
     assert all("/releases" not in path and "/git/" not in path for method, path, token in data[0].calls)
     assert b"synthetic-key" not in raw and b"synthetic-installation-token" not in raw
+
+
+@pytest.mark.parametrize("operation", ["bootstrap", "publish", "recover"])
+@pytest.mark.parametrize("acceptance_only", [False, True])
+@pytest.mark.parametrize("elevated", [False, True])
+def test_issuer_and_signed_preflight_require_the_operation_permission_profile(operation, acceptance_only, elevated):
+    data = fixture(operation, acceptance_only=acceptance_only)
+    data[3]["live_signer_accepted"] = not acceptance_only
+    permissions = BOOTSTRAP_APP_PERMISSIONS if elevated else APP_PERMISSIONS
+    data[0].rows["/apps/atlas-catalogue-publisher"]["permissions"] = deepcopy(permissions)
+    if elevated == (operation == "bootstrap" and not acceptance_only):
+        raw = issue_fixture(data)
+        value = json.loads(raw)
+        assert auth.check_authorization(value, data[3], json.loads(data[4])) == data[2]
+        # A signed permission observation is checked again by the consumer.
+        value["security"]["publisher_app"]["permissions"]["unexpected"] = "read"
+        with pytest.raises(ValueError, match="verification_publisher_app"):
+            auth.check_authorization(value, data[3], json.loads(data[4]))
+    else:
+        with pytest.raises(ValueError, match="verification_publisher_app"):
+            issue_fixture(data)
+
+
+@pytest.mark.parametrize("operation,acceptance_only", [("bootstrap", False), ("bootstrap", True),
+    ("publish", False), ("recover", False)])
+@pytest.mark.parametrize("change", [lambda p: p.update(checks="read"), lambda p: p.update(unknown="read"),
+    lambda p: p.update(administration="write"), lambda p: p.pop("metadata"), lambda p: p.update(workflows="read")])
+def test_issuer_rejects_any_other_publisher_permissions(operation, acceptance_only, change):
+    data = fixture(operation, acceptance_only=acceptance_only)
+    change(data[0].rows["/apps/atlas-catalogue-publisher"]["permissions"])
+    with pytest.raises(ValueError, match="verification_publisher_app"):
+        issue_fixture(data)
 
 
 @pytest.mark.parametrize("field", ["GITHUB_REPOSITORY", "GITHUB_REPOSITORY_ID", "GITHUB_REPOSITORY_OWNER_ID",
@@ -234,10 +266,8 @@ def test_v1_transition_paths_are_removed():
 
 
 def test_acceptance_only_evidence_is_signed_but_never_admits_publication(monkeypatch):
-    data = fixture()
+    data = fixture(acceptance_only=True)
     data[3]["live_signer_accepted"] = False
-    data[2]["acceptance_only"] = True
-    data[1]["DISPATCH_ACCEPTANCE_ONLY"] = "true"
     raw = issue_fixture(data)
     assert json.loads(raw)["execution"]["acceptance_only"] is True
     with pytest.raises(ValueError, match="live_acceptance"):

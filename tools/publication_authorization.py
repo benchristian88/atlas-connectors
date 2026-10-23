@@ -3,9 +3,9 @@
 import time
 
 from atlas_connector_sdk.contracts import strict_json
-from publication_contract import (APP_PERMISSIONS, OWNER_ID, REPOSITORY, REPOSITORY_ID,
+from publication_contract import (OWNER_ID, REPOSITORY, REPOSITORY_ID,
     PUBLICATION_WORKFLOW, canonical_json, check_authority, check_policy, check_rulesets,
-    digest, hexadecimal, positive_integer, require)
+    digest, hexadecimal, positive_integer, publisher_permissions, require)
 from ruleset_visibility import EXPECTED, validate_detail, validate_list
 
 SCHEMA = "atlas-publication-preflight/v2"
@@ -128,7 +128,9 @@ def check_security(value, policy, request, trust):
     app = value["publisher_app"]
     require(isinstance(app, dict) and type(app.get("id")) is int and app["id"] == PUBLISHER_APP_ID
         and app.get("slug") == policy["app_slug"] == "atlas-catalogue-publisher"
-        and app.get("owner", {}).get("id") == OWNER_ID and app.get("permissions") == APP_PERMISSIONS,
+        and app.get("owner", {}).get("id") == OWNER_ID
+        and app.get("permissions") == publisher_permissions(request["operation"],
+            acceptance_only=request["acceptance_only"]),
         "verification_publisher_app")
     environment = value["verification_environment"]
     require(isinstance(environment, dict) and type(environment.get("id")) is int

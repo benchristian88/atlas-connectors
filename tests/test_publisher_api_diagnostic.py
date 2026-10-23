@@ -114,7 +114,10 @@ def test_workflow_has_only_owner_protected_main_dispatch_and_existing_publisher_
         assert clause in job['if']
     production = yaml.load((ROOT / '.github/workflows/catalogue-publish.yml').read_text(), Loader=yaml.BaseLoader)
     mint = next(step for step in production['jobs']['publish']['steps'] if step.get('id') == 'app')
-    assert job['steps'][0] == mint
+    # The temporary GET-only diagnostic retains its original baseline token.
+    assert job['steps'][0] == {**mint, 'with': {key: value for key, value in mint['with'].items()
+        if key != 'permission-workflows'}}
+    assert 'permission-workflows' not in job['steps'][0]['with']
     assert len(job['steps']) == 2 and job['steps'][1]['shell'] == 'bash'
     assert job['steps'][1]['env'] == {
         'ATLAS_PUBLICATION_TOKEN': '${{ steps.app.outputs.token }}',

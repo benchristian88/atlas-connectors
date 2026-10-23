@@ -269,6 +269,42 @@ def test_expected_app_and_single_repository_installation_observations():
     check_app(*app_fixture())
 
 
+def test_exact_publisher_permission_profiles():
+    assert APP_PERMISSIONS == {'contents': 'write', 'actions': 'read', 'administration': 'read', 'metadata': 'read'}
+    assert BOOTSTRAP_APP_PERMISSIONS == {**APP_PERMISSIONS, 'workflows': 'write'}
+
+
+@pytest.mark.parametrize('mode', ['stage', 'activate'])
+@pytest.mark.parametrize('permissions,allowed', [
+    (APP_PERMISSIONS, False), (BOOTSTRAP_APP_PERMISSIONS, True),
+    ({**BOOTSTRAP_APP_PERMISSIONS, 'workflows': 'read'}, False),
+    ({**BOOTSTRAP_APP_PERMISSIONS, 'administration': 'write'}, False),
+    ({**BOOTSTRAP_APP_PERMISSIONS, 'checks': 'read'}, False),
+    ({**BOOTSTRAP_APP_PERMISSIONS, 'unexpected': 'read'}, False),
+    ({key: value for key, value in BOOTSTRAP_APP_PERMISSIONS.items() if key != 'metadata'}, False),
+])
+def test_bootstrap_app_requires_only_exact_elevated_profile(mode, permissions, allowed):
+    args = app_fixture()
+    args[0]['bootstrap_operation'] = mode
+    if mode == 'stage':
+        args[0]['bootstrap'] = {'sequence': None, 'pointer_sha256': None}
+    args[1]['permissions'] = deepcopy(permissions)
+    if allowed:
+        check_app(*args, operation='bootstrap')
+    else:
+        with pytest.raises(PublicationError, match='publication_app_identity'):
+            check_app(*args, operation='bootstrap')
+
+
+@pytest.mark.parametrize('operation', ['publish', 'recover'])
+def test_ordinary_app_rejects_temporary_workflows_permission(operation):
+    args = app_fixture()
+    check_app(*args, operation=operation)
+    args[1]['permissions'] = dict(BOOTSTRAP_APP_PERMISSIONS)
+    with pytest.raises(PublicationError, match='publication_app_identity'):
+        check_app(*args, operation=operation)
+
+
 @pytest.mark.parametrize('which,key,value', [
     (1, 'id', 99), (1, 'owner', {'id': 99}), (1, 'slug', 'unexpected'), (1, 'permissions', {}),
     (1, 'permissions', {**APP_PERMISSIONS, 'administration': 'write'}),

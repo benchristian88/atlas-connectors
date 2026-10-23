@@ -1,13 +1,15 @@
 # Official catalogue publication — Lean V2 operator runbook
 
-**S3 signing is accepted; bootstrap staging remains uncompleted.** The current policy remains stage-enabled,
+**S3 signing is accepted; bootstrap staging remains uncompleted. Temporary permission support awaits S4 adoption.**
+The current policy remains stage-enabled,
 with no approved root digest. Verifier trust is configured for frozen reviewed
 implementation **S = S3 = `5c66a50f61d013204eada0234c3389323b4a3f71`**, with
 `live_signer_accepted: true`. S3 adds reviewed, sanitized Publisher HTTP failure
 diagnostics without changing permissions or publication behavior. Caller/source
 **C** advances independently and must differ
 from S. No live operation or GitHub environment change is performed by this
-acceptance approval.
+implementation change. S4 does not exist until this implementation is reviewed and
+merged; S3 acceptance does not accept S4. Do not dispatch bootstrap during that transition.
 
 Genuine S3 acceptance succeeded in owner-reviewed [run 39887360792](https://github.com/benchristian88/atlas-connectors/actions/runs/39887360792),
 attempt **1**, with caller **C = `2e2ddb70a1da254c0adaa857deb121aa2b0f7dfa`**.
@@ -24,8 +26,12 @@ passed signed authorization, offline historical verification and Publisher token
 creation, then failed with `github_request_failed`; no new draft was observed.
 The subsequent GET-only [diagnostic run 39883753194](https://github.com/benchristian88/atlas-connectors/actions/runs/39883753194)
 passed all 35 API requests. Those reads do not establish whether release creation
-was attempted or why it failed. The historical target's workflow differences and
-a possible release-creation permission restriction remain a hypothesis.
+was attempted or why it failed. The later controlled S3 [run 39888883962](https://github.com/benchristian88/atlas-connectors/actions/runs/39888883962)
+confirmed `github_http_failure method=POST route=release_create status=403` at
+`POST /repos/benchristian88/atlas-connectors/releases`. The historical target
+`91dfd86f18d0b59ff977bb1e8a5fef42c5329943` differs from current main under
+`.github/workflows/`. GitHub's documented conditional Workflows Write requirement
+motivates the temporary profile below; its success still needs live verification.
 
 The [security contract](../../docs/signed-publication-verifier.md) and
 [ADR 0005](../../docs/decisions/0005-lean-run-preflight.md) define the one-preflight
@@ -38,17 +44,18 @@ old per-transition grants and disabled-policy descriptions.
 
 1. The reviewed V2 implementation is frozen at S above. The reusable workflow
    call, Publisher executable checkout and `ATLAS_IMPLEMENTATION_REVISION` all
-   pin that exact full SHA. Review and merge these configuration changes through
-   protected main and successful CI to establish C != S. Keep the source checkout
+   pin that exact full SHA. This implementation leaves all three S3 pins and
+   signer trust unchanged; adopt S4 separately as described below. Keep the source checkout
    at `${{ github.sha }}`; it advances independently and is read only as
    catalogue/policy/trust data. Never replace executable S with a moving branch,
    tag, local reusable call or latest-main lookup.
 2. Independently verify repository **1414494920**, owner/human maintainer
    **93822871**; Publisher App/installation **5422372 / 174027755**, bot **346232650**;
    Verifier App/installation **5424851 / 174088125**. Preserve the existing App
-   permissions: Publisher Contents Write, Actions/Administration/Metadata Read;
+   baseline permissions: Publisher Contents Write, Actions/Administration/Metadata Read;
    Verifier Administration Write, Contents/Actions/Checks/Metadata Read. Both
-   installations must be selected for exactly this repository.
+   installations must be selected for exactly this repository. Only after S4
+   acceptance may the Publisher use the temporary bootstrap profile below.
 3. Check protected main and all five active repository rulesets, complete bypass
    arrays, exact environment IDs/ref restrictions, no required reviewers/admin
    bypass, required successful `validate` CI, and release immutability. Keep the
@@ -56,10 +63,11 @@ old per-transition grants and disabled-policy descriptions.
    and publication-tag rules; main, history-lock and bootstrap-lock have no bypass.
    See the [configuration tables](publication-v1-reference.md#operator-configuration--do-not-execute-publication-yet)
    and [bootstrap fence](bootstrap.md#configuration-checklist-and-authority).
-4. **After merge, next operator action:** update the GitHub environment variable
+4. For each separately reviewed signer configuration, update the GitHub environment variable
    `VERIFICATION_POLICY` in environment **catalogue-verification** with JSON
    identical to the committed [verifier-trust.json](verifier-trust.json). Copy the
-   complete file verbatim, preserving `live_signer_accepted: true`; do not set
+   complete file verbatim, preserving its acceptance flag (false for initial S4
+   adoption, true only after genuine review); do not set
    this variable in a different environment or pass it as a workflow input.
    This task does not create or modify the GitHub variable. The configured
    verification environment ID is **25016263801**, with `can_admins_bypass: false`
@@ -81,19 +89,82 @@ environment; do not copy it to a repository-level secret or `catalogue-publicati
 Never use `secrets: inherit`, pass either App's credentials to the other job, or
 put the key in an input, output, artifact, command-line argument or log.
 
-The required deployment sequence, not executed by this task, is:
+## Temporary historical-bootstrap permission profile
 
-1. Merge this S3 acceptance approval into protected main after green CI. The
-   advancing caller/source remains independent of frozen S3.
-2. Update `VERIFICATION_POLICY` in `catalogue-verification` to match the complete
-   committed trust JSON, including `live_signer_accepted: true`.
-3. Dispatch one fresh `catalogue-publish.yml` run on protected `main`, selecting
-   `bootstrap` and `acceptance_only: false`, for a controlled staging attempt.
-   This new run must obtain its own signed authorization; never rerun or reuse the
-   earlier attempt. Inspect the actual result and any sanitized HTTP failure
-   record to identify the Publisher failure. Preserve the existing stage/seal,
-   separate pointer approval and activation procedure. No dispatch is performed
-   by this approval task.
+Both the isolated issuer's signed preflight validation and the Publisher's live
+App checks require exact permission dictionaries; missing, additional or unknown
+fields fail closed. The independent Verifier App and its token remain unchanged.
+
+| Operation/mode | Required Publisher App registration | Requested Publisher token |
+| --- | --- | --- |
+| Acceptance-only, including S4 bootstrap acceptance | Baseline only | None; Publisher skipped |
+| Live bootstrap stage or activate | Baseline plus Workflows Write | Baseline plus Workflows Write |
+| Ordinary publish or recover | Baseline only | Baseline only |
+
+Baseline is Contents Write, Actions Read, Administration Read and automatic
+Metadata Read. The temporary exception to the original baseline-permissions
+assumption changes no signed authority, bypass list, policy or historical bytes.
+The existing `bootstrap_operation: stage` / `activate` controls remain mandatory.
+Ordinary publication fails closed while the App registration is elevated.
+
+GitHub [documents Workflows Write for release targets with workflow differences](https://docs.github.com/en/rest/releases/releases#create-a-release).
+The unchanged pinned token action explicitly requests Contents Write and
+Actions/Administration Read, and requests Workflows Write only for `bootstrap`.
+Its [pinned input parser](https://github.com/actions/create-github-app-token/blob/fee1f7d63c2ff003460e3d139729b119787bc349/lib/get-permissions-from-inputs.js)
+ignores the empty workflows input for publish/recover; the three other explicit
+permission inputs prevent inheritance of all App permissions. Its pinned bundled
+`dist/main.cjs` contains the same parser. The repository is always explicitly
+`benchristian88/atlas-connectors`; automatic token revocation remains enabled.
+
+Registration alone is insufficient: GitHub must grant Workflows Write to the
+installation before it can [mint the explicitly requested token](https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app).
+Mint failure stops the job, with no ordinary-token fallback or continued writes.
+Local tests do not prove the installation's real approval or a successful release.
+
+## S4 deployment and mandatory rollback — owner actions only
+
+None of these deployment actions is performed by this implementation task.
+
+1. Review and merge this implementation into protected main after green CI.
+2. Record its resulting merge commit as the new full frozen implementation **S4**.
+3. In a separate reviewed change, update all three executable workflow pins and
+   trust `signer_revision` to S4, initially `live_signer_accepted: false`. Caller C
+   advances independently and must differ from S4.
+4. Update `catalogue-verification`'s `VERIFICATION_POLICY` to that exact unaccepted
+   trust JSON, preserving all other trust values.
+5. With the Publisher App still at baseline, perform one fresh protected-main
+   `catalogue-publish.yml`, `operation: bootstrap`, `acceptance_only: true`
+   dispatch. Review genuine S4 signing/isolation evidence; require Publisher skipped.
+6. Separately approve S4 through protected main, then synchronize
+   `VERIFICATION_POLICY` to the complete accepted trust JSON.
+7. Add **Workflows: Read and write** to Publisher App **5422372** and approve the
+   permission change on existing installation **174027755**, selected for this
+   repository only. Do not change the Verifier App, keys or bypass permissions.
+8. Independently verify exact App/installation identity, single-repository scope
+   and the complete elevated permission profile before attempting a write.
+9. With reviewed policy still `bootstrap_operation: stage` and root pins null,
+   dispatch a fresh protected-main **bootstrap, acceptance_only false**, attempt 1.
+   It must obtain its own signed authorization and explicitly elevated token.
+10. Inspect the real draft release, exact historical assets, signatures, receipt
+    and actual pointer digest. If staging fails, investigate the sanitized HTTP
+    evidence and any legitimate partial draft before considering another attempt.
+11. Separately approve the actual staged pointer digest through protected main,
+    set `bootstrap_operation: activate`, and execute a new first-attempt bootstrap
+    dispatch. Revalidate immutability, root/fence protections and exact current root.
+12. Immediately after successful activation, remove Workflows Write from the
+    Publisher App registration; do not leave a Workflows Read permission behind.
+13. Verify removal from both App and installation. Disable bootstrap through
+    reviewed policy (`bootstrap_operation: disabled`, retaining the approved root
+    pins), and verify normal publication uses only the exact baseline profile.
+14. Remove the temporary GET-only diagnostic workflow in a separate reviewed
+    cleanup PR.
+
+GitHub App elevation has no automatic expiry. Explicit rollback and independent
+verification are mandatory; token revocation alone does not remove App permissions.
+On staging failure, do not automatically revoke or alter App/installation
+permissions or delete a partial draft. Preserve evidence and investigate before
+any new attempt or reviewed recovery decision. Never use **Re-run jobs**, change
+the historical target, bypass the signed preflight or force-update protected history.
 
 The committed trust pins these verified ruleset identities:
 
@@ -137,15 +208,14 @@ Before accepting a future implementation, independently review:
 Preserve public evidence before retention expires. Wrong/missing claims, failed
 signing, unexpected isolation, unavailable complete configuration or an unexpected
 Publisher job blocks acceptance. Do not broaden permissions or bypass checks to pass.
-S3's reviewed acceptance is recorded in the committed trust file; the owner must
-update its environment counterpart after this approval merges. Future frozen
-implementations require their own genuine review. This task performs no merge,
-environment update or workflow dispatch.
+S3's reviewed acceptance is recorded in the committed trust file. S4 requires its
+own genuine baseline-permission review and separate acceptance/trust update above.
+This task performs no merge, environment update or workflow dispatch.
 
 ## Bootstrap in two publication dispatches
 
-This procedure remains gated on genuine S3 acceptance and matching approved trust
-in the repository and verification environment.
+The next staging attempt remains gated on S4 adoption, genuine acceptance,
+matching approved trust and the exact elevated bootstrap permission profile above.
 
 1. **Stage:** with current policy `bootstrap_operation: stage` and both root pins
    null, dispatch **bootstrap, acceptance_only false** from reviewed main. A fresh

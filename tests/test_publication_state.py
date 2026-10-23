@@ -334,6 +334,7 @@ def test_duplicate_sequence_changed_bytes_and_gap(state):
     (lambda a:a.args[2].update(protected=False),'unprotected'),
     (lambda a:a.rules[0].update(enforcement='disabled'),'ruleset_scope'),
     (lambda a:a.app.update(id=99),'app_identity'),
+    (lambda a:a.app['permissions'].update(workflows='write'),'app_identity'),
     (lambda a:a.app_scope.update(total_count=2),'app_scope'),
     (lambda a:a.token_identity.update(installation_id=99),'app_installation'),
 ])
@@ -343,6 +344,14 @@ def test_provider_and_authority_failures_before_writes(state,mutation,code):
     with pytest.raises(PublicationError,match=code):
         publisher.stage(raw)
     assert api.writes==[]
+
+
+def test_recover_rejects_temporary_bootstrap_app_permissions_before_writes(state):
+    api, publisher, _ = state
+    api.app['permissions']['workflows'] = 'write'
+    with pytest.raises(PublicationError, match='publication_app_identity'):
+        recover_model(publisher)
+    assert api.writes == []
 
 
 def test_conflicting_existing_draft_or_higher_snapshot(state):
