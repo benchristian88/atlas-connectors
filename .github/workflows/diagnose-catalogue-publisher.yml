@@ -1,0 +1,224 @@
+name: Temporary Publisher bootstrap API diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  diagnose:
+    # Attempt one binds triggering_actor to the original numeric actor identity.
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      github.ref_protected && github.run_attempt == 1 &&
+      github.repository == 'benchristian88/atlas-connectors' &&
+      github.repository_id == '1414494920' && github.repository_owner == 'benchristian88' &&
+      github.repository_owner_id == '93822871' && github.actor_id == '93822871' &&
+      github.actor == 'benchristian88' && github.triggering_actor == 'benchristian88'
+    environment: catalogue-publication
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Credential issuance/revocation are performed by this production-pinned
+      # action. The diagnostic Python below can only issue allowlisted GETs.
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        id: app
+        with:
+          app-id: ${{ vars.PUBLICATION_APP_ID }}
+          private-key: ${{ secrets.PUBLICATION_APP_PRIVATE_KEY }}
+          owner: benchristian88
+          repositories: atlas-connectors
+          permission-contents: write
+          permission-actions: read
+          permission-administration: read
+      - name: Probe the failed run's pre-write GET sequence; never publish
+        env:
+          ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
+          ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          ROOT = '/repos/benchristian88/atlas-connectors'
+          RUN = ROOT + '/actions/runs/39880692187'
+          # The failed publication source, not this new diagnostic dispatch SHA.
+          CALLER = '1d3e217ff9d6d8c202815abd8fd5c51c34e14855'
+          CHECKS = ROOT + '/commits/' + CALLER + '/check-runs?check_name=validate&filter=latest&per_page=100'
+          RULES = (25618213, 25618809, 25628137, 25618684, 25618901)
+          ASSETS = (653915685, 653915743)
+          CURRENT = ROOT + '/git/ref/heads/catalogue-current'
+          MARKER = ROOT + '/git/ref/tags/catalogue-bootstrap-root'
+          LIST = ROOT + '/rulesets?per_page=100'
+          # Literal API routes only; parameters never come from dispatch inputs.
+          ROUTES = {route: (True, False, (200,)) for route in (
+              RUN, '/users/benchristian88', ROOT, ROOT + '/branches/main',
+              ROOT + '/environments/catalogue-publication', RUN + '/attempts/1',
+              ROOT + '/actions/workflows/392548804', '/apps/atlas-catalogue-publisher',
+              '/installation/repositories?per_page=100', ROOT + '/immutable-releases', LIST,
+              ROOT + '/releases/tags/catalogue-v1', ROOT + '/git/ref/tags/catalogue-v1',
+              ROOT + '/releases/416561696/assets?per_page=100',
+              ROOT + '/git/matching-refs/tags/catalogue-',
+              *(ROOT + '/rulesets/' + str(identity) for identity in RULES),
+              *(ROOT + '/releases?per_page=100&page=' + str(page) for page in range(1, 5)))}
+          ROUTES[CHECKS] = (False, False, (200,))  # Production deliberately omits auth.
+          ROUTES[CURRENT] = ROUTES[MARKER] = (True, False, (404,))
+          for identity in ASSETS:
+              ROUTES[ROOT + '/releases/assets/' + str(identity)] = (True, True, (200, 302))
+              # A fixed log label, never the signed distribution URL or its query.
+              ROUTES['release-assets.githubusercontent.com/asset/' + str(identity)] = (False, True, (200,))
+
+          class ProbeFailed(Exception):
+              pass
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *args, **kwargs):
+                  return None
+
+          opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+          deadline = time.monotonic() + 240
+          requests_left = 64
+          token = os.environ.pop('ATLAS_PUBLICATION_TOKEN', '')
+
+          def asset_url_allowed(url):
+              if not isinstance(url, str) or any(ord(char) < 33 or ord(char) > 126 for char in url):
+                  return False
+              try:
+                  parsed = urllib.parse.urlsplit(url)
+                  return (parsed.scheme == 'https' and parsed.hostname == 'release-assets.githubusercontent.com'
+                      and parsed.port in (None, 443) and not parsed.username and not parsed.password
+                      and not parsed.fragment and parsed.path.startswith('/')
+                      and not any(char in url for char in '\\\r\n'))
+              except ValueError:
+                  return False
+
+          def request(method, route, *, download_url=None):
+              global requests_left
+              if method != 'GET':
+                  raise ProbeFailed()
+              spec = ROUTES.get(route)
+              # Only a bounded annotated-tag dereference may add a variable route.
+              if spec is None and re.fullmatch(re.escape(ROOT) + r'/git/tags/[a-f0-9]{40}', route):
+                  spec = (True, False, (200,))
+              if spec is None:
+                  raise ProbeFailed()
+              authenticated, binary, expected = spec
+              if route.startswith('release-assets.githubusercontent.com/'):
+                  if not asset_url_allowed(download_url):
+                      raise ProbeFailed()
+                  url = download_url
+              else:
+                  if download_url is not None:
+                      raise ProbeFailed()
+                  url = 'https://api.github.com' + route
+              status, request_id, accepted, result, redirect = None, None, False, None, None
+              try:
+                  if requests_left <= 0 or time.monotonic() >= deadline:
+                      raise ProbeFailed()
+                  requests_left -= 1
+                  headers = {'Accept': 'application/octet-stream' if binary else 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'atlas-publication-p1',
+                      'Accept-Encoding': 'identity'}
+                  if authenticated:
+                      headers['Authorization'] = 'Bearer ' + token
+                  req = urllib.request.Request(url, method='GET', headers=headers)
+                  try:
+                      response = opener.open(req, timeout=min(20, max(0.1, deadline - time.monotonic())))
+                  except urllib.error.HTTPError as error:
+                      response = error
+                  with response:
+                      status = response.status
+                      identity = response.headers.get('X-GitHub-Request-Id', '')
+                      request_id = identity if re.fullmatch(r'[a-fA-F0-9:]{1,128}', identity) else None
+                      accepted = status in expected
+                      if accepted and status == 302:
+                          redirect = response.headers.get('Location', '')
+                          accepted = asset_url_allowed(redirect)
+                      elif accepted and status == 200:
+                          limit = 10585 if binary else 1024 * 1024
+                          if response.headers.get('Content-Encoding', 'identity') != 'identity':
+                              raise ProbeFailed()
+                          size = response.headers.get('Content-Length')
+                          if size is not None and (not size.isdigit() or int(size) > limit):
+                              raise ProbeFailed()
+                          raw = response.read(limit + 1)
+                          if len(raw) > limit or size is not None and len(raw) != int(size):
+                              raise ProbeFailed()
+                          result = None if binary else json.loads(raw)
+              except Exception:
+                  accepted = False
+              # Never stringify exceptions, headers, response bodies or redirect URLs.
+              print(json.dumps({'method': 'GET', 'route': route, 'status': status, 'request_id': request_id,
+                  'expected': accepted, 'authentication': 'Publisher App' if authenticated else 'anonymous'}), flush=True)
+              if not accepted:
+                  raise ProbeFailed()
+              if redirect is not None:
+                  identity = route.rsplit('/', 1)[1]
+                  request('GET', 'release-assets.githubusercontent.com/asset/' + identity, download_url=redirect)
+              return result
+
+          def get(route):
+              return request('GET', route)
+
+          def authority():
+              for route in (RUN, '/users/benchristian88', ROOT, ROOT + '/branches/main',
+                  ROOT + '/environments/catalogue-publication', RUN + '/attempts/1',
+                  ROOT + '/actions/workflows/392548804', CHECKS, '/apps/atlas-catalogue-publisher',
+                  '/installation/repositories?per_page=100', ROOT + '/immutable-releases'):
+                  get(route)
+              rows = get(LIST)
+              if not isinstance(rows, list) or len(rows) != 5 or {row['id'] for row in rows} != set(RULES):
+                  raise ProbeFailed()
+              for row in rows:  # Preserve production's provider-returned order.
+                  get(ROOT + '/rulesets/' + str(row['id']))
+
+          def absence():
+              get(CURRENT)
+              get(MARKER)
+
+          def main():
+              if not token or os.environ.get('ATLAS_APP_SLUG') != 'atlas-catalogue-publisher' or os.environ.get('ATLAS_APP_INSTALLATION_ID') != '174027755':
+                  raise ProbeFailed()
+              authority()
+              get(ROOT + '/releases/tags/catalogue-v1')
+              value = get(ROOT + '/git/ref/tags/catalogue-v1')['object']
+              for _ in range(2):
+                  if value['type'] == 'commit':
+                      break
+                  if value['type'] != 'tag' or not re.fullmatch(r'[a-f0-9]{40}', value['sha']):
+                      raise ProbeFailed()
+                  value = get(ROOT + '/git/tags/' + value['sha'])['object']
+              else:
+                  raise ProbeFailed()
+              get(ROOT + '/releases/416561696/assets?per_page=100')
+              for identity in ASSETS:
+                  get(ROOT + '/releases/assets/' + str(identity))
+              absence()
+              get(ROOT + '/git/matching-refs/tags/catalogue-')
+              for page in range(1, 5):
+                  rows = get(ROOT + '/releases?per_page=100&page=' + str(page))
+                  # Stop if state changed: this probe targets the reported no-draft path.
+                  if not isinstance(rows, list) or len(rows) > 100 or any(row['tag_name'] == 'catalogue-000001' for row in rows):
+                      raise ProbeFailed()
+                  if len(rows) < 100:
+                      break
+              else:
+                  raise ProbeFailed()
+              authority()
+              absence()
+              # End here: production's next request would create the draft release.
+
+          if __name__ == '__main__':
+              try:
+                  main()
+              except Exception:
+                  sys.exit(1)
+          PY
