@@ -12,6 +12,7 @@ PRODUCTION = {
     "catalogue-publish.yml", "catalogue-verifier.yml", "catalogue.yml",
     "release.yml", "ci.yml",
 }
+DISABLED_PACKAGE_PUBLICATION = {"connector-publish.yml", "connector-verifier.yml"}
 # Original bytes at source branch HEAD 632f5e5f9f297549b1d54c5b6fc1a5c8a086b38d.
 HISTORICAL_SHA256 = {
     "diagnose-catalogue-publisher.yml": "c25b73fdd9a8bb1e9b09bd6ae598ae5d68e3270717235c9dbe9a8667a4aee29a",
@@ -21,8 +22,8 @@ HISTORICAL_SHA256 = {
 }
 
 
-def test_exactly_five_production_workflows_are_active():
-    assert {path.name for path in ACTIVE.iterdir()} == PRODUCTION
+def test_only_production_and_explicitly_disabled_package_workflows_are_present():
+    assert {path.name for path in ACTIVE.iterdir()} == PRODUCTION | DISABLED_PACKAGE_PUBLICATION
 
 
 @pytest.mark.parametrize("filename", HISTORICAL_SHA256)
@@ -33,7 +34,7 @@ def test_historical_workflow_is_archived_with_original_bytes(filename):
     assert hashlib.sha256(archived.read_bytes()).hexdigest() == HISTORICAL_SHA256[filename]
 
 
-@pytest.mark.parametrize("filename", sorted(PRODUCTION))
+@pytest.mark.parametrize("filename", sorted(PRODUCTION | DISABLED_PACKAGE_PUBLICATION))
 def test_production_workflow_does_not_invoke_archived_experiments(filename):
     source = (ACTIVE / filename).read_text()
     assert "tests/fixtures/historical_workflows" not in source

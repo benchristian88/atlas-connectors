@@ -278,3 +278,22 @@ Keep historical 0.2.0 unchanged and non-installable. P1 advancement also require
 an explicit reviewed withdrawal of its mutable active entry while retaining its
 entire historical identity. No sequence, pointer, root, SDK or Atlas file is changed
 by this preparation.
+
+## Phase 4B.2 package mechanism handoff (26 October 2026)
+
+The separate [package publication workflow](connector-packages.md) is locally
+implemented with disabled package trust, inert implementation pins and a default
+acceptance-only job boundary. It adds a distinct package-preflight profile and
+separate human tag/stage/finalize dispatches; it changes no existing catalogue
+signature, S4 code, sequence-one publication or historical package. Local modeled
+tests and genuine historical cryptographic regressions do not establish live
+package signer/custody/permission acceptance. See
+[proposed ADR 0006](../../docs/decisions/0006-connector-package-publication.md)
+for the unresolved pre-token effective-Publisher-permission decision.
+
+Successful future final verification may return
+`immutable_package_verified_catalogue_pending` with all five approved asset
+identities. Neither that receipt nor the short-lived signed Actions preflight
+constitutes an approved public immutable publication-evidence archive. Sequence
+two, independent Atlas consumer authority, final-artifact qualification and remote
+installation remain separate work; no consumer policy or catalogue entry changes.

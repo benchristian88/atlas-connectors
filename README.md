@@ -21,6 +21,15 @@ defines the approved App identity, retained build signature, exact-byte draft
 staging, provider immutability checks and read-only independent verifier.
 The historical 0.2.0 source, package, registry and catalogue history remain intact.
 
+**Phase 4B.2: package publication mechanisms are locally implemented for review,
+with privileged execution disabled.** The separate
+[package publication runbook](catalogue/publication/connector-packages.md) documents
+signed isolated admission, independent tag/stage/finalize dispatches, immutable
+verification, the two-PR implementation-pinning process and genuine acceptance-only
+evidence still required. [Proposed ADR 0006](docs/decisions/0006-connector-package-publication.md)
+records the unresolved effective-permission admission decision. No package has
+been published and no catalogue or remote-installation authority is added.
+
 Production [Proxmox 0.2.0](connectors/proxmox/README.md) promotes the unchanged
 **0.2.0-i4b.6** discovery implementation, qualified against **Proxmox VE 9.2.11**.
 It supports Test Connection, read-only discovery, scheduling and complete snapshots:
