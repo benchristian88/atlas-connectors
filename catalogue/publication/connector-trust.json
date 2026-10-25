@@ -1,0 +1,15 @@
+{
+  "enabled": false,
+  "live_signer_accepted": false,
+  "max_observation_age_seconds": 900,
+  "ruleset_ids": {
+    "atlas-bootstrap-lock": 25628137,
+    "atlas-catalogue-current": 25618684,
+    "atlas-history-lock": 25618809,
+    "atlas-main": 25618213,
+    "atlas-publication-tags": 25618901
+  },
+  "schema": "atlas-connector-package-trust/v1",
+  "signer_revision": "0000000000000000000000000000000000000000",
+  "verification_environment_id": 25016263801
+}

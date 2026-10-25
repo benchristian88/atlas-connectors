@@ -1,0 +1,110 @@
+name: Controlled Connector package publication
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Exactly one separately authorized operation
+        type: choice
+        options: [tag, stage, finalize]
+        default: tag
+      acceptance_only:
+        description: Sign isolated admission only; Publisher job is entirely skipped
+        type: boolean
+        default: true
+      package:
+        description: Bounded package request JSON from the reviewed runbook
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  # Share the existing Publisher credential's conflict domain with catalogue work.
+  group: official-catalogue-publication
+  cancel-in-progress: false
+jobs:
+  preflight:
+    if: >-
+      github.repository == 'benchristian88/atlas-connectors' &&
+      github.repository_id == '1414494920' && github.repository_owner_id == '93822871' &&
+      github.actor_id == '93822871' && github.actor == 'benchristian88' &&
+      github.triggering_actor == 'benchristian88' && github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' && github.run_attempt == 1
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    # Deliberately nonexistent pin: PR1 freezes S; PR2 reviews literal S wiring.
+    # No mutable-main fallback. This workflow cannot run before that review.
+    uses: benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@0000000000000000000000000000000000000000
+    with:
+      request: ${{ toJSON(inputs) }}
+    secrets:
+      VERIFICATION_APP_PRIVATE_KEY: ${{ secrets.VERIFICATION_APP_PRIVATE_KEY }}
+
+  publisher:
+    needs: preflight
+    if: >-
+      !inputs.acceptance_only && needs.preflight.result == 'success' &&
+      vars.CONNECTOR_PUBLICATION_ENABLED == 'true' &&
+      github.repository == 'benchristian88/atlas-connectors' &&
+      github.repository_id == '1414494920' && github.repository_owner_id == '93822871' &&
+      github.actor_id == '93822871' && github.actor == 'benchristian88' &&
+      github.triggering_actor == 'benchristian88' && github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' && github.run_attempt == 1
+    environment: catalogue-publication
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ATLAS_IMPLEMENTATION_REVISION: '0000000000000000000000000000000000000000'
+      CONNECTOR_VERIFICATION_POLICY: ${{ vars.CONNECTOR_VERIFICATION_POLICY }}
+      CONNECTOR_REQUEST: ${{ format('{{"operation":{0},"acceptance_only":{1},"package":{2}}}', toJSON(inputs.operation), toJSON(inputs.acceptance_only), inputs.package) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: benchristian88/atlas-connectors
+          ref: '0000000000000000000000000000000000000000'
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: benchristian88/atlas-connectors
+          ref: ${{ github.sha }}
+          path: publication-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: benchristian88/atlas-connectors
+          ref: ${{ fromJSON(inputs.package).source_commit }}
+          path: package-source
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
+      - run: python -m pip install 'jsonschema[format-nongpl]==4.25.1'
+      - run: python tools/prepare_publication_verifier.py
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.preflight.outputs.artifact-id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/connector-preflight
+      - name: Authenticate package admission before Publisher credentials
+        run: python tools/publish_connector.py authorize
+      - name: Authenticate committed package and exact original build artifact before Publisher credentials
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: python tools/publish_connector.py prepare
+      - name: Execute only this admitted operation with the existing scoped App
+        env:
+          PUBLICATION_APP_ID: ${{ vars.PUBLICATION_APP_ID }}
+          PUBLICATION_APP_PRIVATE_KEY: ${{ secrets.PUBLICATION_APP_PRIVATE_KEY }}
+        run: python tools/publish_connector.py execute
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: connector-package-publication-receipt-${{ github.run_id }}
+          path: dist/connector-publication/receipt.json
+          if-no-files-found: ignore
+          retention-days: 90

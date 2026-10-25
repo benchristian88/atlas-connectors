@@ -1,0 +1,112 @@
+name: Isolated Connector package admission v1
+on:
+  workflow_call:
+    inputs:
+      request:
+        type: string
+        required: true
+    secrets:
+      VERIFICATION_APP_PRIVATE_KEY:
+        required: true
+    outputs:
+      artifact-id:
+        value: ${{ jobs.verify.outputs.artifact-id }}
+permissions: {}
+jobs:
+  verify:
+    if: >-
+      github.repository == 'benchristian88/atlas-connectors' &&
+      github.repository_id == '1414494920' && github.repository_owner_id == '93822871' &&
+      github.actor_id == '93822871' && github.actor == 'benchristian88' &&
+      github.triggering_actor == 'benchristian88' && github.event_name == 'workflow_dispatch' &&
+      github.workflow_ref == 'benchristian88/atlas-connectors/.github/workflows/connector-publish.yml@refs/heads/main' &&
+      github.ref == 'refs/heads/main' && github.run_attempt == 1
+    environment: catalogue-verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Require independently configured package signer before checkout or credentials
+        id: context
+        env:
+          JOB_CONTEXT: ${{ toJSON(job) }}
+          CONNECTOR_VERIFICATION_POLICY: ${{ vars.CONNECTOR_VERIFICATION_POLICY }}
+          ACCEPTANCE_ONLY: ${{ fromJSON(inputs.request).acceptance_only }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          try:
+              job = json.loads(os.environ['JOB_CONTEXT'])
+              trust = json.loads(os.environ['CONNECTOR_VERIFICATION_POLICY'])
+              sha = trust['signer_revision']
+              path = 'benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@refs/heads/main'
+              if not (trust['schema'] == 'atlas-connector-package-trust/v1'
+                      and type(trust['live_signer_accepted']) is bool and type(trust['enabled']) is bool
+                      and (os.environ['ACCEPTANCE_ONLY'] == 'true' or trust['live_signer_accepted'] and trust['enabled'])
+                      and isinstance(sha, str) and re.fullmatch('[a-f0-9]{40}', sha) and sha != '0' * 40
+                      and job['workflow_sha'] == sha and job['workflow_ref'] == path
+                      and job['workflow_repository'] == 'benchristian88/atlas-connectors'
+                      and job['workflow_file_path'] == '.github/workflows/connector-verifier.yml'):
+                  raise ValueError()
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+                  output.write('revision=' + sha + '\n')
+                  output.write('workflow_ref=' + path + '\n')
+          except Exception:
+              sys.exit('connector_verification_trust_not_accepted')
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: benchristian88/atlas-connectors
+          ref: ${{ steps.context.outputs.revision }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - run: python3 -m pip install --target "$RUNNER_TEMP/verifier-dependencies" --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt
+      - name: Observe complete controls with the isolated existing Verifier identity
+        env:
+          PYTHONPATH: ${{ runner.temp }}/verifier-dependencies
+          CONNECTOR_REQUEST: ${{ format('{{"operation":{0},"acceptance_only":{1},"package":{2}}}', toJSON(fromJSON(inputs.request).operation), toJSON(fromJSON(inputs.request).acceptance_only), fromJSON(inputs.request).package) }}
+          DISPATCH_OPERATION: ${{ github.event.inputs.operation }}
+          DISPATCH_ACCEPTANCE_ONLY: ${{ github.event.inputs.acceptance_only }}
+          DISPATCH_PACKAGE: ${{ github.event.inputs.package }}
+          ATLAS_IMPLEMENTATION_REVISION: ${{ steps.context.outputs.revision }}
+          VERIFIER_WORKFLOW_REF: ${{ steps.context.outputs.workflow_ref }}
+          CONNECTOR_VERIFICATION_POLICY: ${{ vars.CONNECTOR_VERIFICATION_POLICY }}
+          VERIFICATION_APP_ID: ${{ vars.VERIFICATION_APP_ID }}
+          VERIFICATION_APP_INSTALLATION_ID: ${{ vars.VERIFICATION_APP_INSTALLATION_ID }}
+          VERIFICATION_APP_PRIVATE_KEY: ${{ secrets.VERIFICATION_APP_PRIVATE_KEY }}
+        run: python3 tools/connector_publication_preflight.py
+      - uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
+        id: attest
+        with:
+          subject-path: ${{ runner.temp }}/connector-authorization/connector-preflight.json
+          predicate-type: https://atlas-impact.dev/attestations/connector-package-preflight/v1
+          predicate-path: ${{ runner.temp }}/connector-authorization/predicate.json
+          show-summary: false
+          create-storage-record: false
+          push-to-registry: false
+      - name: Authenticate this package signer profile before exporting public evidence
+        env:
+          PYTHONPATH: ${{ runner.temp }}/verifier-dependencies
+          CONNECTOR_REQUEST: ${{ format('{{"operation":{0},"acceptance_only":{1},"package":{2}}}', toJSON(fromJSON(inputs.request).operation), toJSON(fromJSON(inputs.request).acceptance_only), fromJSON(inputs.request).package) }}
+          ATLAS_IMPLEMENTATION_REVISION: ${{ steps.context.outputs.revision }}
+          CONNECTOR_VERIFICATION_POLICY: ${{ vars.CONNECTOR_VERIFICATION_POLICY }}
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          python3 tools/prepare_publication_verifier.py
+          python3 tools/connector_publication_preflight.py seal
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        id: upload
+        with:
+          name: connector-preflight-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/connector-authorization/connector-preflight.json
+            ${{ runner.temp }}/connector-authorization/connector-preflight.sigstore.json
+          if-no-files-found: error
+          retention-days: 1

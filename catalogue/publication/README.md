@@ -1,11 +1,12 @@
 # Official catalogue publication — Lean V2 operator runbook
 
-Phase 4B.1 [security acceptance](../../docs/phase-4b1-security-acceptance.md) concludes
-**GO FOR PR for preparation only** after contained verifier corrections. Package
-publication remains blocked: no approved tag/stage/finalize execution path is
-implemented. The preferred separately reviewed next increment reuses the existing
-App identities and environment custody in a narrow package workflow; frozen S4
-catalogue authorization cannot authorize that workflow.
+Phase 4B.1 [security acceptance](../../docs/phase-4b1-security-acceptance.md) concluded
+**GO FOR PR for preparation only**. Phase 4B.2 now locally implements the separate
+[package publication mechanism](connector-packages.md) for review. Execution is
+disabled pending its own immutable implementation pin, genuine isolated acceptance
+and owner security decisions. Frozen S4 catalogue authorization cannot authorize
+the package workflow. The assessment below preserves the Phase 4B preparation
+baseline; the new runbook records current implementation and remaining controls.
 
 ## Phase 4B package release assessment (26 October 2026)
 
