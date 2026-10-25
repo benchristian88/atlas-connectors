@@ -1,5 +1,13 @@
 # Official Connector Catalogue maintenance
 
+Phase 4B prepares **Proxmox 0.2.1** through the existing tag build, explicit
+version metadata and independent package verification. It does not add a registry
+entry or allocate/publish sequence 2. See the
+[package finalization procedure](publication/README.md#phase-4b-package-finalization--separate-human-authorization-required).
+The four-field registry contract and original sequence-one bytes remain unchanged.
+Atlas's read-only reference now accepts exact sequence one under ADR 0013;
+future-sequence publication evidence and executable eligibility remain separate.
+
 The [P1 publication contract](publication/README.md) defines separate immutable
 numbered releases and a separately authenticated current-pointer branch. Local
 foundations use explicit single-maintainer authorization. [P2 bootstrap](publication/bootstrap.md)
@@ -11,8 +19,8 @@ while retaining sequence **1**, approved pointer SHA-256
 `a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372` and ordinary
 publication/recovery authorization. Publisher Workflows Write was removed;
 acceptance-only run **39913094643** confirmed baseline App registration, without
-independently testing installed effective access. Independent Atlas consumer
-verification/acceptance and B3 remote installation remain outstanding. Historical
+independently testing installed effective access. Stronger future-sequence Atlas
+acceptance and B3 remote installation remain outstanding. Historical
 Proxmox 0.2.0 remains ineligible because its original package release is mutable.
 See the [exact production evidence and remaining operator actions](publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only).
 

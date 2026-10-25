@@ -244,3 +244,37 @@ observations and immutable release/root evidence, explicit consumer root approva
 unchanged confirmation, advancement and restart/last-known-good acceptance remain
 outstanding. Offline original-source verification and model tests do not satisfy
 those boundaries.
+
+## Phase 4B preparation handoff (26 October 2026)
+
+The read-only Atlas reference at `808ee0f76f77c11e17a6c403806ce0666e30074e`
+now accepts the exact original sequence-one bootstrap under accepted ADR 0013 and
+shows accepted metadata. Earlier outstanding-consumer statements above record the
+producer's historical handoff, not a claim that the current restricted bootstrap
+is absent. No general future-sequence authorization or executable eligibility was
+approved. Atlas ADR 0012's stronger signed publication-evidence/archive design
+remains Proposed; sequence two cannot inherit the historical exception.
+
+Proxmox **0.2.1** is a separately versioned local preparation using unchanged
+qualified implementation and compatibility declarations. It is not published,
+attested or remotely installable. The
+[package finalization procedure](README.md#phase-4b-package-finalization--separate-human-authorization-required)
+defines the existing scoped-App operator boundary, five candidate assets (including
+original package build bundle), prepublication authentication, actual immutable
+release checks, final evidence and safe partial-state handling. The package verifier
+is GET-only; neither it nor its unsigned receipt authorizes publication or catalogue
+acceptance. Final verification also requires the separately approved staged inventory
+of all five asset IDs/names/digests/sizes via `--approved-assets`; observing final
+asset IDs for the first time does not establish that they were approved. No S4
+signer or catalogue publication authority is changed.
+
+After separately authorized immutable package publication, retain exact source,
+tag/version/digest, authenticated build invocation/bundle, release/asset IDs and
+all original bytes. Only then prepare the existing four-field release registry
+record in a subsequent reviewed change. Sequence 2 needs separate stronger evidence
+contract approval, immutable archival delivery and independent Atlas verification;
+the frozen catalogue's four-asset inventory currently does not provide that archive.
+Keep historical 0.2.0 unchanged and non-installable. P1 advancement also requires
+an explicit reviewed withdrawal of its mutable active entry while retaining its
+entire historical identity. No sequence, pointer, root, SDK or Atlas file is changed
+by this preparation.

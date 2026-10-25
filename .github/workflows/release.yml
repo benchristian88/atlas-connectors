@@ -38,8 +38,14 @@ jobs:
           python tools/test_collection.py --archive /tmp/community-proxmox-2.0.0.tar.gz --output "$ATLAS_TEST_COLLECTIONS_PATH"
       - run: python -m pytest -q
       - uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        id: package_attestation
         with:
           subject-path: dist/release/*.tar.gz
+      - name: Authenticate and retain exact package build evidence
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          PACKAGE_BUNDLE_PATH: ${{ steps.package_attestation.outputs.bundle-path }}
+        run: python tools/release_connector.py --retain-bundle "$PACKAGE_BUNDLE_PATH"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: immutable-connector-release-candidate
