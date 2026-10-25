@@ -8,6 +8,19 @@ own distribution. No AGPL application/plugin implementation was copied here.
 Each `connectors/<id>/` package owns its independent SemVer Manifest, fixed
 entry-point playbooks, `library/`, README, NOTICE and SPDX SBOM. Repository-level
 LICENSE is included in every bundle. Fixtures/unit tests live in `tests/`.
+
+**Phase 4B: Proxmox 0.2.1 is prepared locally for immutable release, not published.**
+Explicit version metadata in `connectors/proxmox/releases/0.2.1/` reuses all
+qualified executable source. `python tools/build_bundle.py --version 0.2.1`
+selects it; the default 0.2.0 and historical candidate builds retain their exact
+bytes. `python tools/release_connector.py --local --tag proxmox-v0.2.1 --output dist/proxmox-0.2.1-review`
+also performs release archive, qualification, compatibility, SPDX and licence
+checks. Local output is unattested. The
+[operator-controlled package release procedure](catalogue/publication/README.md#phase-4b-package-finalization--separate-human-authorization-required)
+defines the approved App identity, retained build signature, exact-byte draft
+staging, provider immutability checks and read-only independent verifier.
+The historical 0.2.0 source, package, registry and catalogue history remain intact.
+
 Production [Proxmox 0.2.0](connectors/proxmox/README.md) promotes the unchanged
 **0.2.0-i4b.6** discovery implementation, qualified against **Proxmox VE 9.2.11**.
 It supports Test Connection, read-only discovery, scheduling and complete snapshots:
@@ -151,9 +164,10 @@ The owner removed Publisher Workflows Write. Genuine first-attempt
 passed preflight/verify with Publisher skipped, confirming the **App registration**
 at baseline; it did not independently test the installed App's effective access.
 See the [production evidence and remaining operator actions](catalogue/publication/README.md#s4-deployment-and-mandatory-rollback--owner-actions-only)
-for exact IDs, digests and baseline permissions. Independent Atlas consumer
-verification and acceptance remain outstanding; Atlas B3 remote installation is
-not ready. This closure changes no executable code and performs no remote mutation.
+for exact IDs, digests and baseline permissions. Atlas now accepts only the exact
+sequence-one bootstrap under ADR 0013. Stronger future-sequence acceptance and
+Atlas B3 remote installation remain outstanding. The historical closure changed
+no executable code and performed no remote mutation.
 Historical Proxmox **0.2.0 remains ineligible for remote installation** because its
 package release is mutable. Existing catalogue-v1 assets
 are preserved; that mutable legacy channel is not an accepted current source.

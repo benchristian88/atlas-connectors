@@ -1,12 +1,60 @@
 # Official catalogue publication — Lean V2 operator runbook
 
+Phase 4B.1 [security acceptance](../../docs/phase-4b1-security-acceptance.md) concludes
+**GO FOR PR for preparation only** after contained verifier corrections. Package
+publication remains blocked: no approved tag/stage/finalize execution path is
+implemented. The preferred separately reviewed next increment reuses the existing
+App identities and environment custody in a narrow package workflow; frozen S4
+catalogue authorization cannot authorize that workflow.
+
+## Phase 4B package release assessment (26 October 2026)
+
+Inspection baseline: `b03405d6acfd562f75dbdf7aad91c94df9a1d32e`, identical to
+local and independently queried remote `main`. The clean, already existing
+`feature/proxmox-immutable-release` branch started at that same commit.
+Related read-only references: Atlas `dev` at
+`808ee0f76f77c11e17a6c403806ce0666e30074e`, SDK `main` at
+`8b0518c462289cca4758c3b9bf362f1130928a1c`.
+
+Before implementation, the checked-in release path established the following:
+
+- A `*-v*` push runs `release.yml` on a hosted runner, attempt one, in
+  `connector-release`. It selects qualified source by exact tag/Manifest,
+  deterministically builds the package, tests, attests the archive with pinned
+  `actions/attest`, then retains candidate files. It does not publish a Release.
+- The configured Publisher App is the sole publication-tag ruleset bypass.
+  Both original and triggering package-build actors must be its bot. Existing
+  `Publisher.run_authority` checks both independent run records, workflow, account,
+  source CI and package environment; `Publisher.packages` checks main ancestry.
+  The later human catalogue dispatch authorizes inclusion, not the tag build.
+- Package provenance binds repository/owner, `release.yml@refs/tags/ID-vVERSION`,
+  source/signer/configuration SHA, hosted runner, issuer, SLSA subject digest and
+  run/attempt. The pinned offline verifier authenticates these fields.
+- The existing operator procedure assigns package staging/finalization to the
+  scoped App. There is no package finalizer workflow. Missing local controls are
+  clean exact-source enforcement, release-specific archive/SBOM/licence checks,
+  retention of the package signature bundle, and independent final package
+  release/asset verification. Configuration alone cannot prove immutability.
+- S4's signed preflight authorizes only the existing catalogue caller/operations.
+  It cannot authorize a new package workflow. Its code, pins, keys, permissions,
+  catalogue policy and historical publication remain frozen in this increment.
+
+The implementation extends the existing recipe/build/tag workflow with explicit
+version metadata and verification, retaining operator-controlled App publication.
+It introduces no new privilege path or authorization policy. Proxmox **0.2.1** is
+a patch packaging identity: unchanged qualified behavior, new Manifest/SBOM/docs
+and new bytes. The base 0.2.0 source and default build remain intact. Atlas ADRs
+0006/0011 remain authoritative; accepted ADR 0013 permits only exact sequence one.
+The stronger future-publication design in Atlas ADR 0012 remains Proposed and
+blocks sequence-two consumer acceptance until separately approved and delivered.
+
 **Provider-side sequence-1 bootstrap is completed; immutable catalogue publication is active.**
 The closure policy sets `bootstrap_operation: disabled`, preserving `enabled: true`,
 single-maintainer authorization, all IDs and the approved sequence/pointer pins.
 Normal `publish` and `recover` remain available subject to existing signed preflight,
 package, contiguous sequence, predecessor, immutable-release and history checks.
-Independent Atlas consumer verification and acceptance remain outstanding; this
-completion does not establish Atlas B3 remote-installation readiness.
+Atlas now accepts only exact sequence one under ADR 0013. Stronger future-sequence
+consumer acceptance and Atlas B3 remote-installation readiness remain outstanding.
 
 Reviewed implementation **S = S4 = `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`**
 was merged through [PR #30](https://github.com/benchristian88/atlas-connectors/pull/30)
@@ -296,3 +344,195 @@ ref/release deletion, forced update or authorization fallback exists.
 A signature authorizes startup, not continuous protections or atomic later writes.
 The Publisher rechecks visible protections/state; complete hidden bypass evidence
 remains the startup snapshot. Review the explicit [race and credential limitations](../../docs/signed-publication-verifier.md#freshness-later-validation-and-explicit-trade-offs).
+
+## Phase 4B package finalization — separate human authorization required
+
+**Prepared locally; no new package release, tag, attestation or catalogue has been
+published by this increment.** The patch version **0.2.1** gives the unchanged
+qualified implementation a new historical distribution identity. Explicit
+`release_overrides` in `connectors/proxmox/package.json` select only versioned
+Manifest, SPDX identity, README and qualification limits; default 0.2.0 and `.6`
+archives retain their original bytes. `build_bundle.py --version 0.2.1` uses the
+same reviewed file list and USTAR/gzip construction. No tests, fixtures, candidate
+paths, release-preparation tooling or operator evidence enter the archive.
+
+The 0.2.1 Manifest preserves AIP 1.0, SDK >=1.1.0/<2.0.0, Atlas >=0.1.0/<1.0.0,
+runtime capability integration-runtime-v1 and baseline >=1.2.0/<2.0.0, and the exact
+community.proxmox 2.0.0 digest/licence. No dependency is upgraded. The retained
+source qualification is for unchanged behavior against **9.2.11**, not complete
+live acceptance of the new artifact. Its packaged qualification document states
+that distinction and retains authentication-secret and native-systemd live gaps.
+
+### Local preparation and review
+
+Use the existing pinned SDK, development dependencies and reviewed test collection.
+The workflow still uses Python 3.12 and the same pinned actions. This increment
+adds no execution dependency. From the feature working tree:
+
+```bash
+python tools/release_connector.py --local --tag proxmox-v0.2.1 --output dist/proxmox-0.2.1-review
+python tools/build_bundle.py --version 0.2.1 --output dist/proxmox-0.2.1-repeat
+cmp dist/proxmox-0.2.1-review/proxmox-0.2.1.tar.gz dist/proxmox-0.2.1-repeat/proxmox-0.2.1.tar.gz
+```
+
+`--local` grants no signing/publication authority. Its detached source HEAD is
+contextual while edits are uncommitted. The production tag workflow does not use
+that mode: it requires clean exact committed source, matching tag, official
+repository/owner/hosted-runner context, first attempt and configured App actor.
+It rejects an already registered identity before emitting release files. Before
+attestation it validates the full SDK Manifest, stable version, recorded source
+qualification, supported SDK/runtime, bounded regular USTAR members, embedded
+Manifest agreement, SPDX identity/dependencies and licence/notice paths. Every
+consumed package file must be tracked. The historical base source and recipe remain
+reviewed inputs; version overlays do not silently promote a new source version.
+
+### Controlled operator ceremony after review, CI and merge
+
+These steps are a **design for the existing scoped-App operator procedure**,
+not a newly authorized workflow. There is no automated package finalizer, token
+minting CLI, credential override, PAT path or package-specific S4 authorization.
+The following ceremony must be separately authorized and performed by the owner.
+If the existing credential custody/approved operator path cannot perform it,
+publication is blocked pending a separately reviewed mechanism. Do not extract
+an environment key into a laptop, add a new secret location, dispatch catalogue
+publication as a substitute, or widen permissions to get past that boundary.
+
+1. Review the branch, commit/push through the normal PR process, obtain green
+   `validate` CI, and merge into protected `main`. Record exact reviewed source
+   **C**, tag **T = proxmox-v0.2.1**, package name **proxmox-0.2.1.tar.gz** and
+   expected SHA-256 **D** from independent clean builds. C is not the uncommitted
+   preparation HEAD. Record owner acceptance of qualification inheritance; repeat
+   Test Connection and unchanged COMPLETE discovery with the exact final artifact
+   before claiming new-artifact live acceptance.
+2. Independently reconfirm repository/owner, maintainer, both environments,
+   complete rulesets/bypasses and existing App/installation identities listed
+   above. Confirm the installed Publisher has only its existing baseline scope
+   for this repository, and `GET /immutable-releases` reports enabled. This is a
+   prerequisite, not proof of final immutability. The baseline effective
+   installation permissions still require operator confirmation. Keep Workflows
+   **No access**. A permissions failure requires investigation and separate review;
+   the historical temporary bootstrap elevation is not permission to repeat it.
+3. Separately authorize **create-only** T at C through the configured Publisher
+   App, not a human-pushed tag. Confirm T does not exist and no release with T
+   exists, including drafts. The App creates `refs/tags/T` at exact C; never
+   retarget/delete a pre-existing tag. This must trigger a fresh **attempt-one**
+   `release.yml` push run **R**, whose original and triggering actors are the
+   configured App bot. A tag build establishes provenance, not human publication
+   approval. Do not use Re-run jobs to repair its identity.
+4. The workflow prepares/tests the package, attests the exact archive and retains
+   `immutable-connector-release-candidate` with exactly **five** files:
+   archive, `manifest.json`, `index.json`, `SHA256SUMS`, `package.sigstore.json`.
+   The fifth file is the unchanged pinned `actions/attest` bundle output, verified
+   offline against C/T/D/R before upload. It is not a new signature profile.
+   Historical 0.2.0 retains its original four assets. Retain the artifact promptly;
+   Actions artifact availability is not an immutable archive guarantee.
+5. Obtain those exact candidate bytes into `dist/release` in a clean checkout at
+   C, with this reviewed verifier implementation and its pinned gh/roots. Run the
+   read-only prepublication verification, replacing the explicit reviewed values:
+
+   ```bash
+   python tools/verify_connector_release.py --candidate-only --directory dist/release --tag proxmox-v0.2.1 --source-commit C --expected-digest D --run-id R
+   ```
+
+   This independently verifies the signature, exact source/tag/digest/run binding,
+   completed successful original run and attempt one, both App actors, official
+   workflow/repository, source CI/main ancestry and package environment/tag policy.
+   Missing public observations fail closed with no credential fallback. The result
+   is `authenticated_build_candidate_not_publication_authority`; CI success alone
+   is insufficient. Signature verification uses the approved release.yml package
+   profile, never a decoded JSON assertion or checksum-only fallback.
+6. Through the existing approved App operator path, create a **draft** release
+   for existing T with `target_commitish: C`, `prerelease: false` and
+   `make_latest: false`. Upload exactly the five verified files without rebuilding,
+   reserializing or modifying them. Record release ID **L**, package asset ID **A**
+   and every asset's name/ID/size/provider digest. Independently retrieve all staged
+   bytes through that authorized draft-visible path and compare with the verified
+   candidate. Require App author/uploader identities, exact C/T and no extra assets.
+   Draft state and matching checksums do not establish immutable publication.
+7. The maintainer explicitly approves **C/T/D/R/L/A and all five asset identities**
+   after inspecting the staged bytes and provenance. Preserve that approval in the
+   operator's release record. Save the approved asset inventory separately from the
+   five candidate files as `dist/approved-assets.json` (or outside the checkout): an object keyed by exact asset
+   name, each value containing exactly `id` (positive integer), `sha256` (64 lowercase
+   hex characters without prefix), and `bytes` (integer size). Include all five
+   files and their distinct staged IDs. Verify this inventory against the downloaded
+   staged bytes before approval; never derive it from final-release observations.
+   The final verifier requires it and rejects a changed ID even when bytes match.
+   It is an explicit operator authorization record, not an
+   independently signed human proof or a portable S4 grant. Using the same approved
+   App path, finalize only L (`draft: false`, `make_latest: false`). Do not set an
+   invented `immutable` input or infer success from the PATCH response.
+8. Independently GET L and the T release, resolve T to C, and require **actual
+   `immutable: true`, `draft: false`, `prerelease: false`**. GitHub documents
+   [draft, attach, publish](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
+   for immutable releases. Immutability locks assets/tag; title, notes and
+   prerelease state can still change, so continue checking actual state.
+   Run the anonymous, GET-only verifier:
+
+   ```bash
+   python tools/verify_connector_release.py --directory dist/release --tag proxmox-v0.2.1 --source-commit C --expected-digest D --run-id R --release-id L --asset-id A --approved-assets dist/approved-assets.json
+   ```
+
+   It repeats build authentication, checks exact App release/asset actors and all
+   five IDs/filenames/digests/bytes, retrieves the assets independently and rereads
+   release/asset/tag state. Only successful verification emits
+   `immutable_package_verified_catalogue_pending`, with the full validated Manifest,
+   build invocation, release ID and asset inventory. Save original bytes/bundle,
+   exact command/expected values, observed API records, approval and receipt.
+   The receipt is a report, not signed publication authority. Public App metadata
+   corroborates registration, not historical/effective token permissions or
+   uninterrupted protection. Simulated provider tests prove neither real
+   immutability nor new cryptographic acceptance.
+
+### Failure, retry and acceptance
+
+A missing/invalid signature, changed source, wrong actor, rerun, incompatible
+Manifest, unsafe archive, missing qualification, draft/prerelease/mutable final
+release, wrong asset or ambiguous response blocks acceptance. Do not emit a trusted
+handoff or change catalogue state. The read-only verifier never repairs publication.
+If a write response is lost, independently reread exact L/T/assets first; do not
+blindly retry create/upload/finalize. Partial draft recovery requires fresh operator
+review and exact same C/T/D/R/L/existing asset IDs and bytes. Only missing expected
+assets may be added, with original verified bytes and existing App authority.
+Conflicting assets are not deleted/replaced by this procedure. An already published
+immutable release may be reverified unchanged; missing/conflicting immutable assets
+require a new version or separate incident decision. A mutable final release fails;
+never repair it by reattesting, retagging or overwriting historical bytes.
+A failed/rerun tag build requires investigation and a separately reviewed new
+release identity, not a manual unsigned substitute. Preserve all failed-state
+observations and approval history.
+
+**Published Release PASS** requires separate owner authorization, genuine C/T/D/R
+package signature acceptance, provider L/A/asset evidence with immutable true,
+exact-byte independent retrieval and explicit final-artifact qualification
+acceptance. None is claimed for 0.2.1 by local preparation. Historical 0.2.0 remains
+at source `456a5bfdd1398c19da9ffef29216029027e24278`, archive SHA-256
+`a14fec5ab485c980688ff5907e8835ddd3e9cecd1a6989ef252cbcb1b1dc4ef8`, release
+`416290807`, asset `652745908`, mutable and remotely ineligible.
+
+### Phase 4C handoff boundary
+
+The verifier's proposed `registry_entry` has exactly the existing four fields:
+`status`, `release_tag`, `release_asset_id`, full `manifest`. Release ID, all asset
+names/IDs/digests, source, original build bundle/run and current package verification
+status are retained in separate evidence. No IDs are invented and no registry entry
+is written during preparation. Do not copy a local unattested Manifest into it.
+
+Future catalogue sequence 2 needs separate publication authorization and a reviewed
+stronger **public immutable publication-evidence archival contract**, including
+exact genuine signed preflight/bundle and policy bytes with context/historical
+verification rules independently approved by Atlas. The frozen S4 implementation
+and four-asset catalogue inventory are not modified here to supply that contract.
+Atlas ADR 0013 accepts only the exact original sequence-one bootstrap; the broader
+ADR 0012 design is still Proposed. Sequence-one's missing historical bypass
+exception never authorizes a future sequence, even one referring to sequence one.
+Atlas dev's exact sequence-one ingestion/read-only metadata does not enable remote
+package installation. Do not publish sequence 2 or update `catalogue-current` here.
+
+The next catalogue change must retain the exact 0.2.0 entry/identity as history.
+Under P1 every **active** package must pass immutability checks: an explicit reviewed
+withdrawal of mutable 0.2.0 is therefore needed before advancement can succeed.
+Do not omit it or silently reinterpret it as remotely installable. Preserve the
+original sequence/root/pointer/policy, sticky withdrawals and prior immutable
+versions for permitted rollback. No Atlas/SDK/store/runtime/consumer trust changes
+are made by Phase 4B.

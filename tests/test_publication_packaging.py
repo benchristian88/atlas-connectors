@@ -26,6 +26,10 @@ def future(tmp_path,monkeypatch):
     manifest=json.loads((source/'manifest.json').read_bytes())
     manifest.update(id='future-hypervisor',version='12.3.4')
     (source/'manifest.json').write_text(json.dumps(manifest))
+    # This fixture represents a new base package, without Proxmox's version overlays.
+    package=json.loads((source/'package.json').read_bytes())
+    package.pop('release_overrides',None)
+    (source/'package.json').write_text(json.dumps(package))
     monkeypatch.setattr(build_bundle,'ROOT',tmp_path)
     monkeypatch.setattr(release_connector,'ROOT',tmp_path)
     monkeypatch.setattr(build_bundle.subprocess,'check_output',lambda *a,**k:'a'*40+'\n')
