@@ -4,6 +4,7 @@ from copy import deepcopy
 import base64
 import io
 import json
+import re
 import shutil
 from pathlib import Path
 import stat
@@ -29,10 +30,13 @@ from publication_contract import API, APP_PERMISSIONS, PublicationError, REPOSIT
 from publication_verify import ORIGIN, Verifier
 from test_authorization_sigstore import SYNTHETIC_BUNDLE, synthetic_verified_output
 from test_connector_release import PackageProvider, TAG
-from test_publication_authorization import (NOW, REVISION, SOURCE, SyntheticProvider, file_response,
+from test_publication_authorization import (NOW, SOURCE, SyntheticProvider, file_response,
     fixture as old_fixture)
 from test_publication_state import StructuralVerifier, structural_bundle
 from verification_github import BASE
+
+REVIEWED_IMPLEMENTATION = "d6601ad97815a85da164e4329766ea17b62bddc9"
+CATALOGUE_S4 = "2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285"
 
 
 def request(operation="tag", *, acceptance_only=False, commit=SOURCE, sha256="c" * 64):
@@ -54,10 +58,11 @@ def admission_data(inputs=None, *, caller=SOURCE):
     api, env, _, old_trust, _ = old_fixture("publish", acceptance_only=inputs["acceptance_only"])
     policy_raw = (ROOT / contract.POLICY_PATH).read_bytes()
     policy = json.loads(policy_raw)
-    trust = {**old_trust, "schema": contract.TRUST_SCHEMA, "enabled": True}
+    trust = {**old_trust, "schema": contract.TRUST_SCHEMA, "enabled": True,
+        "signer_revision": REVIEWED_IMPLEMENTATION}
     env.update(GITHUB_WORKFLOW_REF=REPOSITORY + "/" + contract.WORKFLOW + "@refs/heads/main",
         GITHUB_ACTOR_ID="93822871", GITHUB_ACTOR="benchristian88", GITHUB_TRIGGERING_ACTOR="benchristian88",
-        GITHUB_SHA=caller, GITHUB_RUN_ID="90", ATLAS_IMPLEMENTATION_REVISION=REVISION,
+        GITHUB_SHA=caller, GITHUB_RUN_ID="90", ATLAS_IMPLEMENTATION_REVISION=REVIEWED_IMPLEMENTATION,
         VERIFIER_WORKFLOW_REF=REPOSITORY + "/" + contract.SIGNER + "@refs/heads/main",
         CONNECTOR_VERIFICATION_POLICY=json.dumps(trust), CONNECTOR_REQUEST=json.dumps(inputs),
         DISPATCH_OPERATION=inputs["operation"], DISPATCH_ACCEPTANCE_ONLY=str(inputs["acceptance_only"]).lower(),
@@ -69,7 +74,7 @@ def admission_data(inputs=None, *, caller=SOURCE):
         row = deepcopy(rows[BASE + "/actions/runs/60" + suffix])
         row.update(id=90, workflow_id=81, path=contract.WORKFLOW, head_sha=caller,
             url=API + "/actions/runs/90", html_url=ORIGIN + "/actions/runs/90",
-            referenced_workflows=[{"path": REPOSITORY + "/" + contract.SIGNER + "@" + REVISION, "sha": REVISION}])
+            referenced_workflows=[{"path": REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION, "sha": REVIEWED_IMPLEMENTATION}])
         rows[BASE + "/actions/runs/90" + suffix] = row
     rows[BASE + "/actions/workflows/81"] = {"id": 81, "path": contract.WORKFLOW,
         "state": "active", "url": API + "/actions/workflows/81"}
@@ -79,7 +84,7 @@ def admission_data(inputs=None, *, caller=SOURCE):
     rows[BASE + f"/contents/{contract.POLICY_PATH}?ref={caller}"] = file_response(policy_raw, contract.POLICY_PATH)
     rows[BASE + f"/contents/{contract.TRUST_PATH}?ref={caller}"] = file_response(canonical_json(trust), contract.TRUST_PATH)
     rows[BASE + f"/contents/.github/workflows/connector-publish.yml?ref={caller}"] = file_response(
-        (REPOSITORY + "/" + contract.SIGNER + "@" + REVISION).encode(), ".github/workflows/connector-publish.yml")
+        (REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION).encode(), ".github/workflows/connector-publish.yml")
     return SyntheticProvider(rows), env, trust, policy_raw
 
 
@@ -97,7 +102,7 @@ def test_signed_contract_binds_each_distinct_operation(monkeypatch, operation, a
     expected = contract.context(data[1], request(operation, acceptance_only=acceptance))
     contract.check_preflight(value, expected, data[2], data[3])
     assert value["context"]["request_sha256"] == digest(canonical_json(expected["request"]))
-    assert value["implementation_sha"] == REVISION != SOURCE
+    assert value["implementation_sha"] == REVIEWED_IMPLEMENTATION != SOURCE
     assert b"synthetic-key" not in raw and b"synthetic-installation-token" not in raw
     assert all("/releases" not in path and "/git/" not in path for _, path, _ in data[0].calls)
 
@@ -105,7 +110,7 @@ def test_signed_contract_binds_each_distinct_operation(monkeypatch, operation, a
 @pytest.mark.parametrize("field", ["GITHUB_REPOSITORY", "GITHUB_REPOSITORY_ID", "GITHUB_REPOSITORY_OWNER_ID",
     "GITHUB_ACTOR_ID", "GITHUB_ACTOR", "GITHUB_TRIGGERING_ACTOR", "GITHUB_REF", "GITHUB_RUN_ATTEMPT",
     "GITHUB_WORKFLOW_REF", "ATLAS_IMPLEMENTATION_REVISION", "VERIFIER_WORKFLOW_REF", "DISPATCH_OPERATION",
-    "DISPATCH_ACCEPTANCE_ONLY", "DISPATCH_PACKAGE"])
+    "DISPATCH_ACCEPTANCE_ONLY", "DISPATCH_PACKAGE", "GITHUB_EVENT_NAME", "RUNNER_ENVIRONMENT"])
 def test_invalid_context_cannot_reach_verifier_credentials(monkeypatch, field):
     data = admission_data()
     data[1][field] = "wrong"
@@ -153,7 +158,7 @@ def verified_output(raw):
     result = synthetic_verified_output(raw)
     verified = result[0]["verificationResult"]
     cert = verified["signature"]["certificate"]
-    cert.update(subjectAlternativeName=ORIGIN + "/" + contract.SIGNER + "@refs/heads/main",
+    cert.update(buildSignerDigest=REVIEWED_IMPLEMENTATION, subjectAlternativeName=ORIGIN + "/" + contract.SIGNER + "@refs/heads/main",
         buildSignerURI=ORIGIN + "/" + contract.SIGNER + "@refs/heads/main",
         buildConfigURI=ORIGIN + "/" + contract.WORKFLOW + "@refs/heads/main",
         runInvocationURI=ORIGIN + "/actions/runs/90/attempts/1")
@@ -173,7 +178,7 @@ def test_package_admission_uses_real_constraints_and_rechecks_freshness(monkeypa
         return canonical_json(verified_output(raw))
     monkeypatch.setattr(crypto, "bounded_run", run)
     preflight.admit(raw, SYNTHETIC_BUNDLE, expected, data[2], data[3], clock=lambda: NOW)
-    assert commands[0][commands[0].index("--signer-digest") + 1] == REVISION
+    assert commands[0][commands[0].index("--signer-digest") + 1] == REVIEWED_IMPLEMENTATION
     assert commands[0][commands[0].index("--predicate-type") + 1] == contract.PREDICATE
     for timestamp in (NOW - 1, NOW + 900):
         with pytest.raises(ValueError, match="expired"):
@@ -510,7 +515,29 @@ def test_acceptance_only_cannot_enter_any_publisher_operation(publication, opera
     assert publication[0].writes == []
 
 
-def test_workflow_pins_and_credential_isolation_are_inert_and_explicit():
+def assert_reviewed_bindings(caller, trust):
+    publisher_job = caller["jobs"]["publisher"]
+    assert caller["jobs"]["preflight"]["uses"] == REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION
+    assert publisher_job["steps"][0]["with"] == {
+        "repository": REPOSITORY, "ref": REVIEWED_IMPLEMENTATION, "persist-credentials": "false"}
+    assert publisher_job["env"]["ATLAS_IMPLEMENTATION_REVISION"] == REVIEWED_IMPLEMENTATION
+    assert trust["signer_revision"] == REVIEWED_IMPLEMENTATION
+
+
+@pytest.mark.parametrize("binding", ["reusable", "checkout", "environment", "trust"])
+@pytest.mark.parametrize("revision", ["0" * 40, "f" * 40, "main", CATALOGUE_S4, "${{ inputs.revision }}"])
+def test_reviewed_pin_contract_rejects_every_other_authority(binding, revision):
+    caller = yaml.load((ROOT / ".github/workflows/connector-publish.yml").read_text(), Loader=yaml.BaseLoader)
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    if binding == "reusable": caller["jobs"]["preflight"]["uses"] = REPOSITORY + "/" + contract.SIGNER + "@" + revision
+    elif binding == "checkout": caller["jobs"]["publisher"]["steps"][0]["with"]["ref"] = revision
+    elif binding == "environment": caller["jobs"]["publisher"]["env"]["ATLAS_IMPLEMENTATION_REVISION"] = revision
+    else: trust["signer_revision"] = revision
+    with pytest.raises(AssertionError):
+        assert_reviewed_bindings(caller, trust)
+
+
+def test_workflow_pins_and_credential_isolation_are_reviewed_and_disabled():
     load = lambda name: yaml.load((ROOT / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
     caller, signer = load("connector-publish.yml"), load("connector-verifier.yml")
     assert caller["on"]["workflow_dispatch"]["inputs"]["acceptance_only"]["default"] == "true"
@@ -518,9 +545,20 @@ def test_workflow_pins_and_credential_isolation_are_inert_and_explicit():
     assert "!inputs.acceptance_only" in publisher_job["if"] and "needs.preflight.result == 'success'" in publisher_job["if"]
     assert "CONNECTOR_PUBLICATION_ENABLED" in publisher_job["if"]
     assert caller["concurrency"] == {"group": "official-catalogue-publication", "cancel-in-progress": "false"}
-    assert caller["jobs"]["preflight"]["uses"].endswith("@" + "0" * 40)
-    assert publisher_job["env"]["ATLAS_IMPLEMENTATION_REVISION"] == "0" * 40
+    assert_reviewed_bindings(caller, json.loads((ROOT / contract.TRUST_PATH).read_bytes()))
     steps = publisher_job["steps"]
+    checkouts = [step["with"] for step in steps if step.get("uses", "").startswith("actions/checkout@")]
+    assert checkouts == [
+        {"repository": REPOSITORY, "ref": REVIEWED_IMPLEMENTATION, "persist-credentials": "false"},
+        {"repository": REPOSITORY, "ref": "${{ github.sha }}", "path": "publication-source", "persist-credentials": "false"},
+        {"repository": REPOSITORY, "ref": "${{ fromJSON(inputs.package).source_commit }}", "path": "package-source", "persist-credentials": "false"}]
+    assert "working-directory" not in publisher_job.get("defaults", {}).get("run", {})
+    assert all("working-directory" not in step for step in steps)
+    assert {step["run"] for step in steps if "run" in step} == {
+        "python -m pip install --no-index --no-deps --require-hashes --find-links vendor/sdk -r vendor/sdk/requirements.txt",
+        "python -m pip install 'jsonschema[format-nongpl]==4.25.1'",
+        "python tools/prepare_publication_verifier.py",
+        *{"python tools/publish_connector.py " + phase for phase in ("authorize", "prepare", "execute")}}
     credentials = [i for i, step in enumerate(steps) if "PUBLICATION_APP_PRIVATE_KEY" in step.get("env", {})]
     authorize = next(i for i, step in enumerate(steps) if step.get("run") == "python tools/publish_connector.py authorize")
     prepare = next(i for i, step in enumerate(steps) if step.get("run") == "python tools/publish_connector.py prepare")
@@ -530,8 +568,37 @@ def test_workflow_pins_and_credential_isolation_are_inert_and_explicit():
     assert "PUBLICATION_APP_PRIVATE_KEY" not in (ROOT / ".github/workflows/connector-verifier.yml").read_text()
     assert "secrets: inherit" not in (ROOT / ".github/workflows/connector-publish.yml").read_text()
     checked = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    assert checked == {"enabled": False, "live_signer_accepted": False,
+        "max_observation_age_seconds": 900, "ruleset_ids": {
+            "atlas-bootstrap-lock": 25628137, "atlas-catalogue-current": 25618684,
+            "atlas-history-lock": 25618809, "atlas-main": 25618213, "atlas-publication-tags": 25618901},
+        "schema": "atlas-connector-package-trust/v1", "signer_revision": REVIEWED_IMPLEMENTATION,
+        "verification_environment_id": 25016263801}
     assert checked["enabled"] is checked["live_signer_accepted"] is False
-    with pytest.raises(ValueError, match="not_pinned"): contract.check_trust(checked, acceptance_only=True)
+    contract.check_trust(checked, acceptance_only=True)
+    with pytest.raises(ValueError, match="publication_disabled"):
+        contract.check_trust(checked, acceptance_only=False)
+
+
+def inline_guard(tmp_path, trust, job, acceptance="true"):
+    workflow = yaml.load((ROOT / ".github/workflows/connector-verifier.yml").read_text(), Loader=yaml.BaseLoader)
+    program = workflow["jobs"]["verify"]["steps"][0]["run"].split("python3 - <<'PY'\n")[1].rsplit("\nPY", 1)[0]
+    return subprocess.run([sys.executable, "-c", program], capture_output=True, timeout=10,
+        env={"JOB_CONTEXT": json.dumps(job), "CONNECTOR_VERIFICATION_POLICY": json.dumps(trust),
+             "ACCEPTANCE_ONLY": acceptance, "GITHUB_OUTPUT": str(tmp_path / "output")})
+
+
+@pytest.mark.parametrize("binding", ["job", "trust"])
+@pytest.mark.parametrize("revision", ["0" * 40, "f" * 40, "main", CATALOGUE_S4])
+def test_frozen_inline_guard_rejects_revision_mismatch_before_checkout_or_key(tmp_path, binding, revision):
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    job = {"workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@refs/heads/main",
+        "workflow_sha": REVIEWED_IMPLEMENTATION, "workflow_repository": REPOSITORY,
+        "workflow_file_path": contract.SIGNER}
+    if binding == "job": job["workflow_sha"] = revision
+    else: trust["signer_revision"] = revision
+    assert inline_guard(tmp_path, trust, job).returncode != 0
+    assert not (tmp_path / "output").exists()
 
 
 @pytest.mark.parametrize("acceptance,accepted,enabled,valid", [(True, False, False, True),
@@ -539,14 +606,86 @@ def test_workflow_pins_and_credential_isolation_are_inert_and_explicit():
 def test_actual_inline_guard_requires_reviewed_pin_and_acceptance_boundaries(tmp_path, acceptance, accepted, enabled, valid):
     trust = admission_data()[2]
     trust.update(enabled=enabled, live_signer_accepted=accepted)
-    job = {"workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@refs/heads/main", "workflow_sha": REVISION,
+    job = {"workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@refs/heads/main", "workflow_sha": REVIEWED_IMPLEMENTATION,
         "workflow_repository": REPOSITORY, "workflow_file_path": contract.SIGNER}
-    workflow = yaml.load((ROOT / ".github/workflows/connector-verifier.yml").read_text(), Loader=yaml.BaseLoader)
-    program = workflow["jobs"]["verify"]["steps"][0]["run"].split("python3 - <<'PY'\n")[1].rsplit("\nPY", 1)[0]
-    result = subprocess.run([sys.executable, "-c", program], capture_output=True, timeout=10,
-        env={"JOB_CONTEXT": json.dumps(job), "CONNECTOR_VERIFICATION_POLICY": json.dumps(trust),
-             "ACCEPTANCE_ONLY": str(acceptance).lower(), "GITHUB_OUTPUT": str(tmp_path / "output")})
+    result = inline_guard(tmp_path, trust, job, str(acceptance).lower())
     assert (result.returncode == 0) == valid
+
+
+def publisher_job_allowed(acceptance, enabled, result):
+    """Model the caller's limited AND/NOT/equality grammar, not live scheduling.
+
+    Actions treats empty/null/zero as falsy and compares strings without case.
+    Unknown grammar fails this test instead of silently omitting a new clause.
+    """
+    workflow = yaml.load((ROOT / ".github/workflows/connector-publish.yml").read_text(), Loader=yaml.BaseLoader)
+    condition = workflow["jobs"]["publisher"]["if"]
+    values = {"inputs.acceptance_only": acceptance, "vars.CONNECTOR_PUBLICATION_ENABLED": enabled,
+        "needs.preflight.result": result, "github.repository": REPOSITORY, "github.repository_id": "1414494920",
+        "github.repository_owner_id": "93822871", "github.actor_id": "93822871", "github.actor": "benchristian88",
+        "github.triggering_actor": "benchristian88", "github.event_name": "workflow_dispatch",
+        "github.ref": "refs/heads/main", "github.run_attempt": 1}
+    terms = condition.strip().split(" && ")
+    assert terms[:3] == ["!inputs.acceptance_only", "needs.preflight.result == 'success'",
+        "vars.CONNECTOR_PUBLICATION_ENABLED == 'true'"]
+    results = []
+    for term in terms:
+        if term == "!inputs.acceptance_only":
+            # Unlike Python, empty arrays/objects are truthy in Actions.
+            falsy = acceptance is None or acceptance is False or type(acceptance) in {int, float} and acceptance == 0 or acceptance == ""
+            results.append(falsy)
+        else:
+            match = re.fullmatch(r"([a-zA-Z_.]+) == (?:'([^']*)'|([0-9]+))", term)
+            assert match, term
+            actual = values[match[1]]
+            results.append(str(actual).casefold() == match[2].casefold() if match[2] is not None else actual == int(match[3]))
+    return all(results)
+
+
+@pytest.mark.parametrize("enabled", ["", "false", "0", "1", "true", "TRUE", " true ", "yes"])
+@pytest.mark.parametrize("result", ["success", "failure", "skipped", "cancelled"])
+def test_acceptance_only_skips_publisher_environment_and_every_credential_step(enabled, result):
+    assert not publisher_job_allowed(True, enabled, result)
+
+
+@pytest.mark.parametrize("enabled", ["", "false", "0", "1", " true ", "yes"])
+def test_missing_or_nontrue_repository_enable_variable_cannot_start_publisher(enabled):
+    assert not publisher_job_allowed(False, enabled, "success")
+
+
+@pytest.mark.parametrize("acceptance", [None, "", 0, "false", "true", [], {}])
+def test_malformed_acceptance_cannot_pass_preflight_even_with_a_truthy_gate(acceptance):
+    inputs = request(acceptance_only=acceptance)
+    with pytest.raises(ValueError, match="connector_operation"):
+        contract.check_input(inputs)
+    # A falsy malformed input may pass !input, but cannot create successful
+    # authenticated preflight. Failed/skipped dependencies never open this job.
+    assert not publisher_job_allowed(acceptance, "true", "failure")
+    assert not publisher_job_allowed(acceptance, "true", "skipped")
+
+
+@pytest.mark.parametrize("command", ["authorize", "prepare", "execute"])
+@pytest.mark.parametrize("acceptance", [True, False, None, "", 0, "false", [], {}])
+def test_actual_publisher_entrypoints_reject_acceptance_before_mint(tmp_path, monkeypatch, command, acceptance):
+    inputs = request(acceptance_only=acceptance)
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    env = admission_data()[1]
+    env.update(CONNECTOR_REQUEST=json.dumps(inputs), CONNECTOR_VERIFICATION_POLICY=json.dumps(trust),
+        RUNNER_TEMP=str(tmp_path), PUBLICATION_APP_PRIVATE_KEY="synthetic-key-never-used")
+    source = tmp_path / "publication-source" / "catalogue/publication"
+    source.mkdir(parents=True)
+    (source / "policy.json").write_bytes((ROOT / contract.POLICY_PATH).read_bytes())
+    (source / "connector-trust.json").write_bytes(canonical_json(trust))
+    monkeypatch.setattr(engine, "ROOT", tmp_path)
+    monkeypatch.setattr(engine, "check_checkouts", lambda *args: None)
+    monkeypatch.setattr(engine.os, "environ", env)
+    monkeypatch.setattr(sys, "argv", ["publish_connector.py", command])
+    def forbidden(*args, **kwargs):
+        pytest.fail("acceptance reached Publisher preparation or credential mint")
+    monkeypatch.setattr(engine, "mint_publisher", forbidden)
+    monkeypatch.setattr(engine, "prepare_candidate", forbidden)
+    assert engine.main() == 1
+    assert env["PUBLICATION_APP_PRIVATE_KEY"] == "synthetic-key-never-used"
 
 
 @pytest.mark.parametrize("case", ["missing_bundle", "wrong_bundle_run", "modified_archive", "wrong_source", "reserialized_metadata"])
@@ -597,7 +736,10 @@ def test_exact_actions_artifact_is_bound_to_original_run(publication, case, monk
     assert len(downloads) <= 1
 
 
-@pytest.mark.parametrize("case", ["valid", "app", "installation", "excessive", "effective", "scope"])
+@pytest.mark.parametrize("case", ["valid", "app", "app_slug", "app_owner", "app_missing_permission",
+    "app_excessive_permission", "installation", "installation_app", "installation_owner", "all_repositories",
+    "suspended", "missing_suspension", "missing_permission", "contradictory_permission", "excessive",
+    "effective", "token_missing_permission", "token_contradictory_permission", "scope", "scope_repository", "scope_owner"])
 def test_publisher_app_installation_and_token_scope_are_checked_locally(monkeypatch, case):
     repo = admission_data()[0].rows[BASE]
     rows = {"/app": {"id": 5422372, "slug": "atlas-catalogue-publisher", "owner": {"id": 93822871},
@@ -606,9 +748,24 @@ def test_publisher_app_installation_and_token_scope_are_checked_locally(monkeypa
         "permissions": deepcopy(APP_PERMISSIONS), "suspended_at": None},
         "/app/installations/174027755/access_tokens": {"permissions": deepcopy(APP_PERMISSIONS), "token": "model-token"}}
     if case == "app": rows["/app"]["id"] = 1
+    if case == "app_slug": rows["/app"]["slug"] = "other-publisher"
+    if case == "app_owner": rows["/app"]["owner"]["id"] = 1
+    if case == "app_missing_permission": rows["/app"]["permissions"].pop("actions")
+    if case == "app_excessive_permission": rows["/app"]["permissions"]["workflows"] = "write"
     if case == "installation": rows["/app/installations/174027755"]["id"] = 1
+    if case == "installation_app": rows["/app/installations/174027755"]["app_id"] = 1
+    if case == "installation_owner": rows["/app/installations/174027755"]["account"]["id"] = 1
+    if case == "all_repositories": rows["/app/installations/174027755"]["repository_selection"] = "all"
+    if case == "suspended": rows["/app/installations/174027755"]["suspended_at"] = "2026-10-26T00:00:00Z"
+    if case == "missing_suspension": rows["/app/installations/174027755"].pop("suspended_at")
+    if case == "missing_permission": rows["/app/installations/174027755"]["permissions"].pop("actions")
+    if case == "contradictory_permission": rows["/app/installations/174027755"]["permissions"]["contents"] = "read"
     if case == "excessive": rows["/app/installations/174027755"]["permissions"]["workflows"] = "write"
     if case == "effective": rows["/app/installations/174027755/access_tokens"]["permissions"]["workflows"] = "write"
+    if case == "token_missing_permission": rows["/app/installations/174027755/access_tokens"]["permissions"].pop("actions")
+    if case == "token_contradictory_permission": rows["/app/installations/174027755/access_tokens"]["permissions"]["contents"] = "read"
+    if case == "scope_repository": repo["id"] = 1
+    if case == "scope_owner": repo["owner"]["id"] = 1
     calls = []
     class Auth:
         def json(self, path, token, **kwargs):
@@ -628,7 +785,8 @@ def test_publisher_app_installation_and_token_scope_are_checked_locally(monkeypa
         with pytest.raises(ValueError): transport.mint_publisher(environ, auth=Auth(), client=Client)
     assert "PUBLICATION_APP_PRIVATE_KEY" not in environ
     assert calls.count("/app/installations/174027755/access_tokens") <= 1
-    if case in {"app", "installation", "excessive"}:
+    if case not in {"valid", "effective", "token_missing_permission", "token_contradictory_permission",
+                    "scope", "scope_repository", "scope_owner"}:
         assert "/app/installations/174027755/access_tokens" not in calls
 
 

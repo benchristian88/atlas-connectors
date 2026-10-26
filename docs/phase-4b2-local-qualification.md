@@ -1,5 +1,9 @@
 # Phase 4B.2 — local package-publication qualification
 
+Historical PR1 qualification record. PR1 subsequently merged at
+`d6601ad97815a85da164e4329766ea17b62bddc9`; current pinning and acceptance preparation
+are recorded in the [PR2 report](phase-4b2-pr2-local-qualification.md).
+
 Date: 26 October 2026. Local engineering only; no remote publication authority.
 
 ## A. Executive result

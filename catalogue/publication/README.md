@@ -3,9 +3,10 @@
 Phase 4B.1 [security acceptance](../../docs/phase-4b1-security-acceptance.md) concluded
 **GO FOR PR for preparation only**. Phase 4B.2 now locally implements the separate
 [package publication mechanism](connector-packages.md) for review. Execution is
-disabled pending its own immutable implementation pin, genuine isolated acceptance
-and owner security decisions. Frozen S4 catalogue authorization cannot authorize
-the package workflow. The assessment below preserves the Phase 4B preparation
+disabled. PR2 pins its reviewed implementation to
+`d6601ad97815a85da164e4329766ea17b62bddc9`; genuine isolated acceptance and owner
+security decisions remain required. Frozen S4 catalogue authorization cannot
+authorize the package workflow. The assessment below preserves the Phase 4B preparation
 baseline; the new runbook records current implementation and remaining controls.
 
 ## Phase 4B package release assessment (26 October 2026)

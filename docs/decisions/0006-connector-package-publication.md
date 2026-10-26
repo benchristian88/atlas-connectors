@@ -25,14 +25,18 @@ proposed. This ADR does not approve its own production activation.
 
 ## Pinning and credential boundary
 
-PR1 freezes reviewed implementation S with an intentionally nonexistent all-zero
-caller pin and disabled package trust. A separate PR2 wires exact S into the
-reusable call, executable checkout, implementation literal and package trust file.
-The owner independently configures the matching package trust in the existing
-environments. Acceptance-only may sign under unaccepted package trust, but the
-Publisher job is skipped at the job boundary. After inspecting genuine original
-signed evidence and platform isolation, a further reviewed activation can enable
-the package trust. Never use current main or S4 as a substitute for S.
+PR1 merged as reviewed implementation S
+`d6601ad97815a85da164e4329766ea17b62bddc9` (PR #37). PR2 replaces its deliberately
+all-zero pins with S in the reusable call, executable checkout, implementation
+literal and package trust file. It does not modify S's workflow/helpers or accept
+the signer. The owner independently configures the complete matching package trust
+as a repository Actions variable; environment overrides must be absent or match
+exactly, as the [runbook](../../catalogue/publication/connector-packages.md) explains.
+Both trust flags stay false and the repository publication gate stays absent/false.
+Acceptance-only may sign under unaccepted package trust, but the Publisher job is
+skipped at the job boundary. After inspecting genuine original signed evidence
+and platform isolation, a further reviewed activation can enable package trust.
+Never use current main or S4 as a substitute for S. Pinning is not activation.
 
 Verifier App 5424851 retains Administration Write and Contents/Actions/Checks/
 Metadata Read, with its key confined to the existing isolated environment. Its
@@ -43,14 +47,42 @@ and one-repository token scope are checked after cryptographic admission, before
 repository writes. Neither token nor private key is exported.
 
 The Verifier cannot independently inspect another App's effective installation
-grant using its own credential. Signed admission therefore binds the approved
-Publisher identity and exact expected permission profile, and observes public App
-registration. Actual Publisher installation/token checks occur inside the admitted
-Publisher step. **The stricter interpretation requiring independently observed
-effective Publisher permissions inside pre-token signed admission is unresolved.**
-It cannot be claimed satisfied or solved by passing Publisher credentials to the
-Verifier. Owner security review must approve the existing split or keep execution
-disabled pending a separate custody decision. No alternate credential was added.
+grant using its own credential. Before any Publisher credential is supplied, it
+authenticates official repository/owner, original/triggering human, original attempt,
+caller C and signer S, caller source/CI, exact request/policy/trust, App registration,
+environments and complete privileged ruleset/bypass observations. Package source
+and original artifact authentication are additional Publisher preparation gates;
+acceptance-only does not run them.
+
+The proposed owner decision is to accept a split least-privilege boundary:
+`publish_connector.main` reauthenticates admission and committed package bytes
+before calling `mint_publisher`. That function JWT-authenticates the expected App
+and installation, demands exact registered/installed baseline permissions, selected
+repository installation and unsuspended state, requests only the approved repository
+and permissions, checks exact issued token permissions, and verifies the token's
+single official repository/owner before returning a write-capable client. Missing,
+additional or contradictory authority rejects; the authentication transport cannot
+write repository data. Mutation methods reauthenticate admission and visible controls.
+
+**Publisher installation permissions are independently validated by the admitted
+Publisher before writes; they are not included as independently observed effective
+permissions in the Verifier's signed pre-token admission.** This proposed split
+avoids expanding the Administration-Write Verifier's access or exposing Publisher
+credentials before admission. It relies on reviewed S, trusted hosted execution,
+GitHub's authenticated responses and the admitted Publisher's enforcement; it is
+not a second independent credential witness in the signed evidence. A stolen valid
+key, trusted code/action/runner compromise, administrator/sole-maintainer compromise
+and protection changes between observations remain risks. The token-mint POST occurs
+after App/installation checks and before token-permission/scope checks; no repository
+mutation is reachable until all checks pass.
+
+This ADR remains **Proposed**, pending the owner's final security decision. PR2
+records the proposal and local checks, not acceptance or activation. A requirement
+for independently observed effective permissions inside pre-token admission would
+need a separately reviewed architecture/baseline. Do not pass Publisher credentials
+to the Verifier, enlarge its permissions or move keys. Any defect requiring changes
+to S's executable code blocks this pinning increment pending a new reviewed S and
+re-pinning cycle.
 
 ## Publication and recovery
 
@@ -88,4 +120,4 @@ approved archival/authorization work. Existing package and catalogue bytes,
 Manifest/schema, Atlas, SDK, API/UI and qualified discovery remain unchanged.
 
 See the [operator procedure](../../catalogue/publication/connector-packages.md)
-and [local qualification report](../phase-4b2-local-qualification.md).
+and [PR2 local qualification report](../phase-4b2-pr2-local-qualification.md).

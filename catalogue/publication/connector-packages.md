@@ -1,10 +1,11 @@
 # Controlled Connector package publication
 
-Phase 4B.2 supplies local implementation for review. **Remote execution is not
-authorized.** Package trust is disabled and its implementation pin is deliberately
-all zeros. No Proxmox 0.2.1 tag, workflow run, draft, release or catalogue entry was
-created by this increment. See [proposed ADR 0006](../../docs/decisions/0006-connector-package-publication.md)
-and the [qualification report](../../docs/phase-4b2-local-qualification.md).
+Phase 4B.2 PR2 pins the reviewed, merged PR1 implementation **S** to
+`d6601ad97815a85da164e4329766ea17b62bddc9` ([PR #37](https://github.com/benchristian88/atlas-connectors/pull/37)).
+**Publication remains disabled; genuine acceptance has not been executed.**
+Both package-trust flags remain false. Pinning S does not authorize publication.
+No Proxmox 0.2.1 tag, dispatch, draft, release or catalogue entry is created here. See [proposed ADR 0006](../../docs/decisions/0006-connector-package-publication.md)
+and the [PR2 qualification report](../../docs/phase-4b2-pr2-local-qualification.md).
 
 ## Reused controls and new mechanisms
 
@@ -65,14 +66,26 @@ copy, move or create keys/secrets to make this procedure work. Confirm availabil
 and custody administratively. If the existing caller forwarding/environment design
 cannot supply the key, stop for a separate custody decision.
 
-The Verifier observes Publisher **registration**, not its effective installation
-grant. The admitted Publisher independently JWT-authenticates its App/installation,
-compares exact registered/installed/issued permissions and observes its token's
-single repository before any repository write. This is an explicit unresolved
-policy boundary if effective permissions must be independently observed in signed
-pre-token admission. Neither current local tests nor the Phase 4B.1 public
-observations verify installed scope, live key custody or uninterrupted hidden
-bypass configuration. No such verification is claimed here.
+The Verifier observes Publisher **registration**, its approved identity and exact
+expected permission profile. After authenticated admission and package preparation,
+`mint_publisher` JWT-authenticates App `5422372` and installation `174027755`, checks
+exact registered and installed permissions, selected-repository installation and
+unsuspended state, requests only repository `1414494920` and the exact baseline
+permissions, checks the issued permissions and GETs the token's one-repository
+scope. A missing, additional or contradictory grant rejects before the client is
+returned to any tag/release/upload operation. Admission and visible controls are
+rechecked at mutation boundaries; the authentication transport allows only App/
+installation GETs and the single fixed token-mint POST.
+
+**Publisher installation permissions are independently validated by the admitted
+Publisher before writes; they are not included as independently observed effective
+permissions in the Verifier's signed pre-token admission.** The proposed owner
+security decision is to accept this split as the least-privilege boundary. It does
+not give the Verifier independent knowledge of the Publisher's effective grant.
+ADR 0006 remains Proposed: final owner acceptance and activation are separate.
+No Verifier permission expansion, Publisher credential sharing or secret move is
+part of this design. Local tests do not verify live installed scope, key custody,
+or uninterrupted hidden bypass configuration.
 
 Provider references: [ref creation permissions](https://docs.github.com/en/rest/git/refs#create-a-reference),
 [release creation and conditional Workflows permissions](https://docs.github.com/en/rest/releases/releases#create-a-release),
@@ -86,67 +99,190 @@ to Azure blob or Actions artifact hosts, without forwarded credentials, further
 redirects, ambient proxies or operator-supplied URLs. Original ZIP SHA-256 and size
 must match the independently approved artifact identity and run metadata.
 
-## Review, pinning and first acceptance — no publication
+## PR2 baseline and independent configuration
 
-1. Review PR1's complete implementation, proposed ADR and negative tests. The human
-   alone commits, pushes, opens the PR and merges after required Python 3.12 CI.
-   Record the immutable reviewed implementation commit **S** containing these
-   helpers, the reusable workflow and vendored dependencies. Do not invent S from
-   an uncommitted tree or use S4 `2dd1ffcd...` for package authority.
-2. In separate controlled PR2, replace every all-zero implementation pin in the
-   caller (reusable `uses`, executable checkout, implementation environment) and
-   `connector-trust.json` with exact full S. Update the exact reviewed pin
-   assertions in `tests/test_connector_publication.py` and
-   `tests/test_publication_packaging.py` in that same controlled PR; do not loosen
-   them to arbitrary refs. Keep `enabled: false` and
-   `live_signer_accepted: false`. The reusable workflow checks `job.workflow_sha`
-   against separately configured S before checkout or key access. It executes
-   only S even as caller main advances to **C**.
-3. The owner reviews and configures `CONNECTOR_VERIFICATION_POLICY` as the complete
-   matching package-trust JSON in the existing Verifier and Publisher environments.
-   It is public trust configuration, never a secret or downloaded authority. Leave
-   repository `CONNECTOR_PUBLICATION_ENABLED` absent/false. Verify all prerequisites
-   above, including the unresolved effective-permission decision. Do not change
-   existing catalogue `VERIFICATION_POLICY` or `verifier-trust.json`.
-4. Only with separate owner authority, manually dispatch the reviewed caller from
-   main with `acceptance_only=true`, `operation=tag` and a bounded real proposal.
-   This observes/signs the request and controls; it does **not** qualify a build,
-   prove draft absence or create a tag. No workflow was dispatched in local work.
-5. Preserve original caller C, signer S, run ID and attempt one; both actors and
-   referenced-workflow metadata; exact preflight/bundle/policy/trust/request bytes;
-   genuine offline verification output and timing; complete bypass arrays; and the
-   jobs/steps record showing Publisher **skipped**, no Publisher key step, no
-   Publisher token mint and no repository mutation. Download evidence within its
-   one-day retention. An artifact download or successful attest action alone is
-   insufficient. Compare independent observations and inspect contradictory or
-   unavailable fields. A changed certificate/job URI must reject; any correction
-   needs genuine evidence and security review, with a newly pinned S if code changes.
-6. The next separate human decision reviews that genuine acceptance and ADR 0006's
-   unresolved boundary. Only a later reviewed activation changes both package
-   trust flags, matching environment trust and the repository enabling variable.
-   Update the explicit trust-state regression assertions to the genuinely reviewed
-   acceptance evidence in that activation PR; keep all negative tests enforced.
-   Do not enable on modeled tests or this document's authority. Actual tag/stage/
-   finalization need subsequent explicit owner publication authorization.
+PR #37 is merged at S. The caller's reusable `uses`, Publisher executable checkout,
+`ATLAS_IMPLEMENTATION_REVISION` and package trust `signer_revision` all identify
+exactly S. `connector-verifier.yml`, its helpers, vendored SDK/hash lock, gh 2.102.1
+and frozen roots remain the reviewed implementation at S. No code from PR2 becomes
+trusted executable code merely because the advancing caller main **C** contains it.
+The package-source commit **P** is a third identity, carried as request data; it is
+not the caller C or the implementation S by definition. P may coincide with C
+only when separately reviewed that way.
+
+Before a future dispatch, the owner must independently confirm:
+
+1. PR2 passed required Python 3.12 `validate` CI and was reviewed and merged into
+   main. Record that exact dispatch caller C and its successful CI. C must contain
+   all four S bindings and the complete disabled/unaccepted package trust JSON.
+2. Review every field in [connector-trust.json](connector-trust.json), including
+   the schema, S, both false flags, 900-second freshness limit, five ruleset IDs and
+   Verifier environment ID. Independently inspect the configuration table above,
+   complete privileged bypass visibility, App registrations, environment protection
+   and existing secret availability. None of these live settings is certified by
+   the local pinning work.
+3. Configure **repository Actions variable** `CONNECTOR_VERIFICATION_POLICY` at
+   repository Settings → Secrets and variables → Actions → Variables to the complete
+   reviewed package-trust JSON, including exact S and both false flags. This is
+   public trust configuration, never a secret or downloaded authority. It must
+   parse identically to C's checked-in package trust. The Publisher captures
+   `${{ vars.CONNECTOR_VERIFICATION_POLICY }}` in its **job-level `env`**, whereas
+   the reusable Verifier reads it in **step-level `env`** after entering
+   `catalogue-verification`. Environment-only configuration is insufficient for
+   this caller. Use the repository variable as the common source; prefer no
+   same-name override in either `catalogue-verification` or `catalogue-publication`.
+   If existing environment copies are retained, independently confirm their complete
+   parsed JSON matches the repository value and C exactly before dispatch.
+4. GitHub gives repository variables precedence over organization variables;
+   environment values become available after the job starts. They cannot replace
+   contexts already captured in job-level `env`; step evaluation after entering an
+   environment can see that environment's variables. Thus same-name repository and
+   environment variables are not interchangeable. Both workflows use the caller
+   repository's variables. See GitHub's [variable precedence and timing](https://docs.github.com/en/actions/reference/workflows-and-actions/variables#configuration-variable-precedence)
+   and [vars context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context).
+   A mismatch fails closed against C's trust and the actual reusable job SHA.
+5. Repository `CONNECTOR_PUBLICATION_ENABLED` must be absent or the literal string
+   `false`. Inspect organization inheritance too: no inherited effective `true`
+   may be present. This job-level condition is evaluated before any Publisher
+   environment is entered; an environment variable cannot serve as that gate.
+   Leave original catalogue `VERIFICATION_POLICY`, `verifier-trust.json`, all App
+   scopes, IDs, secrets, protection settings and catalogue state unchanged.
+6. Confirm the existing Verifier key can be supplied through the explicit named
+   secret mapping to the reusable job's `catalogue-verification` environment.
+   GitHub's [reusable secret rules](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#using-inputs-and-secrets-in-a-reusable-workflow)
+   give that job's same-name environment secret precedence; `required: true`
+   checks the mapping, not a nonempty secret value. Do not extract, copy or move
+   either key. A custody/availability discrepancy is an operational prerequisite
+   for the owner to resolve separately, never a reason to pass Publisher credentials
+   to the Verifier. The Publisher environment/key is not entered or exercised by
+   acceptance.
+
+These are owner-operated prerequisites, not instructions for this local increment
+to change settings. Missing live confirmation does not establish a local code
+failure or confer remote authority.
+
+## Future owner-operated acceptance-only request — do not dispatch here
+
+After the prerequisites and separate owner authorization, use the reviewed
+`connector-publish.yml` workflow from **main**, original attempt **1**, with original
+and triggering ordinary user `benchristian88` (ID `93822871`). Do not rerun a failed
+attempt as acceptance; investigate and obtain a separately approved new original
+run. The exact future Proxmox 0.2.1 proposal has these inputs:
+
+```text
+operation: tag
+acceptance_only: true
+package: {"tag":"proxmox-v0.2.1","source_commit":"<REVIEWED_COMMITTED_SOURCE_P_40_LOWERCASE_HEX>","sha256":"<SOURCE_BUILT_PACKAGE_D_64_LOWERCASE_HEX>"}
+```
+
+This is a **non-executable example**, not an approved request. The tag is a proposed
+future identity requiring owner approval; angle-bracket strings are invalid hash
+placeholders. P must be an exact approved committed source with qualified metadata;
+D must be reproduced from that source by the reviewed source-only builder. Do not
+reuse an earlier uncommitted candidate digest, including the PR1 local digest, as
+approval. Preserve the exact approved `package` input string, `operation`, and
+Boolean input before dispatch. Also retain canonical `request.json` containing
+`{"operation":"tag","acceptance_only":true,"package":{...real approved fields...}}`;
+the workflow canonicalizes this object for its request digest (16 KiB maximum).
+
+Acceptance observes/signs the proposal and security controls. It authenticates
+caller's C/CI and request binding; **the Publisher's package-source/build validation
+is skipped**. It does not create a tag, prove draft absence, qualify the original
+build, authorize finalization or make the package remotely installable. Even if
+`CONNECTOR_PUBLICATION_ENABLED` were erroneously true, acceptance-only must skip
+the entire Publisher job before environment entry, key injection or token mint.
+
+## Acceptance evidence — preserve before one-day expiry
+
+Record run ID R and `https://github.com/benchristian88/atlas-connectors/actions/runs/R`.
+Save these observations immediately; artifact `connector-preflight-R` retains only
+`connector-preflight.json` and `connector-preflight.sigstore.json` for **one day**.
+Download them as original bytes. Policy, trust and request bytes are **not** in
+that artifact; preserve them separately. Do not dump environment/secret contexts.
+
+| Evidence | Exact inspection |
+| --- | --- |
+| Original dispatch | Save official API `GET /repos/benchristian88/atlas-connectors/actions/runs/R` and `/actions/runs/R/attempts/1`. Require both IDs R, `run_attempt: 1`, event `workflow_dispatch`, branch main, SHA C, official repository/owner IDs and both actors `benchristian88`/`93822871`/`User`. |
+| Caller and reusable identities | Save workflow API record using the run's `workflow_id`; caller path must be `.github/workflows/connector-publish.yml`. Both run records must show exactly `referenced_workflows: [{"path":"benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@d6601ad97815a85da164e4329766ea17b62bddc9","sha":"d6601ad97815a85da164e4329766ea17b62bddc9"}]`. Save caller bytes at C and all four bindings. |
+| Job isolation | Save `/actions/runs/R/attempts/1/jobs?per_page=100` (all pages), job steps/logs (`/actions/jobs/J/logs` for each job ID J) and run summary. The reusable preflight/verify job must succeed; `publisher` must have conclusion `skipped`, with no started runner/Publisher steps or `catalogue-publication` deployment for R. No authenticate/prepare/execute Publisher step, key use or installation-token mint may run. Do not mistake Verifier token mint or attestation OIDC for Publisher credentials. |
+| Exact configuration bytes | Save raw `policy.json` and `connector-trust.json` from the official Contents API **at ref C**, base64-decode content without reserializing. Preserve the independently reviewed repository policy variable and any matching environment copies, original approved inputs and canonical `request.json`. Compare complete trust values, not just S. |
+| Signed preflight | Verify canonical exact subject bytes, package schema `atlas-connector-package-preflight/v1`, implementation S, complete expected context/request/run/attempt, request SHA-256, SHA-256 of original policy bytes and canonical trust JSON. Check all security observations and all five complete `bypass_actors` arrays with existing validators; omission never means empty. Record observation start/end/issue/expiry and run timing. |
+| Genuine certificate and statement | Save pinned gh offline verified JSON: issuer `https://token.actions.githubusercontent.com`, SAN and `buildSignerURI` exactly `https://github.com/benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@refs/heads/main`, `buildSignerDigest` S; official repository/owner URI and IDs, public visibility, source/config digest C, source ref main, caller `buildConfigURI`, hosted runner, dispatch trigger, invocation `/actions/runs/R/attempts/1`. Require sole subject `connector-preflight.json` with exact digest and package predicate `https://atlas-impact.dev/attestations/connector-package-preflight/v1`, schema `atlas-connector-package-preflight-predicate/v1` and repeated subject digest; verified allowed transparency timestamps. |
+| No mutation | Preserve before/after `GET /git/ref/tags/proxmox-v0.2.1` (including 404 absence) and complete `/releases?per_page=100&page=N` published inventories plus any available authorized audit records; require no `proxmox-v0.2.1` ref/release creation or other publication mutation by R. Anonymous release listings cannot establish private draft absence. Do not mint a Publisher token merely to collect acceptance evidence; job exclusion is the credential boundary, inventories are corroboration. |
+
+Use S's existing `ConnectorSigstore.verify` and `check_preflight` from a separate
+reviewed checkout at **S**, with its hash-pinned SDK, gh and frozen roots. Do not
+execute caller C's helpers. For the offline signature command, use this exact
+profile (paths point to the preserved files and S's trusted-root distribution):
+
+```text
+./tools/publication_trust/bin/gh attestation verify connector-preflight.json --bundle connector-preflight.sigstore.json --custom-trusted-root <S_TRUSTED_ROOT_JSONL> --repo benchristian88/atlas-connectors --hostname github.com --signer-workflow benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml --signer-digest d6601ad97815a85da164e4329766ea17b62bddc9 --source-digest <ORIGINAL_CALLER_C> --source-ref refs/heads/main --cert-oidc-issuer https://token.actions.githubusercontent.com --deny-self-hosted-runners --predicate-type https://atlas-impact.dev/attestations/connector-package-preflight/v1 --digest-alg sha256 --format json
+```
+
+The pinned gh command verifies cryptography offline; it alone does not replace the
+additional exact certificate, subject, predicate, context and security validators.
+Construct expected context from independent R/C and the previously approved request,
+not from unverified subject fields:
+
+```python
+# Run with S/tools on sys.path and S's pinned verifier provisioned.
+from pathlib import Path
+from atlas_connector_sdk.contracts import strict_json
+from connector_publication_contract import check_input, check_preflight, parse, MAX_AUTHORIZATION_BYTES
+from connector_publication_sigstore import ConnectorSigstore
+from publication_contract import canonical_json, digest
+
+C = "<INDEPENDENT_ORIGINAL_CALLER_C_40_HEX>"
+R = int("<INDEPENDENT_ORIGINAL_RUN_ID>")
+request = check_input(strict_json(Path("request.json").read_bytes(), maximum=16384))
+assert request["acceptance_only"] is True
+trust = strict_json(Path("connector-trust.json").read_bytes(), maximum=16384)
+assert trust["signer_revision"] == "d6601ad97815a85da164e4329766ea17b62bddc9"
+assert trust["enabled"] is trust["live_signer_accepted"] is False
+policy_raw = Path("policy.json").read_bytes()
+raw = Path("connector-preflight.json").read_bytes()
+bundle = Path("connector-preflight.sigstore.json").read_bytes()
+expected = {"caller_sha": C, "run_id": R, "run_attempt": 1,
+            "request_sha256": digest(canonical_json(request)), "request": request}
+check_preflight(parse(raw, MAX_AUTHORIZATION_BYTES), expected, trust, policy_raw)
+ConnectorSigstore().verify(raw, bundle, expected=expected, trust=trust)
+print("Offline package profile and signed controls verified; owner isolation review still required")
+```
+
+Preserve stdout, verification JSON, file digests and exact verifier/root identity.
+Do this promptly; `admit` additionally enforces a 900-second live startup window
+and at most 1,800-second same-job continuation. A later archival signature review
+is not live admission or replay authorization. Successful Actions execution,
+artifact download, synthetic certificates or decoded DSSE claims alone do not
+establish genuine signer acceptance. Any actual certificate/job claim differing
+from the exact approved profile must fail closed and be reported. A code correction
+requires a new reviewed implementation baseline and re-pinning cycle, never a
+weakened comparison or changed code described as S.
+
+The next human governance decision reviews this genuine evidence and the proposed
+ADR 0006 split. **Neither trust flag nor the repository gate changes in PR2 or in
+acceptance.** Only separately authorized later reviewed activation may change them.
+Actual tag/stage/finalize operations each need subsequent explicit publication
+authority; catalogue sequence two remains separate.
 
 ## Request format and separate publication ceremony
 
 The workflow supplies `operation` and `acceptance_only` separately. Paste only the
 `package` object into its string input. All examples below are symbolic, **not
-executable approved requests**: C/D/R/etc must be replaced with independently
+executable approved requests**: P/D/R/etc must be replaced with independently
 reviewed real values; JSON hashes are lowercase hex without prefixes.
 
 For **tag**, package fields are exactly:
 
 ```text
-{"tag":"CONNECTOR-vVERSION","source_commit":"C (40 hex)","sha256":"D (64 hex)"}
+{"tag":"CONNECTOR-vVERSION","source_commit":"P (40 hex)","sha256":"D (64 hex)"}
 ```
 
-Source C must be an exact reviewed merged main PR commit with successful required
+Source P must be an exact reviewed merged main PR commit with successful required
 CI and ancestry, qualified stable production metadata, compatible Manifest and
 SPDX/licence records. Reproduce D from this committed source; an earlier local D
-is not authoritative. Tag and every draft-visible release inventory must be empty
-for T. The admitted scoped App creates one lightweight ref to C, then verifies
+is not authoritative. For a later publication dispatch, tag and every draft-visible
+release inventory must be empty for T. The admitted scoped App creates one lightweight ref to P, then verifies
 it. It stops with `tag_created_build_pending`; App-originated push triggers the
 unchanged build workflow. Do not rerun the tag operation when T exists.
 
@@ -170,8 +306,8 @@ the archive, `manifest.json`, `index.json`, `SHA256SUMS`, `package.sigstore.json
 Bounded decoding does not extract paths or execute package content.
 
 The Publisher checks private draft absence and creates one non-prerelease draft
-at T/C with `make_latest: "false"`. Every original file is uploaded unchanged and
-reread with exact App uploader, ID, size and digest. Stage records C/T/D/R, original
+at T/P with `make_latest: "false"`. Every original file is uploaded unchanged and
+reread with exact App uploader, ID, size and digest. Stage records P/T/D/R, original
 Actions artifact identity, release **L**, archive **A**, complete name/ID/SHA-256/
 byte inventory and its canonical SHA-256. Its `staged_requires_separate_approval`
 receipt is an audit aid, not signed publication authority. **STAGE STOPS HERE.**
@@ -200,7 +336,7 @@ Immediately before the sole PATCH, revalidate admission, current protections,
 source/build, exact draft L and every approved asset. PATCH sets only `draft:
 false` and `make_latest: "false"`; there is no fabricated immutable switch. The
 unchanged anonymous GET-only verifier then reauthenticates the original build,
-both release lookup identities, exact T/C/L/A, all five approved IDs/bytes/digests/
+both release lookup identities, exact T/P/L/A, all five approved IDs/bytes/digests/
 uploaders, non-draft/non-prerelease and actual `immutable: true`, including final
 rereads. Only then emit `immutable_package_verified_catalogue_pending`. A successful
 PATCH is not a publication-success receipt.

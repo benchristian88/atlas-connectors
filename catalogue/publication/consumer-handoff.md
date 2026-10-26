@@ -282,14 +282,17 @@ by this preparation.
 ## Phase 4B.2 package mechanism handoff (26 October 2026)
 
 The separate [package publication workflow](connector-packages.md) is locally
-implemented with disabled package trust, inert implementation pins and a default
-acceptance-only job boundary. It adds a distinct package-preflight profile and
-separate human tag/stage/finalize dispatches; it changes no existing catalogue
+implemented with disabled package trust and a default acceptance-only job boundary.
+PR2 pins the reviewed PR1 implementation to
+`d6601ad97815a85da164e4329766ea17b62bddc9`; genuine acceptance is still outstanding.
+It adds a distinct package-preflight profile and separate human tag/stage/finalize
+dispatches; it changes no existing catalogue
 signature, S4 code, sequence-one publication or historical package. Local modeled
 tests and genuine historical cryptographic regressions do not establish live
 package signer/custody/permission acceptance. See
 [proposed ADR 0006](../../docs/decisions/0006-connector-package-publication.md)
-for the unresolved pre-token effective-Publisher-permission decision.
+for the proposed post-admission effective-Publisher-permission checks and their
+pre-token evidence limitation; final owner acceptance remains separate.
 
 Successful future final verification may return
 `immutable_package_verified_catalogue_pending` with all five approved asset
