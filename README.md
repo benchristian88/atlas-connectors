@@ -25,10 +25,12 @@ The historical 0.2.0 source, package, registry and catalogue history remain inta
 with privileged execution disabled.** The separate
 [package publication runbook](catalogue/publication/connector-packages.md) documents
 signed isolated admission, independent tag/stage/finalize dispatches, immutable
-verification, the two-PR implementation-pinning process and genuine acceptance-only
-evidence still required. [Proposed ADR 0006](docs/decisions/0006-connector-package-publication.md)
-records the unresolved effective-permission admission decision. No package has
-been published and no catalogue or remote-installation authority is added.
+verification, reviewed implementation S
+`d6601ad97815a85da164e4329766ea17b62bddc9` and genuine acceptance-only evidence
+still required after PR2 review/merge and Python 3.12 CI.
+[Proposed ADR 0006](docs/decisions/0006-connector-package-publication.md) records the
+proposed split effective-permission boundary, pending owner acceptance. No package
+has been published and no catalogue or remote-installation authority is added.
 
 Production [Proxmox 0.2.0](connectors/proxmox/README.md) promotes the unchanged
 **0.2.0-i4b.6** discovery implementation, qualified against **Proxmox VE 9.2.11**.

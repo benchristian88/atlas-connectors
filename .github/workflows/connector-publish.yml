@@ -33,9 +33,9 @@ jobs:
       contents: read
       id-token: write
       attestations: write
-    # Deliberately nonexistent pin: PR1 freezes S; PR2 reviews literal S wiring.
-    # No mutable-main fallback. This workflow cannot run before that review.
-    uses: benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@0000000000000000000000000000000000000000
+    # Reviewed PR1 implementation S; caller main C advances independently.
+    # Pinning enables acceptance preparation only, never publication authority.
+    uses: benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@d6601ad97815a85da164e4329766ea17b62bddc9
     with:
       request: ${{ toJSON(inputs) }}
     secrets:
@@ -58,14 +58,14 @@ jobs:
       contents: read
       actions: read
     env:
-      ATLAS_IMPLEMENTATION_REVISION: '0000000000000000000000000000000000000000'
+      ATLAS_IMPLEMENTATION_REVISION: 'd6601ad97815a85da164e4329766ea17b62bddc9'
       CONNECTOR_VERIFICATION_POLICY: ${{ vars.CONNECTOR_VERIFICATION_POLICY }}
       CONNECTOR_REQUEST: ${{ format('{{"operation":{0},"acceptance_only":{1},"package":{2}}}', toJSON(inputs.operation), toJSON(inputs.acceptance_only), inputs.package) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: benchristian88/atlas-connectors
-          ref: '0000000000000000000000000000000000000000'
+          ref: 'd6601ad97815a85da164e4329766ea17b62bddc9'
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
