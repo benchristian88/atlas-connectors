@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""S2's genuine certificate drives policy regressions, not live acceptance.
+"""Historical S2 certificate regressions and explicitly synthetic prospective S3 tests.
 
 The hosted subject bytes were not exported. Mocked CLI output below combines
 the real decoded certificate with a modeled subject/statement; it must never be
 presented as the original gh verification result or cryptographic admission.
+S3 models use synthetic certificates; the genuine S2 fixture is never rewritten.
 """
 from copy import deepcopy
 import base64
@@ -15,8 +16,8 @@ from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.x509.oid import ExtensionOID, ObjectIdentifier
 import pytest
 
-from test_connector_publication import (ROOT, REVIEWED_IMPLEMENTATION, admission_data,
-    contract, crypto, issue, request, verified_output)
+from test_connector_publication import (ROOT, HISTORICAL_S2, REVIEWED_IMPLEMENTATION,
+    UNTRUSTED_REVISIONS, admission_data, contract, crypto, issue, request, verified_output)
 from test_authorization_sigstore import SYNTHETIC_BUNDLE
 from publication_contract import canonical_json, digest
 from publication_verify import ISSUER, ORIGIN
@@ -25,7 +26,7 @@ FIXTURE = ROOT / "tests/fixtures/connector_sigstore_s2"
 CALLER = "c7299f9375ccf401c0cf69cb9022dc76a3556b48"
 RUN = 40534608937
 SUBJECT_DIGEST = "adb72b7a03f72b004bb3d60d22ca8cb98517888687b4a6d501c8c6adfefc230c"
-IDENTITY = f"{ORIGIN}/{contract.SIGNER}@{REVIEWED_IMPLEMENTATION}"
+IDENTITY = f"{ORIGIN}/{contract.SIGNER}@{HISTORICAL_S2}"
 EXTENSIONS = {
     "issuer": 8, "buildSignerURI": 9, "buildSignerDigest": 10,
     "runnerEnvironment": 11, "sourceRepositoryURI": 12,
@@ -60,7 +61,7 @@ def certificate_claims():
 def hosted_policy_model(monkeypatch):
     """Real certificate, synthetic artifact and CLI result, independent context."""
     inputs = request(acceptance_only=True, commit=CALLER)
-    data = admission_data(inputs, caller=CALLER)
+    data = admission_data(inputs, caller=CALLER, implementation=HISTORICAL_S2)
     raw = issue(data, monkeypatch)
     expected = contract.context(data[1], inputs)
     expected.update(run_id=RUN)
@@ -68,6 +69,16 @@ def hosted_policy_model(monkeypatch):
     output[0]["verificationResult"]["signature"]["certificate"] = certificate_claims()
     monkeypatch.setattr(crypto, "bounded_run", lambda *args: canonical_json(output))
     return raw, expected, data[2], output
+
+
+def prospective_s3_policy_model(monkeypatch):
+    """Entirely synthetic S3 certificate/statement/CLI output, never live evidence."""
+    inputs = request(acceptance_only=True)
+    data = admission_data(inputs)
+    raw = issue(data, monkeypatch)
+    output = verified_output(raw)
+    monkeypatch.setattr(crypto, "bounded_run", lambda *args: canonical_json(output))
+    return raw, contract.context(data[1], inputs), data[2], output
 
 
 def verify_model(model):
@@ -86,7 +97,7 @@ def test_original_hosted_evidence_is_consistent():
         bundle["verificationMaterial"]["certificate"]["rawBytes"])
     claims = certificate_claims()
     assert claims["subjectAlternativeName"] == claims["buildSignerURI"] == IDENTITY
-    assert claims["buildSignerDigest"] == REVIEWED_IMPLEMENTATION
+    assert claims["buildSignerDigest"] == HISTORICAL_S2
     assert claims["sourceRepositoryDigest"] == claims["buildConfigDigest"] == CALLER
     assert claims["buildConfigURI"] == f"{ORIGIN}/{contract.WORKFLOW}@refs/heads/main"
     assert claims["runInvocationURI"] == f"{ORIGIN}/actions/runs/{RUN}/attempts/1"
@@ -98,8 +109,8 @@ def test_original_hosted_evidence_is_consistent():
         "predicate": {"schema": contract.PREDICATE_SCHEMA, "preflight_sha256": SUBJECT_DIGEST}}
     run = json.loads((FIXTURE / "run.json").read_bytes())
     assert (run["id"], run["head_sha"], run["run_attempt"]) == (RUN, CALLER, 1)
-    assert run["referenced_workflows"] == [{"path": f"{contract.REPOSITORY}/{contract.SIGNER}@{REVIEWED_IMPLEMENTATION}",
-                                           "sha": REVIEWED_IMPLEMENTATION}]
+    assert run["referenced_workflows"] == [{"path": f"{contract.REPOSITORY}/{contract.SIGNER}@{HISTORICAL_S2}",
+                                           "sha": HISTORICAL_S2}]
     jobs = json.loads((FIXTURE / "jobs.json").read_bytes())["jobs"]
     assert jobs[0]["id"] == 122296352579
     assert [s["conclusion"] for s in jobs[0]["steps"] if s["number"] in {6, 7, 8, 9}] == [
@@ -119,10 +130,10 @@ def test_genuine_hosted_certificate_matches_corrected_policy_model(monkeypatch):
         "0" * 40, "f" * 40, "d6601ad97815a85da164e4329766ea17b62bddc9",
         CALLER, "main", "refs/heads/main", "refs/heads/feature/correction", "refs/tags/v1")
 ] + [
-    f"{ORIGIN}/{path}@{REVIEWED_IMPLEMENTATION}" for path in (
+    f"{ORIGIN}/{path}@{HISTORICAL_S2}" for path in (
         contract.WORKFLOW, ".github/workflows/catalogue-verifier.yml",
         "other/connector-verifier.yml", contract.SIGNER + "/extra")
-] + [f"https://github.com/other/atlas-connectors/{contract.SIGNER}@{REVIEWED_IMPLEMENTATION}",
+] + [f"https://github.com/other/atlas-connectors/{contract.SIGNER}@{HISTORICAL_S2}",
      IDENTITY + "/extra", IDENTITY + "?ref=main", IDENTITY + "#fragment"])
 def test_signer_identity_rejects_other_shas_paths_and_mutable_refs(monkeypatch, field, identity):
     model = hosted_policy_model(monkeypatch)
@@ -182,8 +193,10 @@ def test_signer_identity_uses_independent_trust_revision(monkeypatch):
     assert verify_model(model) == digest(model[0])
 
 
-def test_pinned_cli_command_retains_every_constraint(monkeypatch):
-    model = hosted_policy_model(monkeypatch)
+@pytest.mark.parametrize("model_factory", [hosted_policy_model, prospective_s3_policy_model],
+    ids=["historical-s2", "synthetic-s3"])
+def test_pinned_cli_command_retains_every_constraint(monkeypatch, model_factory):
+    model = model_factory(monkeypatch)
     commands = []
     def run(command, directory):
         commands.append(command)
@@ -199,7 +212,46 @@ def test_pinned_cli_command_retains_every_constraint(monkeypatch):
     assert command[4:] == ["--bundle", str(Path(command[3]).parent / "bundle.json"),
         "--custom-trusted-root", str(Path(command[3]).parent / "roots.jsonl"),
         "--repo", contract.REPOSITORY, "--hostname", "github.com", "--signer-workflow",
-        f"{contract.REPOSITORY}/{contract.SIGNER}", "--signer-digest", REVIEWED_IMPLEMENTATION,
-        "--source-digest", CALLER, "--source-ref", "refs/heads/main", "--cert-oidc-issuer", ISSUER,
+        f"{contract.REPOSITORY}/{contract.SIGNER}", "--signer-digest", model[2]["signer_revision"],
+        "--source-digest", model[1]["caller_sha"], "--source-ref", "refs/heads/main", "--cert-oidc-issuer", ISSUER,
         "--deny-self-hosted-runners", "--predicate-type", contract.PREDICATE,
         "--digest-alg", "sha256", "--format", "json"]
+
+
+def test_synthetic_s3_profile_requires_reviewed_signer_identity_and_digest(monkeypatch):
+    model = prospective_s3_policy_model(monkeypatch)
+    certificate = model[3][0]["verificationResult"]["signature"]["certificate"]
+    identity = f"{ORIGIN}/{contract.SIGNER}@{REVIEWED_IMPLEMENTATION}"
+    assert certificate["subjectAlternativeName"] == certificate["buildSignerURI"] == identity
+    assert certificate["buildSignerDigest"] == model[2]["signer_revision"] == REVIEWED_IMPLEMENTATION
+    assert verify_model(model) == digest(model[0])
+
+
+@pytest.mark.parametrize("field", ["subjectAlternativeName", "buildSignerURI", "buildSignerDigest", "all"])
+@pytest.mark.parametrize("revision", UNTRUSTED_REVISIONS)
+def test_synthetic_s3_rejects_historical_mutable_and_mismatched_signers(monkeypatch, field, revision):
+    model = prospective_s3_policy_model(monkeypatch)
+    certificate = model[3][0]["verificationResult"]["signature"]["certificate"]
+    values = {"subjectAlternativeName": f"{ORIGIN}/{contract.SIGNER}@{revision}",
+        "buildSignerURI": f"{ORIGIN}/{contract.SIGNER}@{revision}", "buildSignerDigest": revision}
+    certificate.update(values if field == "all" else {field: values[field]})
+    with pytest.raises(ValueError, match="authorization_certificate"):
+        verify_model(model)
+
+
+def test_genuine_s2_certificate_cannot_authorize_s3(monkeypatch):
+    # Keep genuine S2 certificate and original caller/run context intact. Only
+    # prospective trust changes, so S2 cannot become S3 evidence by relabeling.
+    model = hosted_policy_model(monkeypatch)
+    model[2]["signer_revision"] = REVIEWED_IMPLEMENTATION
+    with pytest.raises(ValueError, match="authorization_certificate"):
+        verify_model(model)
+
+
+def test_historical_s2_preflight_model_cannot_be_readmitted_under_s3(monkeypatch):
+    inputs = request(acceptance_only=True)
+    data = admission_data(inputs, implementation=HISTORICAL_S2)
+    raw = issue(data, monkeypatch)
+    trust = {**data[2], "signer_revision": REVIEWED_IMPLEMENTATION}
+    with pytest.raises(ValueError, match="connector_preflight_binding"):
+        contract.check_preflight(json.loads(raw), contract.context(data[1], inputs), trust, data[3])

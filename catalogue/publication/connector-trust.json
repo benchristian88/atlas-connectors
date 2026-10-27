@@ -10,6 +10,6 @@
     "atlas-publication-tags": 25618901
   },
   "schema": "atlas-connector-package-trust/v1",
-  "signer_revision": "c2b4ecb493160f0226b1724aa688d0f436d51489",
+  "signer_revision": "be24042c4e7446c7d88d2f08608ab7f058bb24b6",
   "verification_environment_id": 25016263801
 }
