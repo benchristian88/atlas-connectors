@@ -35,15 +35,28 @@ from test_publication_authorization import (NOW, SOURCE, SyntheticProvider, file
 from test_publication_state import StructuralVerifier, structural_bundle
 from verification_github import BASE
 
-REVIEWED_IMPLEMENTATION = "d6601ad97815a85da164e4329766ea17b62bddc9"
+REVIEWED_IMPLEMENTATION = "c2b4ecb493160f0226b1724aa688d0f436d51489"
+ORIGINAL_IMPLEMENTATION = "d6601ad97815a85da164e4329766ea17b62bddc9"
 CATALOGUE_S4 = "2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285"
+UNTRUSTED_REVISIONS = (
+    ORIGINAL_IMPLEMENTATION, "0" * 40, "f" * 40, "main", "refs/heads/main",
+    "refs/heads/feature/connector-publication-s2-pinning", "refs/tags/v1",
+    CATALOGUE_S4, "${{ inputs.revision }}",
+)
 # Genuine job context from failed acceptance run 40523236413, job 122255725484.
 # This is workflow identity evidence only, not a signed certificate fixture.
-HOSTED_JOB_CONTEXT = {
-    "workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION,
-    "workflow_sha": REVIEWED_IMPLEMENTATION,
+HISTORICAL_FAILED_JOB_CONTEXT = {
+    "workflow_ref": "benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@d6601ad97815a85da164e4329766ea17b62bddc9",
+    "workflow_sha": "d6601ad97815a85da164e4329766ea17b62bddc9",
     "workflow_repository": REPOSITORY,
     "workflow_file_path": contract.SIGNER,
+}
+# Model the demonstrated hosted format at newly trusted S2. No genuine S2 run
+# or package-preflight certificate is represented by this prospective fixture.
+HOSTED_JOB_CONTEXT = {
+    **HISTORICAL_FAILED_JOB_CONTEXT,
+    "workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION,
+    "workflow_sha": REVIEWED_IMPLEMENTATION,
 }
 
 
@@ -532,15 +545,15 @@ def assert_reviewed_bindings(caller, trust):
     assert trust["signer_revision"] == REVIEWED_IMPLEMENTATION
 
 
-@pytest.mark.parametrize("binding", ["reusable", "checkout", "environment", "trust"])
-@pytest.mark.parametrize("revision", ["0" * 40, "f" * 40, "main", CATALOGUE_S4, "${{ inputs.revision }}"])
+@pytest.mark.parametrize("binding", ["reusable", "checkout", "environment", "trust", "all"])
+@pytest.mark.parametrize("revision", UNTRUSTED_REVISIONS)
 def test_reviewed_pin_contract_rejects_every_other_authority(binding, revision):
     caller = yaml.load((ROOT / ".github/workflows/connector-publish.yml").read_text(), Loader=yaml.BaseLoader)
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
-    if binding == "reusable": caller["jobs"]["preflight"]["uses"] = REPOSITORY + "/" + contract.SIGNER + "@" + revision
-    elif binding == "checkout": caller["jobs"]["publisher"]["steps"][0]["with"]["ref"] = revision
-    elif binding == "environment": caller["jobs"]["publisher"]["env"]["ATLAS_IMPLEMENTATION_REVISION"] = revision
-    else: trust["signer_revision"] = revision
+    if binding in {"reusable", "all"}: caller["jobs"]["preflight"]["uses"] = REPOSITORY + "/" + contract.SIGNER + "@" + revision
+    if binding in {"checkout", "all"}: caller["jobs"]["publisher"]["steps"][0]["with"]["ref"] = revision
+    if binding in {"environment", "all"}: caller["jobs"]["publisher"]["env"]["ATLAS_IMPLEMENTATION_REVISION"] = revision
+    if binding in {"trust", "all"}: trust["signer_revision"] = revision
     with pytest.raises(AssertionError):
         assert_reviewed_bindings(caller, trust)
 
@@ -597,7 +610,7 @@ def inline_guard(tmp_path, trust, job, acceptance="true"):
 
 
 @pytest.mark.parametrize("binding", ["job", "trust"])
-@pytest.mark.parametrize("revision", ["0" * 40, "f" * 40, "main", CATALOGUE_S4])
+@pytest.mark.parametrize("revision", UNTRUSTED_REVISIONS)
 def test_inline_guard_rejects_revision_mismatch_before_checkout_or_key(tmp_path, binding, revision):
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
     job = deepcopy(HOSTED_JOB_CONTEXT)
@@ -632,7 +645,7 @@ def test_actual_inline_guard_accepts_hosted_pinned_identity_and_exports_it_to_pr
 
 @pytest.mark.parametrize("field,value", [
     ("workflow_ref", REPOSITORY + "/" + contract.SIGNER + "@" + ref)
-    for ref in ("refs/heads/main", "main", "refs/tags/v1", "f" * 40, CATALOGUE_S4,
+    for ref in (*UNTRUSTED_REVISIONS,
                 REVIEWED_IMPLEMENTATION + "@refs/heads/main")
 ] + [
     ("workflow_ref", "other-owner/atlas-connectors/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION),
@@ -649,12 +662,25 @@ def test_actual_inline_guard_rejects_untrusted_job_identity(tmp_path, field, val
     assert not (tmp_path / "output").exists()
 
 
-def test_actual_inline_guard_rejects_consistent_but_unreviewed_job_pin(tmp_path):
+@pytest.mark.parametrize("revision", UNTRUSTED_REVISIONS)
+def test_actual_inline_guard_rejects_consistent_but_unreviewed_job_pin(tmp_path, revision):
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
-    job = {**HOSTED_JOB_CONTEXT, "workflow_sha": "f" * 40,
-        "workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@" + "f" * 40}
+    job = {**HOSTED_JOB_CONTEXT, "workflow_sha": revision,
+        "workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@" + revision}
     assert inline_guard(tmp_path, trust, job).returncode != 0
     assert not (tmp_path / "output").exists()
+
+
+def test_historical_failed_s_context_is_preserved_but_cannot_authorize_s2(tmp_path, monkeypatch):
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    assert HISTORICAL_FAILED_JOB_CONTEXT["workflow_sha"] == ORIGINAL_IMPLEMENTATION != REVIEWED_IMPLEMENTATION
+    assert inline_guard(tmp_path, trust, HISTORICAL_FAILED_JOB_CONTEXT).returncode != 0
+    assert not (tmp_path / "output").exists()
+    data = admission_data(request(acceptance_only=True))
+    data[1]["VERIFIER_WORKFLOW_REF"] = HISTORICAL_FAILED_JOB_CONTEXT["workflow_ref"]
+    with pytest.raises(ValueError, match="connector_signer_context"):
+        issue(data, monkeypatch)
+    assert data[0].calls == []
 
 
 @pytest.mark.parametrize("field,value", [
@@ -679,9 +705,11 @@ def test_actual_inline_guard_cannot_treat_other_values_as_acceptance(tmp_path, a
 
 @pytest.mark.parametrize("field,value", [
     ("GITHUB_WORKFLOW_REF", HOSTED_JOB_CONTEXT["workflow_ref"]),
+    *[("GITHUB_WORKFLOW_REF", REPOSITORY + "/" + contract.WORKFLOW + "@" + ref)
+      for ref in (REVIEWED_IMPLEMENTATION, "refs/heads/feature/connector-publication-s2-pinning", "refs/tags/v1")],
     ("VERIFIER_WORKFLOW_REF", REPOSITORY + "/" + contract.WORKFLOW + "@refs/heads/main"),
     *[("VERIFIER_WORKFLOW_REF", REPOSITORY + "/" + contract.SIGNER + "@" + ref)
-      for ref in ("refs/heads/main", "main", "refs/tags/v1", "f" * 40)],
+      for ref in UNTRUSTED_REVISIONS],
     ("GITHUB_RUN_ATTEMPT", "2"),
 ])
 def test_caller_and_reusable_workflow_identities_stay_separate_before_credentials(monkeypatch, field, value):
