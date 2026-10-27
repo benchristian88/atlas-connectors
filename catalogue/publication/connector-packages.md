@@ -2,13 +2,17 @@
 
 Phase 4B.2 now pins reviewed implementation **S2** to
 `c2b4ecb493160f0226b1724aa688d0f436d51489` ([PR #39](https://github.com/benchristian88/atlas-connectors/pull/39)).
-**Publication remains disabled; the first genuine acceptance-only run failed
-before checkout or signing under original S.** Both package-trust flags remain
-false. This S2 pinning change requires human review, Python 3.12 CI and merge,
-then an owner update of the repository policy variable, before a separately
-approved original acceptance-only run. S2's executable code remains unchanged.
-No Proxmox 0.2.1 tag, draft, release or catalogue entry was created by the failed
-run or this local repinning work. Genuine package certificate qualification is pending.
+**Publication remains disabled.** Both package-trust flags remain false. The first
+acceptance-only run failed before checkout/signing under original S. After S2
+repinning merged through PR #40, original run `40534608937` completed observations
+and signing, then failed local certificate authentication. Its genuine immutable
+signer URI disagrees with S2's main-ref certificate expectation. This new corrective
+branch requires exact `@trust["signer_revision"]` identities; production bindings
+and live settings stay at S2. Its future merge SHA establishes S3, followed by a
+separate reviewed four-binding repin and owner configuration. No acceptance or
+publication is authorized by this correction. See the
+[genuine certificate correction report](../../docs/phase-4b2-sigstore-qualification.md)
+for preserved evidence, independent authentication and unavailable subject bytes.
 See [proposed ADR 0006](../../docs/decisions/0006-connector-package-publication.md),
 the historical [PR2 qualification report](../../docs/phase-4b2-pr2-local-qualification.md)
 and [identity correction qualification](../../docs/phase-4b2-identity-qualification.md),
@@ -98,16 +102,23 @@ also corrected: once the guard exports its pinned reference, its old exact
 main-ref equality would otherwise reject before credential use. This second
 mismatch is established by code; the failed run did not reach it.
 
-**Certificate representation remains unqualified.** The failed run never signed.
-`ConnectorSigstore` remains unchanged: its current exact SAN and `buildSignerURI`
-end in `@refs/heads/main`, `buildSignerDigest` must equal trusted S2, and caller
-`buildConfigURI` / `buildConfigDigest` remain bound to the publication workflow
-at main / C. The observed job reference does not prove the certificate's spelling.
-Preserve the future original bundle and pinned gh verified output. If its genuine
-certificate disagrees, fail closed and review that specific evidence in a new
-implementation/pinning cycle; do not preemptively accept either URI form.
+**Genuine S2 certificate representation is now observed.** Original S never signed;
+S2 run `40534608937` did. Its SAN and `buildSignerURI` both end in
+`@c2b4ecb493160f0226b1724aa688d0f436d51489`. The correction requires each identity
+to equal the full official repository/workflow URI plus the exact independently
+trusted immutable SHA, and still requires `buildSignerDigest` to equal that SHA.
+Caller `buildConfigURI` / `buildConfigDigest` remain bound to the publication
+workflow at main / C. No branch identity, suffix matching or alternate profile is
+accepted. The report separates authenticated bundle claims from the unavailable
+original subject contents and unobserved hosted CLI exit status. Genuine acceptance
+requires a future successful original run and independent signed-evidence review.
 
-## S2 rollout status — no dispatch from this change
+## Historical S2 rollout — superseded by the S3 correction cycle
+
+PR #40 merged S2 repinning at caller C
+`c7299f9375ccf401c0cf69cb9022dc76a3556b48`; the owner subsequently ran the failing
+S2 acceptance described above. The following sequence records the earlier S2
+plan. Its pending steps are historical, not instructions to dispatch S2 again.
 
 Original S and its historical evidence are immutable. PR #39's qualified correction
 is merged at exact S2 `c2b4ecb493160f0226b1724aa688d0f436d51489`.
@@ -136,7 +147,9 @@ The sequence is:
    before considering any separate activation decision.
 
 The remaining procedure uses **S** symbolically for the reviewed pinned
-implementation of the next approved run: exact S2 after this rollout.
+implementation of the next approved run: the future corrective merge **S3**,
+after its separate reviewed repin and owner configuration. Do not substitute a
+branch, PR head, caller C or a guessed future merge SHA for S3.
 The PR2 baseline section below records the original S deployment, not authority
 to dispatch its known failing workflow again.
 
@@ -384,7 +397,7 @@ that artifact; preserve them separately. Do not dump environment/secret contexts
 | Job isolation | Save `/actions/runs/R/attempts/1/jobs?per_page=100` (all pages), job steps/logs (`/actions/jobs/J/logs` for each job ID J) and run summary. The reusable preflight/verify job must succeed; `publisher` must have conclusion `skipped`, with no started runner/Publisher steps or `catalogue-publication` deployment for R. No authenticate/prepare/execute Publisher step, key use or installation-token mint may run. Do not mistake Verifier token mint or attestation OIDC for Publisher credentials. |
 | Exact configuration bytes | Save raw `policy.json` and `connector-trust.json` from the official Contents API **at ref C**, base64-decode content without reserializing. Preserve the independently reviewed repository policy variable and any matching environment copies, original approved inputs and canonical `request.json`. Compare complete trust values, not just S. |
 | Signed preflight | Verify canonical exact subject bytes, package schema `atlas-connector-package-preflight/v1`, implementation S, complete expected context/request/run/attempt, request SHA-256, SHA-256 of original policy bytes and canonical trust JSON. Check all security observations and all five complete `bypass_actors` arrays with existing validators; omission never means empty. Record observation start/end/issue/expiry and run timing. |
-| Genuine certificate and statement | Save pinned gh offline verified JSON: issuer `https://token.actions.githubusercontent.com`, SAN and `buildSignerURI` exactly `https://github.com/benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@refs/heads/main`, `buildSignerDigest` S; official repository/owner URI and IDs, public visibility, source/config digest C, source ref main, caller `buildConfigURI`, hosted runner, dispatch trigger, invocation `/actions/runs/R/attempts/1`. Require sole subject `connector-preflight.json` with exact digest and package predicate `https://atlas-impact.dev/attestations/connector-package-preflight/v1`, schema `atlas-connector-package-preflight-predicate/v1` and repeated subject digest; verified allowed transparency timestamps. |
+| Genuine certificate and statement | Save pinned gh offline verified JSON: issuer `https://token.actions.githubusercontent.com`, SAN and `buildSignerURI` each exactly the full `https://github.com/benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@` URI followed by trusted immutable S; `buildSignerDigest` S; official repository/owner URI and IDs, public visibility, source/config digest C, source ref main, caller `buildConfigURI`, hosted runner, dispatch trigger, invocation `/actions/runs/R/attempts/1`. Require sole subject `connector-preflight.json` with exact digest and package predicate `https://atlas-impact.dev/attestations/connector-package-preflight/v1`, schema `atlas-connector-package-preflight-predicate/v1` and repeated subject digest; verified allowed transparency timestamps. |
 | No mutation | Preserve before/after `GET /git/ref/tags/proxmox-v0.2.1` (including 404 absence) and complete `/releases?per_page=100&page=N` published inventories plus any available authorized audit records; require no `proxmox-v0.2.1` ref/release creation or other publication mutation by R. Anonymous release listings cannot establish private draft absence. Do not mint a Publisher token merely to collect acceptance evidence; job exclusion is the credential boundary, inventories are corroboration. |
 
 Use S's existing `ConnectorSigstore.verify` and `check_preflight` from a separate
@@ -393,7 +406,7 @@ execute caller C's helpers. For the offline signature command, use this exact
 profile (paths point to the preserved files and S's trusted-root distribution):
 
 ```text
-./tools/publication_trust/bin/gh attestation verify connector-preflight.json --bundle connector-preflight.sigstore.json --custom-trusted-root <S_TRUSTED_ROOT_JSONL> --repo benchristian88/atlas-connectors --hostname github.com --signer-workflow benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml --signer-digest c2b4ecb493160f0226b1724aa688d0f436d51489 --source-digest <ORIGINAL_CALLER_C> --source-ref refs/heads/main --cert-oidc-issuer https://token.actions.githubusercontent.com --deny-self-hosted-runners --predicate-type https://atlas-impact.dev/attestations/connector-package-preflight/v1 --digest-alg sha256 --format json
+./tools/publication_trust/bin/gh attestation verify connector-preflight.json --bundle connector-preflight.sigstore.json --custom-trusted-root <S_TRUSTED_ROOT_JSONL> --repo benchristian88/atlas-connectors --hostname github.com --signer-workflow benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml --signer-digest <REVIEWED_S3_SHA> --source-digest <ORIGINAL_CALLER_C> --source-ref refs/heads/main --cert-oidc-issuer https://token.actions.githubusercontent.com --deny-self-hosted-runners --predicate-type https://atlas-impact.dev/attestations/connector-package-preflight/v1 --digest-alg sha256 --format json
 ```
 
 The pinned gh command verifies cryptography offline; it alone does not replace the
@@ -410,7 +423,7 @@ from connector_publication_sigstore import ConnectorSigstore
 from publication_contract import canonical_json, digest
 
 C = "<INDEPENDENT_ORIGINAL_CALLER_C_40_HEX>"
-S = "c2b4ecb493160f0226b1724aa688d0f436d51489"
+S = "<REVIEWED_S3_MERGE_SHA_40_HEX>"
 R = int("<INDEPENDENT_ORIGINAL_RUN_ID>")
 request = check_input(strict_json(Path("request.json").read_bytes(), maximum=16384))
 assert request["acceptance_only"] is True
@@ -438,8 +451,8 @@ requires a new reviewed implementation baseline and re-pinning cycle, never a
 weakened comparison or changed code described as S.
 
 The next human governance decision reviews this genuine evidence and the proposed
-ADR 0006 split. **Neither trust flag nor the repository gate changes in S2 pinning
-or in acceptance.** Only separately authorized later reviewed activation may change them.
+ADR 0006 split. **Neither trust flag nor the repository gate changes in this
+correction, the separate S3 repin or acceptance.** Only separately authorized later reviewed activation may change them.
 Actual tag/stage/finalize operations each need subsequent explicit publication
 authority; catalogue sequence two remains separate.
 

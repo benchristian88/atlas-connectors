@@ -26,9 +26,9 @@ class ConnectorSigstore(Verifier):
                 and envelope.get("mediaType") == "application/vnd.dev.sigstore.bundle.v0.3+json",
                 "attestation_format")
         revision, commit = trust["signer_revision"], expected["caller_sha"]
-        # The exact path and independently pinned digest authenticate S; textual
-        # URI refs are platform representation, never an implementation pin.
-        identity = f"{ORIGIN}/{WORKFLOW}"
+        # SHA-pinned reusable signing is identified by the exact immutable S.
+        # The caller source/configuration remains main at the independent C.
+        identity = f"{ORIGIN}/{WORKFLOW}@{revision}"
         with tempfile.TemporaryDirectory(prefix="atlas-authorization-verify-") as work:
             directory = Path(work)
             for name, raw in (("artifact", artifact), ("bundle.json", bundle), ("roots.jsonl", self.roots)):
@@ -55,8 +55,8 @@ class ConnectorSigstore(Verifier):
                 "buildConfigURI": f"{ORIGIN}/{PUBLICATION_WORKFLOW}@refs/heads/main",
                 "buildConfigDigest": commit, "buildTrigger": "workflow_dispatch", "runInvocationURI": invocation}
             require(all(certificate.get(key) == value for key, value in required.items())
-                and certificate.get("subjectAlternativeName") == identity + "@refs/heads/main"
-                and certificate.get("buildSignerURI") == certificate.get("subjectAlternativeName"),
+                and certificate.get("subjectAlternativeName") == identity
+                and certificate.get("buildSignerURI") == identity,
                 "authorization_certificate")
             statement = verified["statement"]
             require(statement.keys() == {"_type", "subject", "predicateType", "predicate"}
