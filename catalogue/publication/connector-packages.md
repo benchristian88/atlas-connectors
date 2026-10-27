@@ -1,16 +1,18 @@
 # Controlled Connector package publication
 
-Phase 4B.2 PR2 pins the reviewed, merged PR1 implementation **S** to
-`d6601ad97815a85da164e4329766ea17b62bddc9` ([PR #37](https://github.com/benchristian88/atlas-connectors/pull/37)).
+Phase 4B.2 now pins reviewed implementation **S2** to
+`c2b4ecb493160f0226b1724aa688d0f436d51489` ([PR #39](https://github.com/benchristian88/atlas-connectors/pull/39)).
 **Publication remains disabled; the first genuine acceptance-only run failed
-before checkout or signing.** Both package-trust flags remain false. Pinning S
-does not authorize publication. The current caller and trust still identify S;
-the local correction requires a newly reviewed implementation S2 and a separate
-pinning PR before another approved original acceptance run. No Proxmox 0.2.1 tag,
-draft, release or catalogue entry was created by that failed run or this correction.
+before checkout or signing under original S.** Both package-trust flags remain
+false. This S2 pinning change requires human review, Python 3.12 CI and merge,
+then an owner update of the repository policy variable, before a separately
+approved original acceptance-only run. S2's executable code remains unchanged.
+No Proxmox 0.2.1 tag, draft, release or catalogue entry was created by the failed
+run or this local repinning work. Genuine package certificate qualification is pending.
 See [proposed ADR 0006](../../docs/decisions/0006-connector-package-publication.md),
 the historical [PR2 qualification report](../../docs/phase-4b2-pr2-local-qualification.md)
-and the [identity correction qualification](../../docs/phase-4b2-identity-qualification.md).
+and [identity correction qualification](../../docs/phase-4b2-identity-qualification.md),
+and the current [S2 repinning report](../../docs/phase-4b2-s2-local-qualification.md).
 
 ## Reused controls and new mechanisms
 
@@ -83,8 +85,11 @@ never the request's package source or an operator-supplied executable reference:
 | `job.workflow_repository` / `job.workflow_file_path` | Exactly `benchristian88/atlas-connectors` / `.github/workflows/connector-verifier.yml` |
 | Guard output / `VERIFIER_WORKFLOW_REF` | That identical SHA-pinned reusable reference, checked again before Verifier credentials |
 
-At the current configuration the sole accepted job reference is the complete
-`@d6601ad97815a85da164e4329766ea17b62bddc9` identity above. Main refs, tags,
+For the new S2 configuration the sole accepted job reference is
+`benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@c2b4ecb493160f0226b1724aa688d0f436d51489`,
+with `job.workflow_sha` exactly `c2b4ecb493160f0226b1724aa688d0f436d51489`.
+The historical S context above is preserved as failed-run evidence and is rejected
+under S2 trust. Main refs, tags,
 wrong paths/repositories, inconsistent reference/digest pairs and a consistent
 but untrusted SHA pair reject. The approved schema, strict Boolean security flags,
 disabled publication, acceptance-only Publisher exclusion and first-attempt/main/
@@ -95,42 +100,60 @@ mismatch is established by code; the failed run did not reach it.
 
 **Certificate representation remains unqualified.** The failed run never signed.
 `ConnectorSigstore` remains unchanged: its current exact SAN and `buildSignerURI`
-end in `@refs/heads/main`, `buildSignerDigest` must equal trusted S, and caller
+end in `@refs/heads/main`, `buildSignerDigest` must equal trusted S2, and caller
 `buildConfigURI` / `buildConfigDigest` remain bound to the publication workflow
 at main / C. The observed job reference does not prove the certificate's spelling.
 Preserve the future original bundle and pinned gh verified output. If its genuine
 certificate disagrees, fail closed and review that specific evidence in a new
 implementation/pinning cycle; do not preemptively accept either URI form.
 
-## Required correction rollout — no dispatch from this change
+## S2 rollout status — no dispatch from this change
 
-Original S and its historical evidence are immutable. This correction edits the
-future implementation, leaving all four current production bindings at S and both
-trust flags false. Updating caller C alone cannot repair executable workflow S.
-The human must:
+Original S and its historical evidence are immutable. PR #39's qualified correction
+is merged at exact S2 `c2b4ecb493160f0226b1724aa688d0f436d51489`.
+The sequence is:
 
-1. Review and merge the correction into main, recording its exact new implementation
-   SHA **S2**. No future merge SHA is assumed by this change.
-2. Prepare a separate reviewed pinning PR replacing S with that exact S2 in the
-   caller reusable `uses`, Publisher executable checkout, implementation environment
-   literal and `connector-trust.json` `signer_revision`. Update the explicit binding
-   tests/allowlist and operator evidence examples to the same reviewed S2; do not
-   change historical S evidence. Keep `enabled` and `live_signer_accepted` false.
-3. Qualify the pinning PR through required Python 3.12 CI and review before merge.
-   Independently configure the complete matching repository policy variable and
-   verify absent or identical environment overrides. Leave the effective repository
-   `CONNECTOR_PUBLICATION_ENABLED` absent/false.
-4. Only under separate owner authority, perform a new original main acceptance-only
-   run with Publisher skipped. Never rerun failed attempt 1 as acceptance. Record
-   the new C/S2 identities and genuine signing/isolation evidence before considering
-   any separate activation decision.
+1. **Completed correction:** PR #39 fixed the reusable job reference and downstream
+   preflight check. Its local qualification is historical evidence, not genuine
+   signing acceptance.
+2. **Local S2 pinning:** this separate change sets the reusable `uses`, Publisher
+   executable checkout, `ATLAS_IMPLEMENTATION_REVISION` and package trust
+   `signer_revision` to exact S2. Tests and future evidence examples follow S2;
+   trusted executable files and failed S evidence stay unchanged.
+3. **Pending human PR:** commit/push, open the pinning PR, complete security review
+   and required Python 3.12 CI, then merge. The advancing caller C is not S2 by
+   definition; inspect all four literal bindings in the committed caller.
+4. **Pending owner configuration, after pinning merge and before dispatch:** update
+   the existing repository Actions variable `CONNECTOR_VERIFICATION_POLICY` to the
+   complete JSON from the newly committed `catalogue/publication/connector-trust.json`.
+   Keep `enabled` and `live_signer_accepted` false. Independently verify absent or
+   identical environment overrides and an absent/false effective
+   `CONNECTOR_PUBLICATION_ENABLED`, including organization inheritance.
+5. **Pending separately authorized acceptance:** establish exact reviewed P and
+   independently reproduce D as below, then perform a new original main
+   acceptance-only run with Publisher skipped. Never rerun the failed run as
+   acceptance. Preserve C/S2 and all genuine certificate/signature/isolation evidence
+   before considering any separate activation decision.
 
 The remaining procedure uses **S** symbolically for the reviewed pinned
-implementation of the next approved run, which must be S2 after this rollout.
+implementation of the next approved run: exact S2 after this rollout.
 The PR2 baseline section below records the original S deployment, not authority
 to dispatch its known failing workflow again.
 
 ## Administration prerequisites — owner verification required
+
+Owner-reported observations for this increment: both `catalogue-verification` and
+`catalogue-publication` exist with their original App secrets/variables, neither
+has a conflicting environment-level `CONNECTOR_VERIFICATION_POLICY`, and the
+repository variable still contains previous S. `CONNECTOR_PUBLICATION_ENABLED`
+was absent. Both environments now report **Protected branches only**, applying
+to exactly `main`; the five Atlas rulesets remain, and a complementary classic
+branch protection rule for `main` was added to make that environment restriction
+effective. These observations are not independent privileged qualification.
+Before dispatch, the owner must verify the live branch restriction really selects
+only main, complete protections/bypass visibility and effective variable values.
+This local change does not modify settings, original catalogue `VERIFICATION_POLICY`,
+secrets, App permissions, environments or rulesets.
 
 | Control | Exact required configuration |
 | --- | --- |
@@ -186,13 +209,15 @@ to Azure blob or Actions artifact hosts, without forwarded credentials, further
 redirects, ambient proxies or operator-supplied URLs. Original ZIP SHA-256 and size
 must match the independently approved artifact identity and run metadata.
 
-## PR2 baseline and independent configuration
+## Historical PR2 baseline and current independent configuration
 
-PR #37 is merged at S. The caller's reusable `uses`, Publisher executable checkout,
-`ATLAS_IMPLEMENTATION_REVISION` and package trust `signer_revision` all identify
-exactly S. `connector-verifier.yml`, its helpers, vendored SDK/hash lock, gh 2.102.1
-and frozen roots remain the reviewed implementation at S. No code from PR2 becomes
-trusted executable code merely because the advancing caller main **C** contains it.
+PR #37 merged at original S `d6601ad97815a85da164e4329766ea17b62bddc9`;
+PR2 bound all four identities to that S. The failed acceptance used that historical
+deployment. The current pinning change replaces only those bindings with S2.
+`connector-verifier.yml`, its helpers, vendored SDK/hash lock, gh 2.102.1 and frozen
+roots remain the reviewed executable distribution at S2. Code in a subsequent
+pinning commit does not become executable authority merely because advancing
+caller main **C** contains it.
 The package-source commit **P** is a third identity, carried as request data; it is
 not the caller C or the implementation S by definition. P may coincide with C
 only when separately reviewed that way.
@@ -209,9 +234,11 @@ Before a future dispatch, the owner must independently confirm:
    complete privileged bypass visibility, App registrations, environment protection
    and existing secret availability. None of these live settings is certified by
    the local pinning work.
-3. Configure **repository Actions variable** `CONNECTOR_VERIFICATION_POLICY` at
-   repository Settings → Secrets and variables → Actions → Variables to the complete
-   reviewed package-trust JSON, including exact S and both false flags. This is
+3. **After the S2 pinning PR is merged and before the next dispatch**, update the
+   existing **repository Actions variable** `CONNECTOR_VERIFICATION_POLICY` at
+   repository Settings → Secrets and variables → Actions → Variables to the exact
+   complete JSON from the new committed `catalogue/publication/connector-trust.json`,
+   including exact S2 and both false flags. This is
    public trust configuration, never a secret or downloaded authority. It must
    parse identically to C's checked-in package trust. The Publisher captures
    `${{ vars.CONNECTOR_VERIFICATION_POLICY }}` in its **job-level `env`**, whereas
@@ -250,6 +277,68 @@ to change settings. Missing live confirmation does not establish a local code
 failure or confer remote authority.
 
 ## Future owner-operated acceptance-only request — do not dispatch here
+
+Establish P and D before approving any request:
+
+1. Select exact committed **P** independently of S2 and the pinning merge commit.
+   Preserve authenticated main ancestry, the merged reviewed PR whose merge SHA
+   is P, successful required Python 3.12 `validate` for P and qualified Proxmox
+   0.2.1 metadata. Record the intended current main caller C separately. The later
+   Publisher also requires P's entire workflow directory to match C's; a source
+   predating repinning may not meet that conservative permission rule. Resolve
+   source selection through review, never by changing S2 or App permissions.
+2. Prepare separate clean detached local checkouts at exact S2 (trusted tools) and
+   P (source data), using new directories. Verify both HEADs and clean inventories.
+   Use S2's hash-pinned SDK and existing reviewed dependencies. Do not run P's
+   helpers, requirements, workflows or playbooks. Store build output outside both
+   checkouts. No tag is required for this source-only reproduction.
+3. With `ATLAS_S2_TOOLS`, `ATLAS_PACKAGE_SOURCE_DIR`, `ATLAS_PACKAGE_SOURCE` and
+   `ATLAS_PACKAGE_REVIEW_OUTPUT` set to those reviewed paths/P and a new empty output
+   directory, run the following local preparation from outside P. It uses S2's
+   existing source-data adapter and exact-source checks. Review the two equal
+   archives, Manifest, SPDX/licence/qualification validation and resulting D.
+
+```python
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+S2 = "c2b4ecb493160f0226b1724aa688d0f436d51489"
+tools = Path(os.environ["ATLAS_S2_TOOLS"]).resolve()
+source = Path(os.environ["ATLAS_PACKAGE_SOURCE_DIR"]).resolve()
+P = os.environ["ATLAS_PACKAGE_SOURCE"]
+output = Path(os.environ["ATLAS_PACKAGE_REVIEW_OUTPUT"]).resolve()
+assert subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tools, text=True).strip() == S2
+assert not subprocess.check_output(["git", "status", "--porcelain=v1", "--untracked-files=all"], cwd=tools)
+sys.path.insert(0, str(tools / "tools"))
+from publish_connector import package_source
+import release_connector
+from connector_publication_contract import check_input
+from publication_contract import canonical_json
+
+with package_source(source):
+    first = release_connector.prepare("proxmox-v0.2.1", output / "first", commit=P)
+    second = release_connector.prepare("proxmox-v0.2.1", output / "second", commit=P)
+raw = (output / "first/proxmox-0.2.1.tar.gz").read_bytes()
+assert raw == (output / "second/proxmox-0.2.1.tar.gz").read_bytes()
+assert first == second
+D = hashlib.sha256(raw).hexdigest()
+assert first["distribution"]["bundle_digest"] == "sha256:" + D
+assert first["distribution"]["provenance"]["source_commit"] == P
+request = check_input({"operation": "tag", "acceptance_only": True,
+    "package": {"tag": "proxmox-v0.2.1", "source_commit": P, "sha256": D}})
+with (output / "request.json").open("xb") as stream:
+    stream.write(canonical_json(request))
+print(json.dumps(request["package"], sort_keys=True))
+```
+
+These outputs are local, unattested proposal data. Independently reproduce D from
+the same exact P and retain both build records before owner approval. Neither an
+earlier recorded digest nor equality with a prior candidate authorizes this request.
+No actual P or D is selected by this runbook or the local S2 pinning increment.
 
 After the prerequisites and separate owner authorization, use the reviewed
 `connector-publish.yml` workflow from **main**, original attempt **1**, with original
@@ -291,7 +380,7 @@ that artifact; preserve them separately. Do not dump environment/secret contexts
 | Evidence | Exact inspection |
 | --- | --- |
 | Original dispatch | Save official API `GET /repos/benchristian88/atlas-connectors/actions/runs/R` and `/actions/runs/R/attempts/1`. Require both IDs R, `run_attempt: 1`, event `workflow_dispatch`, branch main, SHA C, official repository/owner IDs and both actors `benchristian88`/`93822871`/`User`. |
-| Caller and reusable identities | Save workflow API record using the run's `workflow_id`; caller path must be `.github/workflows/connector-publish.yml`. Both run records must show exactly one `referenced_workflows` entry, with path `benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@<REVIEWED_S2_40_HEX>` and sha equal to that same independently approved S2. The placeholder is not a valid pin. Save caller bytes at C, all four bindings and the exact SHA-pinned job context. |
+| Caller and reusable identities | Save workflow API record using the run's `workflow_id`; caller path must be `.github/workflows/connector-publish.yml`. Both run records must show exactly one `referenced_workflows` entry, with path `benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@c2b4ecb493160f0226b1724aa688d0f436d51489` and sha `c2b4ecb493160f0226b1724aa688d0f436d51489`. Save caller bytes at C, all four bindings and the exact SHA-pinned job context with `job.workflow_sha` S2. |
 | Job isolation | Save `/actions/runs/R/attempts/1/jobs?per_page=100` (all pages), job steps/logs (`/actions/jobs/J/logs` for each job ID J) and run summary. The reusable preflight/verify job must succeed; `publisher` must have conclusion `skipped`, with no started runner/Publisher steps or `catalogue-publication` deployment for R. No authenticate/prepare/execute Publisher step, key use or installation-token mint may run. Do not mistake Verifier token mint or attestation OIDC for Publisher credentials. |
 | Exact configuration bytes | Save raw `policy.json` and `connector-trust.json` from the official Contents API **at ref C**, base64-decode content without reserializing. Preserve the independently reviewed repository policy variable and any matching environment copies, original approved inputs and canonical `request.json`. Compare complete trust values, not just S. |
 | Signed preflight | Verify canonical exact subject bytes, package schema `atlas-connector-package-preflight/v1`, implementation S, complete expected context/request/run/attempt, request SHA-256, SHA-256 of original policy bytes and canonical trust JSON. Check all security observations and all five complete `bypass_actors` arrays with existing validators; omission never means empty. Record observation start/end/issue/expiry and run timing. |
@@ -304,7 +393,7 @@ execute caller C's helpers. For the offline signature command, use this exact
 profile (paths point to the preserved files and S's trusted-root distribution):
 
 ```text
-./tools/publication_trust/bin/gh attestation verify connector-preflight.json --bundle connector-preflight.sigstore.json --custom-trusted-root <S_TRUSTED_ROOT_JSONL> --repo benchristian88/atlas-connectors --hostname github.com --signer-workflow benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml --signer-digest <INDEPENDENT_REVIEWED_S2_40_HEX> --source-digest <ORIGINAL_CALLER_C> --source-ref refs/heads/main --cert-oidc-issuer https://token.actions.githubusercontent.com --deny-self-hosted-runners --predicate-type https://atlas-impact.dev/attestations/connector-package-preflight/v1 --digest-alg sha256 --format json
+./tools/publication_trust/bin/gh attestation verify connector-preflight.json --bundle connector-preflight.sigstore.json --custom-trusted-root <S_TRUSTED_ROOT_JSONL> --repo benchristian88/atlas-connectors --hostname github.com --signer-workflow benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml --signer-digest c2b4ecb493160f0226b1724aa688d0f436d51489 --source-digest <ORIGINAL_CALLER_C> --source-ref refs/heads/main --cert-oidc-issuer https://token.actions.githubusercontent.com --deny-self-hosted-runners --predicate-type https://atlas-impact.dev/attestations/connector-package-preflight/v1 --digest-alg sha256 --format json
 ```
 
 The pinned gh command verifies cryptography offline; it alone does not replace the
@@ -321,7 +410,7 @@ from connector_publication_sigstore import ConnectorSigstore
 from publication_contract import canonical_json, digest
 
 C = "<INDEPENDENT_ORIGINAL_CALLER_C_40_HEX>"
-S = "<INDEPENDENT_REVIEWED_S2_40_HEX>"
+S = "c2b4ecb493160f0226b1724aa688d0f436d51489"
 R = int("<INDEPENDENT_ORIGINAL_RUN_ID>")
 request = check_input(strict_json(Path("request.json").read_bytes(), maximum=16384))
 assert request["acceptance_only"] is True
@@ -349,8 +438,8 @@ requires a new reviewed implementation baseline and re-pinning cycle, never a
 weakened comparison or changed code described as S.
 
 The next human governance decision reviews this genuine evidence and the proposed
-ADR 0006 split. **Neither trust flag nor the repository gate changes in PR2 or in
-acceptance.** Only separately authorized later reviewed activation may change them.
+ADR 0006 split. **Neither trust flag nor the repository gate changes in S2 pinning
+or in acceptance.** Only separately authorized later reviewed activation may change them.
 Actual tag/stage/finalize operations each need subsequent explicit publication
 authority; catalogue sequence two remains separate.
 

@@ -33,9 +33,9 @@ jobs:
       contents: read
       id-token: write
       attestations: write
-    # Reviewed PR1 implementation S; caller main C advances independently.
+    # Reviewed PR39 implementation S2; caller main C advances independently.
     # Pinning enables acceptance preparation only, never publication authority.
-    uses: benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@d6601ad97815a85da164e4329766ea17b62bddc9
+    uses: benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@c2b4ecb493160f0226b1724aa688d0f436d51489
     with:
       request: ${{ toJSON(inputs) }}
     secrets:
@@ -58,14 +58,14 @@ jobs:
       contents: read
       actions: read
     env:
-      ATLAS_IMPLEMENTATION_REVISION: 'd6601ad97815a85da164e4329766ea17b62bddc9'
+      ATLAS_IMPLEMENTATION_REVISION: 'c2b4ecb493160f0226b1724aa688d0f436d51489'
       CONNECTOR_VERIFICATION_POLICY: ${{ vars.CONNECTOR_VERIFICATION_POLICY }}
       CONNECTOR_REQUEST: ${{ format('{{"operation":{0},"acceptance_only":{1},"package":{2}}}', toJSON(inputs.operation), toJSON(inputs.acceptance_only), inputs.package) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: benchristian88/atlas-connectors
-          ref: 'd6601ad97815a85da164e4329766ea17b62bddc9'
+          ref: 'c2b4ecb493160f0226b1724aa688d0f436d51489'
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

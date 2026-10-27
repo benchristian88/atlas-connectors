@@ -25,12 +25,16 @@ The historical 0.2.0 source, package, registry and catalogue history remain inta
 with privileged execution disabled.** The separate
 [package publication runbook](catalogue/publication/connector-packages.md) documents
 signed isolated admission, independent tag/stage/finalize dispatches, immutable
-verification, reviewed implementation S
-`d6601ad97815a85da164e4329766ea17b62bddc9`. Genuine acceptance run `40523236413`
-failed before checkout/signing with Publisher skipped. The local
-[workflow identity correction](docs/phase-4b2-identity-qualification.md) requires a
-new reviewed S2, a separate four-binding pinning PR, Python 3.12 CI and a new
-approved original acceptance-only run; current pins and disabled trust remain unchanged.
+verification, and reviewed implementation S2
+`c2b4ecb493160f0226b1724aa688d0f436d51489`, merged through PR #39. Genuine
+acceptance run `40523236413` used original S and failed before checkout/signing
+with Publisher skipped; the [historical correction report](docs/phase-4b2-identity-qualification.md)
+preserves that evidence. The [S2 repinning qualification](docs/phase-4b2-s2-local-qualification.md)
+updates all four production bindings without changing S2's executable code or the
+two false package-trust flags. Human review, required Python 3.12 CI and pinning
+merge must precede the owner's repository policy-variable update and a separately
+approved new original acceptance-only run. Genuine package signing and certificate
+qualification remain pending.
 [Proposed ADR 0006](docs/decisions/0006-connector-package-publication.md) records the
 proposed split effective-permission boundary, pending owner acceptance. No package
 has been published and no catalogue or remote-installation authority is added.
