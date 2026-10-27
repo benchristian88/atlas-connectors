@@ -35,12 +35,14 @@ from test_publication_authorization import (NOW, SOURCE, SyntheticProvider, file
 from test_publication_state import StructuralVerifier, structural_bundle
 from verification_github import BASE
 
-REVIEWED_IMPLEMENTATION = "c2b4ecb493160f0226b1724aa688d0f436d51489"
+REVIEWED_IMPLEMENTATION = "be24042c4e7446c7d88d2f08608ab7f058bb24b6"
+HISTORICAL_S2 = "c2b4ecb493160f0226b1724aa688d0f436d51489"
 ORIGINAL_IMPLEMENTATION = "d6601ad97815a85da164e4329766ea17b62bddc9"
 CATALOGUE_S4 = "2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285"
 UNTRUSTED_REVISIONS = (
-    ORIGINAL_IMPLEMENTATION, "0" * 40, "f" * 40, "main", "refs/heads/main",
-    "refs/heads/feature/connector-publication-s2-pinning", "refs/tags/v1",
+    ORIGINAL_IMPLEMENTATION, HISTORICAL_S2, "0" * 40, "f" * 40, "main", "refs/heads/main",
+    "refs/heads/feature/connector-publication-s2-pinning",
+    "refs/heads/feature/connector-publication-s3-pinning", "refs/tags/v1",
     CATALOGUE_S4, "${{ inputs.revision }}",
 )
 # Genuine job context from failed acceptance run 40523236413, job 122255725484.
@@ -51,8 +53,8 @@ HISTORICAL_FAILED_JOB_CONTEXT = {
     "workflow_repository": REPOSITORY,
     "workflow_file_path": contract.SIGNER,
 }
-# Model the demonstrated job format at S2. This prospective fixture predates
-# genuine S2 run 40534608937; its certificate evidence is preserved separately.
+# Synthetic prospective S3 job context using the demonstrated hosted format.
+# Genuine S2 run 40534608937 and its certificate remain historical evidence.
 HOSTED_JOB_CONTEXT = {
     **HISTORICAL_FAILED_JOB_CONTEXT,
     "workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION,
@@ -74,17 +76,18 @@ def request(operation="tag", *, acceptance_only=False, commit=SOURCE, sha256="c"
     return {"operation": operation, "acceptance_only": acceptance_only, "package": package}
 
 
-def admission_data(inputs=None, *, caller=SOURCE):
+def admission_data(inputs=None, *, caller=SOURCE, implementation=REVIEWED_IMPLEMENTATION):
+    """Synthetic provider; explicit historical revisions never change signed fixtures."""
     inputs = deepcopy(inputs or request())
     api, env, _, old_trust, _ = old_fixture("publish", acceptance_only=inputs["acceptance_only"])
     policy_raw = (ROOT / contract.POLICY_PATH).read_bytes()
     policy = json.loads(policy_raw)
     trust = {**old_trust, "schema": contract.TRUST_SCHEMA, "enabled": True,
-        "signer_revision": REVIEWED_IMPLEMENTATION}
+        "signer_revision": implementation}
     env.update(GITHUB_WORKFLOW_REF=REPOSITORY + "/" + contract.WORKFLOW + "@refs/heads/main",
         GITHUB_ACTOR_ID="93822871", GITHUB_ACTOR="benchristian88", GITHUB_TRIGGERING_ACTOR="benchristian88",
-        GITHUB_SHA=caller, GITHUB_RUN_ID="90", ATLAS_IMPLEMENTATION_REVISION=REVIEWED_IMPLEMENTATION,
-        VERIFIER_WORKFLOW_REF=HOSTED_JOB_CONTEXT["workflow_ref"],
+        GITHUB_SHA=caller, GITHUB_RUN_ID="90", ATLAS_IMPLEMENTATION_REVISION=implementation,
+        VERIFIER_WORKFLOW_REF=REPOSITORY + "/" + contract.SIGNER + "@" + implementation,
         CONNECTOR_VERIFICATION_POLICY=json.dumps(trust), CONNECTOR_REQUEST=json.dumps(inputs),
         DISPATCH_OPERATION=inputs["operation"], DISPATCH_ACCEPTANCE_ONLY=str(inputs["acceptance_only"]).lower(),
         DISPATCH_PACKAGE=json.dumps(inputs["package"]))
@@ -95,7 +98,7 @@ def admission_data(inputs=None, *, caller=SOURCE):
         row = deepcopy(rows[BASE + "/actions/runs/60" + suffix])
         row.update(id=90, workflow_id=81, path=contract.WORKFLOW, head_sha=caller,
             url=API + "/actions/runs/90", html_url=ORIGIN + "/actions/runs/90",
-            referenced_workflows=[{"path": REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION, "sha": REVIEWED_IMPLEMENTATION}])
+            referenced_workflows=[{"path": REPOSITORY + "/" + contract.SIGNER + "@" + implementation, "sha": implementation}])
         rows[BASE + "/actions/runs/90" + suffix] = row
     rows[BASE + "/actions/workflows/81"] = {"id": 81, "path": contract.WORKFLOW,
         "state": "active", "url": API + "/actions/workflows/81"}
@@ -105,7 +108,7 @@ def admission_data(inputs=None, *, caller=SOURCE):
     rows[BASE + f"/contents/{contract.POLICY_PATH}?ref={caller}"] = file_response(policy_raw, contract.POLICY_PATH)
     rows[BASE + f"/contents/{contract.TRUST_PATH}?ref={caller}"] = file_response(canonical_json(trust), contract.TRUST_PATH)
     rows[BASE + f"/contents/.github/workflows/connector-publish.yml?ref={caller}"] = file_response(
-        (REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION).encode(), ".github/workflows/connector-publish.yml")
+        (REPOSITORY + "/" + contract.SIGNER + "@" + implementation).encode(), ".github/workflows/connector-publish.yml")
     return SyntheticProvider(rows), env, trust, policy_raw
 
 
@@ -671,7 +674,7 @@ def test_actual_inline_guard_rejects_consistent_but_unreviewed_job_pin(tmp_path,
     assert not (tmp_path / "output").exists()
 
 
-def test_historical_failed_s_context_is_preserved_but_cannot_authorize_s2(tmp_path, monkeypatch):
+def test_historical_failed_s_context_is_preserved_but_cannot_authorize_s3(tmp_path, monkeypatch):
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
     assert HISTORICAL_FAILED_JOB_CONTEXT["workflow_sha"] == ORIGINAL_IMPLEMENTATION != REVIEWED_IMPLEMENTATION
     assert inline_guard(tmp_path, trust, HISTORICAL_FAILED_JOB_CONTEXT).returncode != 0
@@ -706,11 +709,12 @@ def test_actual_inline_guard_cannot_treat_other_values_as_acceptance(tmp_path, a
 @pytest.mark.parametrize("field,value", [
     ("GITHUB_WORKFLOW_REF", HOSTED_JOB_CONTEXT["workflow_ref"]),
     *[("GITHUB_WORKFLOW_REF", REPOSITORY + "/" + contract.WORKFLOW + "@" + ref)
-      for ref in (REVIEWED_IMPLEMENTATION, "refs/heads/feature/connector-publication-s2-pinning", "refs/tags/v1")],
+      for ref in (REVIEWED_IMPLEMENTATION, "refs/heads/feature/connector-publication-s3-pinning", "refs/tags/v1")],
     ("VERIFIER_WORKFLOW_REF", REPOSITORY + "/" + contract.WORKFLOW + "@refs/heads/main"),
     *[("VERIFIER_WORKFLOW_REF", REPOSITORY + "/" + contract.SIGNER + "@" + ref)
       for ref in UNTRUSTED_REVISIONS],
     ("GITHUB_RUN_ATTEMPT", "2"),
+    *[("ATLAS_IMPLEMENTATION_REVISION", ref) for ref in UNTRUSTED_REVISIONS],
 ])
 def test_caller_and_reusable_workflow_identities_stay_separate_before_credentials(monkeypatch, field, value):
     data = admission_data(request(acceptance_only=True))

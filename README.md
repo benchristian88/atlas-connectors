@@ -25,20 +25,29 @@ The historical 0.2.0 source, package, registry and catalogue history remain inta
 with privileged execution disabled.** The separate
 [package publication runbook](catalogue/publication/connector-packages.md) documents
 signed isolated admission, independent tag/stage/finalize dispatches, immutable
-verification, and reviewed implementation S2
-`c2b4ecb493160f0226b1724aa688d0f436d51489`, merged through PR #39. Genuine
+verification, and reviewed implementation S3
+`be24042c4e7446c7d88d2f08608ab7f058bb24b6`, squash-merged through
+[PR #41](https://github.com/benchristian88/atlas-connectors/pull/41) with successful
+`validate` CI. All four S3 bindings are prepared locally; both package-trust flags
+remain false. Genuine
 acceptance run `40523236413` used original S and failed before checkout/signing
 with Publisher skipped; the [historical correction report](docs/phase-4b2-identity-qualification.md)
 preserves that evidence. The [S2 repinning qualification](docs/phase-4b2-s2-local-qualification.md)
-records all four production bindings without changing the two false package-trust
-flags. Original S2 run `40534608937` completed observations and signing, then failed
+records the previous S2 deployment. Original S2 run `40534608937` completed
+observations and genuine signing, then failed
 local authentication because its genuine signer URI contains S2's SHA while the
 strict profile expected main. The [certificate correction report](docs/phase-4b2-sigstore-qualification.md)
-records preserved evidence, independent bundle authentication, the narrow local
-correction and verification limits. Production bindings remain S2. A corrective
-merge must establish S3, followed by a separate reviewed four-binding repin and
-owner configuration before any separately authorized original acceptance run.
-Genuine acceptance remains pending.
+records preserved evidence, independent bundle authentication, the correction
+merged in PR #41 and verification limits. The
+[S3 repinning qualification](docs/phase-4b2-s3-local-qualification.md) records local
+validation and the human handoff. After the repinning PR merges, owner
+configuration and a separately authorized successful original S3 acceptance-only
+run with independent genuine-evidence review remain required.
+
+This pinning cycle upgrades the trusted publication implementation, not the
+Connector package version. Proxmox remains 0.2.1 for the proposed immutable release.
+Routine Connector releases select reviewed package source/version/digest as data;
+they require new implementation SHA pins only when the publication engine changes.
 [Proposed ADR 0006](docs/decisions/0006-connector-package-publication.md) records the
 proposed split effective-permission boundary, pending owner acceptance. No package
 has been published and no catalogue or remote-installation authority is added.
