@@ -1,0 +1,16 @@
+{
+  "id": 40534608937,
+  "head_sha": "c7299f9375ccf401c0cf69cb9022dc76a3556b48",
+  "path": ".github/workflows/connector-publish.yml",
+  "run_attempt": 1,
+  "event": "workflow_dispatch",
+  "status": "completed",
+  "conclusion": "failure",
+  "referenced_workflows": [
+    {
+      "path": "benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@c2b4ecb493160f0226b1724aa688d0f436d51489",
+      "sha": "c2b4ecb493160f0226b1724aa688d0f436d51489"
+    }
+  ],
+  "html_url": "https://github.com/benchristian88/atlas-connectors/actions/runs/40534608937"
+}

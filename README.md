@@ -30,11 +30,15 @@ verification, and reviewed implementation S2
 acceptance run `40523236413` used original S and failed before checkout/signing
 with Publisher skipped; the [historical correction report](docs/phase-4b2-identity-qualification.md)
 preserves that evidence. The [S2 repinning qualification](docs/phase-4b2-s2-local-qualification.md)
-updates all four production bindings without changing S2's executable code or the
-two false package-trust flags. Human review, required Python 3.12 CI and pinning
-merge must precede the owner's repository policy-variable update and a separately
-approved new original acceptance-only run. Genuine package signing and certificate
-qualification remain pending.
+records all four production bindings without changing the two false package-trust
+flags. Original S2 run `40534608937` completed observations and signing, then failed
+local authentication because its genuine signer URI contains S2's SHA while the
+strict profile expected main. The [certificate correction report](docs/phase-4b2-sigstore-qualification.md)
+records preserved evidence, independent bundle authentication, the narrow local
+correction and verification limits. Production bindings remain S2. A corrective
+merge must establish S3, followed by a separate reviewed four-binding repin and
+owner configuration before any separately authorized original acceptance run.
+Genuine acceptance remains pending.
 [Proposed ADR 0006](docs/decisions/0006-connector-package-publication.md) records the
 proposed split effective-permission boundary, pending owner acceptance. No package
 has been published and no catalogue or remote-installation authority is added.

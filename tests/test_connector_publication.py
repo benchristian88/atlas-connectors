@@ -51,8 +51,8 @@ HISTORICAL_FAILED_JOB_CONTEXT = {
     "workflow_repository": REPOSITORY,
     "workflow_file_path": contract.SIGNER,
 }
-# Model the demonstrated hosted format at newly trusted S2. No genuine S2 run
-# or package-preflight certificate is represented by this prospective fixture.
+# Model the demonstrated job format at S2. This prospective fixture predates
+# genuine S2 run 40534608937; its certificate evidence is preserved separately.
 HOSTED_JOB_CONTEXT = {
     **HISTORICAL_FAILED_JOB_CONTEXT,
     "workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION,
@@ -179,8 +179,8 @@ def verified_output(raw):
     result = synthetic_verified_output(raw)
     verified = result[0]["verificationResult"]
     cert = verified["signature"]["certificate"]
-    cert.update(buildSignerDigest=REVIEWED_IMPLEMENTATION, subjectAlternativeName=ORIGIN + "/" + contract.SIGNER + "@refs/heads/main",
-        buildSignerURI=ORIGIN + "/" + contract.SIGNER + "@refs/heads/main",
+    cert.update(buildSignerDigest=REVIEWED_IMPLEMENTATION, subjectAlternativeName=ORIGIN + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION,
+        buildSignerURI=ORIGIN + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION,
         buildConfigURI=ORIGIN + "/" + contract.WORKFLOW + "@refs/heads/main",
         runInvocationURI=ORIGIN + "/actions/runs/90/attempts/1")
     verified["statement"].update(subject=[{"name": contract.SUBJECT, "digest": {"sha256": digest(raw)}}],
