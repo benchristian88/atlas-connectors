@@ -26,8 +26,11 @@ with privileged execution disabled.** The separate
 [package publication runbook](catalogue/publication/connector-packages.md) documents
 signed isolated admission, independent tag/stage/finalize dispatches, immutable
 verification, reviewed implementation S
-`d6601ad97815a85da164e4329766ea17b62bddc9` and genuine acceptance-only evidence
-still required after PR2 review/merge and Python 3.12 CI.
+`d6601ad97815a85da164e4329766ea17b62bddc9`. Genuine acceptance run `40523236413`
+failed before checkout/signing with Publisher skipped. The local
+[workflow identity correction](docs/phase-4b2-identity-qualification.md) requires a
+new reviewed S2, a separate four-binding pinning PR, Python 3.12 CI and a new
+approved original acceptance-only run; current pins and disabled trust remain unchanged.
 [Proposed ADR 0006](docs/decisions/0006-connector-package-publication.md) records the
 proposed split effective-permission boundary, pending owner acceptance. No package
 has been published and no catalogue or remote-installation authority is added.

@@ -2,10 +2,15 @@
 
 Phase 4B.2 PR2 pins the reviewed, merged PR1 implementation **S** to
 `d6601ad97815a85da164e4329766ea17b62bddc9` ([PR #37](https://github.com/benchristian88/atlas-connectors/pull/37)).
-**Publication remains disabled; genuine acceptance has not been executed.**
-Both package-trust flags remain false. Pinning S does not authorize publication.
-No Proxmox 0.2.1 tag, dispatch, draft, release or catalogue entry is created here. See [proposed ADR 0006](../../docs/decisions/0006-connector-package-publication.md)
-and the [PR2 qualification report](../../docs/phase-4b2-pr2-local-qualification.md).
+**Publication remains disabled; the first genuine acceptance-only run failed
+before checkout or signing.** Both package-trust flags remain false. Pinning S
+does not authorize publication. The current caller and trust still identify S;
+the local correction requires a newly reviewed implementation S2 and a separate
+pinning PR before another approved original acceptance run. No Proxmox 0.2.1 tag,
+draft, release or catalogue entry was created by that failed run or this correction.
+See [proposed ADR 0006](../../docs/decisions/0006-connector-package-publication.md),
+the historical [PR2 qualification report](../../docs/phase-4b2-pr2-local-qualification.md)
+and the [identity correction qualification](../../docs/phase-4b2-identity-qualification.md).
 
 ## Reused controls and new mechanisms
 
@@ -42,6 +47,88 @@ The package source checkout, selected by validated full SHA, is read as data by 
 none of its Python, requirements, workflows or Connector playbooks is executed.
 Source metadata is compared against the exact original artifact before any key
 use; final asset bytes are never reserialized, rebuilt or re-signed for publication.
+
+## Failed acceptance and corrected workflow identity
+
+Genuine [run 40523236413, attempt 1](https://github.com/benchristian88/atlas-connectors/actions/runs/40523236413),
+[job 122255725484](https://github.com/benchristian88/atlas-connectors/actions/runs/40523236413/job/122255725484),
+failed at `Require independently configured package signer before checkout or credentials`
+with `connector_verification_trust_not_accepted`. Caller C was
+`b2fcc15ce06b5b57ae3b3c7ecf6264bcd1d168f0`, implementation S was
+`d6601ad97815a85da164e4329766ea17b62bddc9`, operation was `tag`, acceptance-only
+was true and the proposal was Proxmox 0.2.1. The supplied genuine job context was:
+
+```text
+workflow_ref: benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@d6601ad97815a85da164e4329766ea17b62bddc9
+workflow_sha: d6601ad97815a85da164e4329766ea17b62bddc9
+workflow_repository: benchristian88/atlas-connectors
+workflow_file_path: .github/workflows/connector-verifier.yml
+```
+
+The inline guard incorrectly required the reusable reference to end in
+`@refs/heads/main`. Read-only original-attempt job metadata confirms checkout,
+observation, attestation and upload were skipped; Publisher had no runner or
+steps. No Publisher token, tag, release, original build or signed preflight was
+created. The exact guard rejection is evidence of failed acceptance, not signer
+acceptance or publication authority.
+
+The corrected contract uses the independently configured package trust revision,
+never the request's package source or an operator-supplied executable reference:
+
+| Identity surface | Exact requirement |
+| --- | --- |
+| `github.workflow_ref` / `GITHUB_WORKFLOW_REF` | `benchristian88/atlas-connectors/.github/workflows/connector-publish.yml@refs/heads/main`; caller/source digest C remains separate |
+| `job.workflow_ref` | `benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@` plus the complete trusted `signer_revision` |
+| `job.workflow_sha` | Exactly that same independently configured revision |
+| `job.workflow_repository` / `job.workflow_file_path` | Exactly `benchristian88/atlas-connectors` / `.github/workflows/connector-verifier.yml` |
+| Guard output / `VERIFIER_WORKFLOW_REF` | That identical SHA-pinned reusable reference, checked again before Verifier credentials |
+
+At the current configuration the sole accepted job reference is the complete
+`@d6601ad97815a85da164e4329766ea17b62bddc9` identity above. Main refs, tags,
+wrong paths/repositories, inconsistent reference/digest pairs and a consistent
+but untrusted SHA pair reject. The approved schema, strict Boolean security flags,
+disabled publication, acceptance-only Publisher exclusion and first-attempt/main/
+actor requirements remain enforced. The downstream preflight main-ref check is
+also corrected: once the guard exports its pinned reference, its old exact
+main-ref equality would otherwise reject before credential use. This second
+mismatch is established by code; the failed run did not reach it.
+
+**Certificate representation remains unqualified.** The failed run never signed.
+`ConnectorSigstore` remains unchanged: its current exact SAN and `buildSignerURI`
+end in `@refs/heads/main`, `buildSignerDigest` must equal trusted S, and caller
+`buildConfigURI` / `buildConfigDigest` remain bound to the publication workflow
+at main / C. The observed job reference does not prove the certificate's spelling.
+Preserve the future original bundle and pinned gh verified output. If its genuine
+certificate disagrees, fail closed and review that specific evidence in a new
+implementation/pinning cycle; do not preemptively accept either URI form.
+
+## Required correction rollout — no dispatch from this change
+
+Original S and its historical evidence are immutable. This correction edits the
+future implementation, leaving all four current production bindings at S and both
+trust flags false. Updating caller C alone cannot repair executable workflow S.
+The human must:
+
+1. Review and merge the correction into main, recording its exact new implementation
+   SHA **S2**. No future merge SHA is assumed by this change.
+2. Prepare a separate reviewed pinning PR replacing S with that exact S2 in the
+   caller reusable `uses`, Publisher executable checkout, implementation environment
+   literal and `connector-trust.json` `signer_revision`. Update the explicit binding
+   tests/allowlist and operator evidence examples to the same reviewed S2; do not
+   change historical S evidence. Keep `enabled` and `live_signer_accepted` false.
+3. Qualify the pinning PR through required Python 3.12 CI and review before merge.
+   Independently configure the complete matching repository policy variable and
+   verify absent or identical environment overrides. Leave the effective repository
+   `CONNECTOR_PUBLICATION_ENABLED` absent/false.
+4. Only under separate owner authority, perform a new original main acceptance-only
+   run with Publisher skipped. Never rerun failed attempt 1 as acceptance. Record
+   the new C/S2 identities and genuine signing/isolation evidence before considering
+   any separate activation decision.
+
+The remaining procedure uses **S** symbolically for the reviewed pinned
+implementation of the next approved run, which must be S2 after this rollout.
+The PR2 baseline section below records the original S deployment, not authority
+to dispatch its known failing workflow again.
 
 ## Administration prerequisites — owner verification required
 
@@ -112,8 +199,9 @@ only when separately reviewed that way.
 
 Before a future dispatch, the owner must independently confirm:
 
-1. PR2 passed required Python 3.12 `validate` CI and was reviewed and merged into
-   main. Record that exact dispatch caller C and its successful CI. C must contain
+1. The correction and separate S2 pinning PR above passed their required review
+   and Python 3.12 `validate` CI and were merged into main. Record that exact
+   dispatch caller C and its successful CI. C must contain
    all four S bindings and the complete disabled/unaccepted package trust JSON.
 2. Review every field in [connector-trust.json](connector-trust.json), including
    the schema, S, both false flags, 900-second freshness limit, five ruleset IDs and
@@ -203,7 +291,7 @@ that artifact; preserve them separately. Do not dump environment/secret contexts
 | Evidence | Exact inspection |
 | --- | --- |
 | Original dispatch | Save official API `GET /repos/benchristian88/atlas-connectors/actions/runs/R` and `/actions/runs/R/attempts/1`. Require both IDs R, `run_attempt: 1`, event `workflow_dispatch`, branch main, SHA C, official repository/owner IDs and both actors `benchristian88`/`93822871`/`User`. |
-| Caller and reusable identities | Save workflow API record using the run's `workflow_id`; caller path must be `.github/workflows/connector-publish.yml`. Both run records must show exactly `referenced_workflows: [{"path":"benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@d6601ad97815a85da164e4329766ea17b62bddc9","sha":"d6601ad97815a85da164e4329766ea17b62bddc9"}]`. Save caller bytes at C and all four bindings. |
+| Caller and reusable identities | Save workflow API record using the run's `workflow_id`; caller path must be `.github/workflows/connector-publish.yml`. Both run records must show exactly one `referenced_workflows` entry, with path `benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@<REVIEWED_S2_40_HEX>` and sha equal to that same independently approved S2. The placeholder is not a valid pin. Save caller bytes at C, all four bindings and the exact SHA-pinned job context. |
 | Job isolation | Save `/actions/runs/R/attempts/1/jobs?per_page=100` (all pages), job steps/logs (`/actions/jobs/J/logs` for each job ID J) and run summary. The reusable preflight/verify job must succeed; `publisher` must have conclusion `skipped`, with no started runner/Publisher steps or `catalogue-publication` deployment for R. No authenticate/prepare/execute Publisher step, key use or installation-token mint may run. Do not mistake Verifier token mint or attestation OIDC for Publisher credentials. |
 | Exact configuration bytes | Save raw `policy.json` and `connector-trust.json` from the official Contents API **at ref C**, base64-decode content without reserializing. Preserve the independently reviewed repository policy variable and any matching environment copies, original approved inputs and canonical `request.json`. Compare complete trust values, not just S. |
 | Signed preflight | Verify canonical exact subject bytes, package schema `atlas-connector-package-preflight/v1`, implementation S, complete expected context/request/run/attempt, request SHA-256, SHA-256 of original policy bytes and canonical trust JSON. Check all security observations and all five complete `bypass_actors` arrays with existing validators; omission never means empty. Record observation start/end/issue/expiry and run timing. |
@@ -216,7 +304,7 @@ execute caller C's helpers. For the offline signature command, use this exact
 profile (paths point to the preserved files and S's trusted-root distribution):
 
 ```text
-./tools/publication_trust/bin/gh attestation verify connector-preflight.json --bundle connector-preflight.sigstore.json --custom-trusted-root <S_TRUSTED_ROOT_JSONL> --repo benchristian88/atlas-connectors --hostname github.com --signer-workflow benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml --signer-digest d6601ad97815a85da164e4329766ea17b62bddc9 --source-digest <ORIGINAL_CALLER_C> --source-ref refs/heads/main --cert-oidc-issuer https://token.actions.githubusercontent.com --deny-self-hosted-runners --predicate-type https://atlas-impact.dev/attestations/connector-package-preflight/v1 --digest-alg sha256 --format json
+./tools/publication_trust/bin/gh attestation verify connector-preflight.json --bundle connector-preflight.sigstore.json --custom-trusted-root <S_TRUSTED_ROOT_JSONL> --repo benchristian88/atlas-connectors --hostname github.com --signer-workflow benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml --signer-digest <INDEPENDENT_REVIEWED_S2_40_HEX> --source-digest <ORIGINAL_CALLER_C> --source-ref refs/heads/main --cert-oidc-issuer https://token.actions.githubusercontent.com --deny-self-hosted-runners --predicate-type https://atlas-impact.dev/attestations/connector-package-preflight/v1 --digest-alg sha256 --format json
 ```
 
 The pinned gh command verifies cryptography offline; it alone does not replace the
@@ -233,11 +321,12 @@ from connector_publication_sigstore import ConnectorSigstore
 from publication_contract import canonical_json, digest
 
 C = "<INDEPENDENT_ORIGINAL_CALLER_C_40_HEX>"
+S = "<INDEPENDENT_REVIEWED_S2_40_HEX>"
 R = int("<INDEPENDENT_ORIGINAL_RUN_ID>")
 request = check_input(strict_json(Path("request.json").read_bytes(), maximum=16384))
 assert request["acceptance_only"] is True
 trust = strict_json(Path("connector-trust.json").read_bytes(), maximum=16384)
-assert trust["signer_revision"] == "d6601ad97815a85da164e4329766ea17b62bddc9"
+assert trust["signer_revision"] == S
 assert trust["enabled"] is trust["live_signer_accepted"] is False
 policy_raw = Path("policy.json").read_bytes()
 raw = Path("connector-preflight.json").read_bytes()
