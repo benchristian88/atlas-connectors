@@ -76,7 +76,7 @@ def observe(api, token, expected, trust):
 def issue(api, environ, *, clock=time.time):
     inputs = inputs_from_env(environ)
     trust, expected = configuration(environ, inputs)
-    require(environ.get("VERIFIER_WORKFLOW_REF") == REPOSITORY + "/" + SIGNER + "@refs/heads/main",
+    require(environ.get("VERIFIER_WORKFLOW_REF") == REPOSITORY + "/" + SIGNER + "@" + trust["signer_revision"],
         "connector_signer_context")
     require(environ.get("DISPATCH_OPERATION") == inputs["operation"]
         and environ.get("DISPATCH_ACCEPTANCE_ONLY") == str(inputs["acceptance_only"]).lower()

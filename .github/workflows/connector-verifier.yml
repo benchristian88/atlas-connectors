@@ -44,7 +44,7 @@ jobs:
               job = json.loads(os.environ['JOB_CONTEXT'])
               trust = json.loads(os.environ['CONNECTOR_VERIFICATION_POLICY'])
               sha = trust['signer_revision']
-              path = 'benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@refs/heads/main'
+              path = 'benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@' + sha
               if not (trust['schema'] == 'atlas-connector-package-trust/v1'
                       and type(trust['live_signer_accepted']) is bool and type(trust['enabled']) is bool
                       and (os.environ['ACCEPTANCE_ONLY'] == 'true' or trust['live_signer_accepted'] and trust['enabled'])

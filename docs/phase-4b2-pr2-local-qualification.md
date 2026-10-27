@@ -2,6 +2,14 @@
 
 Date: 26 October 2026. Local implementation and qualification only.
 
+Historical PR2 qualification record. Subsequent genuine acceptance run 40523236413
+failed before checkout/signing because the reusable job reference was SHA-pinned,
+while the guard required main. See the current
+[identity correction qualification](phase-4b2-identity-qualification.md) and
+[operator runbook](../catalogue/publication/connector-packages.md) for the correction,
+unchanged production pins and required new S2 review/pinning cycle. The original
+local results below do not establish genuine package signing acceptance.
+
 ## A. Executive result
 
 **PR2 LOCAL PASS.** Exact reviewed S is pinned, publication remains disabled,

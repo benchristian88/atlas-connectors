@@ -37,6 +37,14 @@ from verification_github import BASE
 
 REVIEWED_IMPLEMENTATION = "d6601ad97815a85da164e4329766ea17b62bddc9"
 CATALOGUE_S4 = "2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285"
+# Genuine job context from failed acceptance run 40523236413, job 122255725484.
+# This is workflow identity evidence only, not a signed certificate fixture.
+HOSTED_JOB_CONTEXT = {
+    "workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION,
+    "workflow_sha": REVIEWED_IMPLEMENTATION,
+    "workflow_repository": REPOSITORY,
+    "workflow_file_path": contract.SIGNER,
+}
 
 
 def request(operation="tag", *, acceptance_only=False, commit=SOURCE, sha256="c" * 64):
@@ -63,7 +71,7 @@ def admission_data(inputs=None, *, caller=SOURCE):
     env.update(GITHUB_WORKFLOW_REF=REPOSITORY + "/" + contract.WORKFLOW + "@refs/heads/main",
         GITHUB_ACTOR_ID="93822871", GITHUB_ACTOR="benchristian88", GITHUB_TRIGGERING_ACTOR="benchristian88",
         GITHUB_SHA=caller, GITHUB_RUN_ID="90", ATLAS_IMPLEMENTATION_REVISION=REVIEWED_IMPLEMENTATION,
-        VERIFIER_WORKFLOW_REF=REPOSITORY + "/" + contract.SIGNER + "@refs/heads/main",
+        VERIFIER_WORKFLOW_REF=HOSTED_JOB_CONTEXT["workflow_ref"],
         CONNECTOR_VERIFICATION_POLICY=json.dumps(trust), CONNECTOR_REQUEST=json.dumps(inputs),
         DISPATCH_OPERATION=inputs["operation"], DISPATCH_ACCEPTANCE_ONLY=str(inputs["acceptance_only"]).lower(),
         DISPATCH_PACKAGE=json.dumps(inputs["package"]))
@@ -590,11 +598,9 @@ def inline_guard(tmp_path, trust, job, acceptance="true"):
 
 @pytest.mark.parametrize("binding", ["job", "trust"])
 @pytest.mark.parametrize("revision", ["0" * 40, "f" * 40, "main", CATALOGUE_S4])
-def test_frozen_inline_guard_rejects_revision_mismatch_before_checkout_or_key(tmp_path, binding, revision):
+def test_inline_guard_rejects_revision_mismatch_before_checkout_or_key(tmp_path, binding, revision):
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
-    job = {"workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@refs/heads/main",
-        "workflow_sha": REVIEWED_IMPLEMENTATION, "workflow_repository": REPOSITORY,
-        "workflow_file_path": contract.SIGNER}
+    job = deepcopy(HOSTED_JOB_CONTEXT)
     if binding == "job": job["workflow_sha"] = revision
     else: trust["signer_revision"] = revision
     assert inline_guard(tmp_path, trust, job).returncode != 0
@@ -606,10 +612,84 @@ def test_frozen_inline_guard_rejects_revision_mismatch_before_checkout_or_key(tm
 def test_actual_inline_guard_requires_reviewed_pin_and_acceptance_boundaries(tmp_path, acceptance, accepted, enabled, valid):
     trust = admission_data()[2]
     trust.update(enabled=enabled, live_signer_accepted=accepted)
-    job = {"workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@refs/heads/main", "workflow_sha": REVIEWED_IMPLEMENTATION,
-        "workflow_repository": REPOSITORY, "workflow_file_path": contract.SIGNER}
+    job = deepcopy(HOSTED_JOB_CONTEXT)
     result = inline_guard(tmp_path, trust, job, str(acceptance).lower())
     assert (result.returncode == 0) == valid
+
+
+def test_actual_inline_guard_accepts_hosted_pinned_identity_and_exports_it_to_preflight(tmp_path, monkeypatch):
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    result = inline_guard(tmp_path, trust, HOSTED_JOB_CONTEXT)
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "output").read_text() == (
+        "revision=" + REVIEWED_IMPLEMENTATION + "\nworkflow_ref=" + HOSTED_JOB_CONTEXT["workflow_ref"] + "\n")
+    data = admission_data(request(acceptance_only=True))
+    data[1]["VERIFIER_WORKFLOW_REF"] = dict(line.split("=", 1)
+        for line in (tmp_path / "output").read_text().splitlines())["workflow_ref"]
+    # Exercise the guard output through preflight with the existing synthetic provider.
+    assert json.loads(issue(data, monkeypatch))["implementation_sha"] == REVIEWED_IMPLEMENTATION
+
+
+@pytest.mark.parametrize("field,value", [
+    ("workflow_ref", REPOSITORY + "/" + contract.SIGNER + "@" + ref)
+    for ref in ("refs/heads/main", "main", "refs/tags/v1", "f" * 40, CATALOGUE_S4,
+                REVIEWED_IMPLEMENTATION + "@refs/heads/main")
+] + [
+    ("workflow_ref", "other-owner/atlas-connectors/" + contract.SIGNER + "@" + REVIEWED_IMPLEMENTATION),
+    ("workflow_ref", REPOSITORY + "/.github/workflows/other.yml@" + REVIEWED_IMPLEMENTATION),
+    ("workflow_repository", "other-owner/atlas-connectors"),
+    ("workflow_file_path", ".github/workflows/other.yml"),
+])
+def test_actual_inline_guard_rejects_untrusted_job_identity(tmp_path, field, value):
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    job = {**HOSTED_JOB_CONTEXT, field: value}
+    result = inline_guard(tmp_path, trust, job)
+    assert result.returncode != 0
+    assert b"connector_verification_trust_not_accepted" in result.stderr
+    assert not (tmp_path / "output").exists()
+
+
+def test_actual_inline_guard_rejects_consistent_but_unreviewed_job_pin(tmp_path):
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    job = {**HOSTED_JOB_CONTEXT, "workflow_sha": "f" * 40,
+        "workflow_ref": REPOSITORY + "/" + contract.SIGNER + "@" + "f" * 40}
+    assert inline_guard(tmp_path, trust, job).returncode != 0
+    assert not (tmp_path / "output").exists()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("schema", "atlas-publication-verifier-trust/v2"), ("schema", None),
+    *[(field, value) for field in ("enabled", "live_signer_accepted")
+      for value in ("true", "false", 0, 1, None, [], {})],
+    *[("signer_revision", value) for value in (None, 1, "D" * 40, "d" * 39, "d" * 41)],
+])
+def test_actual_inline_guard_rejects_unsupported_trust(tmp_path, field, value):
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    trust[field] = value
+    assert inline_guard(tmp_path, trust, HOSTED_JOB_CONTEXT).returncode != 0
+    assert not (tmp_path / "output").exists()
+
+
+@pytest.mark.parametrize("acceptance", ["", "false", "TRUE", "1", "yes"])
+def test_actual_inline_guard_cannot_treat_other_values_as_acceptance(tmp_path, acceptance):
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    assert inline_guard(tmp_path, trust, HOSTED_JOB_CONTEXT, acceptance).returncode != 0
+    assert not (tmp_path / "output").exists()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("GITHUB_WORKFLOW_REF", HOSTED_JOB_CONTEXT["workflow_ref"]),
+    ("VERIFIER_WORKFLOW_REF", REPOSITORY + "/" + contract.WORKFLOW + "@refs/heads/main"),
+    *[("VERIFIER_WORKFLOW_REF", REPOSITORY + "/" + contract.SIGNER + "@" + ref)
+      for ref in ("refs/heads/main", "main", "refs/tags/v1", "f" * 40)],
+    ("GITHUB_RUN_ATTEMPT", "2"),
+])
+def test_caller_and_reusable_workflow_identities_stay_separate_before_credentials(monkeypatch, field, value):
+    data = admission_data(request(acceptance_only=True))
+    data[1][field] = value
+    with pytest.raises(ValueError):
+        issue(data, monkeypatch)
+    assert data[0].calls == []
 
 
 def publisher_job_allowed(acceptance, enabled, result):
