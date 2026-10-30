@@ -1,13 +1,21 @@
 # Controlled Connector package publication
 
-Phase 4B.5 repins package publication to reviewed, merged S4
-`dc79af8e3115e263c267989dfa9ba72599c25463` (PR #44), replacing S3
-`be24042c4e7446c7d88d2f08608ab7f058bb24b6` in all four bindings. **The owner
-has disabled `CONNECTOR_PUBLICATION_ENABLED`; keep it disabled.** Committed package
-trust is deliberately `enabled: false` and `live_signer_accepted: false`, with the
-schema, five ruleset IDs, observation age and verification environment unchanged.
-Live `CONNECTOR_VERIFICATION_POLICY` may still reflect accepted S3; no settings are
-updated or automatically reconciled here. S4 requires independent qualification.
+Phase 4B.6 prepares human review of committed trust activation for qualified
+package S4 `dc79af8e3115e263c267989dfa9ba72599c25463` (PR #44). Phase 4B.5 already
+repinned all four bindings from S3 `be24042c4e7446c7d88d2f08608ab7f058bb24b6`.
+Genuine S4 acceptance qualification has **passed**. This proposal changes only
+committed package trust's `enabled` and `live_signer_accepted` from false to true;
+the immutable signer revision, schema, five ruleset IDs, observation age and
+verification environment remain exact. No workflow bytes or bindings change.
+
+**The live `CONNECTOR_VERIFICATION_POLICY` still has both flags false.** This is
+an intentional temporary mismatch with the proposed committed true/true profile;
+no live settings are changed here. **No publication dispatch is permitted during
+the mismatch.** Independent trust equality remains mandatory and fails closed.
+The owner has disabled the independent `CONNECTOR_PUBLICATION_ENABLED` gate;
+keep it disabled until separately authorized. Acceptance qualification, committed
+trust review, live trust activation, the enable gate and individual release
+operations are distinct approval boundaries.
 
 ## Current owner decision and historical 0.2.1
 
@@ -39,35 +47,45 @@ already-published identity. A reviewed pin-only change is still a mismatch.
 Source review, ancestry, required CI and all original identity controls remain.
 No Workflows Write expansion or conditional permission bypass is authorized.
 
-## S4 qualification and future clean release — separate owner actions
+## Qualified S4, proposed trust activation and future clean release
 
 The [implementation report](../../docs/phase-4b4-draft-staging-recovery.md) preserves
 the engine handoff; the [repinning A–J report](../../docs/phase-4b5-s4-repinning.md)
-records this local qualification preparation. Package **S4** below means exact
+records historical disabled qualification preparation. The
+[activation preparation A–J report](../../docs/phase-4b6-s4-activation-preparation.md)
+records the current proposal and remaining approvals. Package **S4** below means exact
 `dc79af8e3115e263c267989dfa9ba72599c25463`, distinct from frozen **catalogue S4**
 `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`. No action below is authorized by
 repinning or implementation review alone.
 
-1. **Completed implementation:** PR #44 merged exact package S4. Its implementation
-   remains unchanged by repinning; this does not establish genuine S4 acceptance.
-2. Retain that actual immutable merged implementation SHA **S4**. Never substitute
-   a branch ref, invented hash, S3 or catalogue S4.
-3. Review and merge this **separate repinning PR** changing the reusable signer `uses`,
-   executable checkout `ref`, `ATLAS_IMPLEMENTATION_REVISION` and package trust
-   `signer_revision` to that exact S4. Update its pin-regression expectations as
-   needed, without changing the frozen catalogue publisher. Require hosted Python
-   3.12 `validate` CI and security review. Keep qualification
-   trust disabled/unaccepted and `CONNECTOR_PUBLICATION_ENABLED` disabled.
-4. After that separate merge and owner-authorized matching independent repository
-   trust configuration, qualify S4 in a **new original acceptance-only main run**.
-   Preserve original ZIP/subject/bundle, exact S4/C certificate and invocation,
-   approved request and policy/trust bytes, complete signed protections and genuine
-   offline verification results. Require Publisher skipped before environment/key
-   use or token mint. Historical S3 evidence and local fixtures do not qualify S4;
-   acceptance-only does not validate package-source/build or grant write authority.
-5. Obtain **separate owner approval for activation** after genuine evidence and
-   live control review. Any live trust/gate change is a later owner action. Keep
-   baseline App permissions, including Workflows No access.
+1. **Completed genuine S4 qualification:** original run **41138855610**, attempt
+   **1**, artifact **13018405524**, GitHub attestation **61962326**, caller C
+   `af213a948a7d19aeaccf623c06e093f75a9e228b`. Genuine offline Fulcio, Sigstore and
+   Rekor verification and all five complete signed ruleset/security checks passed;
+   Publisher was skipped before its environment/key/token steps. Original evidence
+   and the qualification report are archived outside the repository at
+   `~/Atlas-evidence/s4-acceptance-41138855610`. This is completed historical
+   qualification, not current admission, package-source/build qualification or
+   publication authorization. Do not replay its expired signed preflight.
+2. **Proposed committed trust activation:** review this separate PR's two boolean
+   changes, tests and documentation; require hosted Python 3.12 `validate` CI and
+   security review before merge. Retain exact S4 and all other trust fields and
+   workflow bytes. Never substitute S3, catalogue S4 or a mutable ref.
+3. **Separately controlled live trust activation:** after reviewed merge, obtain
+   explicit owner approval to update repository `CONNECTOR_VERIFICATION_POLICY`
+   to the complete matching committed profile. Independently check effective
+   repository/environment configuration and absent or identical overrides, fresh
+   protections and existing key custody. This task grants no such authority and
+   changes no live variable. No publication dispatch is permitted while live
+   false/false trust differs from the proposed committed true/true profile.
+4. **Independent publication-enable gate:** keep `CONNECTOR_PUBLICATION_ENABLED`
+   disabled. Opening it requires its own owner authorization after live trust and
+   controls are reviewed; neither genuine acceptance nor true/true trust enables
+   it. Retain baseline App permissions, including Workflows No access, the split
+   credential boundary and fresh signed admission for each future operation.
+5. **Future release authority:** neither this preparation nor later configuration
+   approval authorizes a package release. The remaining steps require separate
+   owner review and explicit operation approvals.
 6. Prepare Proxmox **0.2.2 metadata/source in a subsequent reviewed PR**, after S4
    merge/repinning. Preserve all 0.2.1 evidence and existing discovery/dependencies.
 7. Qualify 0.2.2 at its exact reviewed merge source **P**, retain successful required
@@ -314,13 +332,20 @@ review or a changed baseline; never rerun the old acceptance to obtain authority
 
 ## Administration prerequisites — owner verification required
 
-Read-only preparation inspected repository Actions Variables on 30 October 2026
-(Pacific/Auckland): `CONNECTOR_VERIFICATION_POLICY` matches main's disabled S3
+Historical read-only preparation inspected repository Actions Variables on
+30 October 2026 (Pacific/Auckland): `CONNECTOR_VERIFICATION_POLICY` matches main's disabled S3
 trust; `CONNECTOR_PUBLICATION_ENABLED` is absent. The complete environment-variable
 list contains only the existing App IDs/install ID and catalogue `VERIFICATION_POLICY`,
 with no package-policy or enable-gate overrides. The repository belongs to an
 ordinary user, so organization-variable inheritance does not apply. This is a
 point-in-time observation, not a continuing guarantee of effective configuration.
+
+For this 31 October Phase 4B.6 preparation, the owner reports live package trust
+false/false and publication disabled. Those settings are left untouched and are
+not freshly queried here. The proposed committed true/true profile intentionally
+differs until separately approved owner configuration; no publication dispatch
+is permitted during the mismatch. The genuine S4 qualification snapshot is
+historical evidence, not a fresh verification of future live controls.
 
 Earlier environment/main-protection observations remain historical. Before any
 future dispatch, the owner must freshly verify that protected-branch deployment
@@ -377,8 +402,8 @@ Provider references: [ref creation permissions](https://docs.github.com/en/rest/
 [draft release visibility](https://docs.github.com/en/rest/releases/releases#list-releases),
 [Actions artifact retrieval](https://docs.github.com/en/rest/actions/artifacts#download-an-artifact)
 and [immutable release preparation](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases).
-Active S3 requires the package source workflow directory to equal current main.
-The corrected successor retains this equality for Tag, Stage and Finalize;
+Package S4 requires the package source workflow directory to equal current main
+for Tag, Stage and Finalize;
 there is no post-tag repin exception. Never resolve a mismatch through permission
 elevation. Provider-selected Actions download redirects are HTTPS-only
 to Azure blob or Actions artifact hosts, without forwarded credentials, further
@@ -389,8 +414,9 @@ must match the independently approved artifact identity and run metadata.
 
 Original S was `d6601ad97815a85da164e4329766ea17b62bddc9`; S2 was
 `c2b4ecb493160f0226b1724aa688d0f436d51489`. Their failed acceptance records above
-remain historical. Current bindings still select S3; a separate future PR must
-repin all four to the actual package S4. Advancing caller **C**, trusted executable
+remain historical. All four current bindings select qualified package S4
+`dc79af8e3115e263c267989dfa9ba72599c25463`; this proposal changes only its two
+committed trust flags. Advancing caller **C**, trusted executable
 **S** and package-source **P** remain distinct identities;
 a commit becoming main does not become executable authority.
 
@@ -421,7 +447,7 @@ copying, Publisher-to-Verifier credential sharing or permission elevation.
 ## Source reproduction for a future approved request — do not execute here
 
 Original S3 acceptance remains historical. Use this source-data procedure only
-after the future S4 repin and separate source review; it creates local unattested
+after separate owner authorization and source review; it creates local unattested
 proposal data. For 0.2.2 it additionally requires the later metadata/source PR and
 qualification. It neither resumes historical 0.2.1 nor authorizes dispatch.
 

@@ -599,15 +599,18 @@ def test_workflow_pins_and_credential_isolation_preserve_separate_execution_gate
     assert "PUBLICATION_APP_PRIVATE_KEY" not in (ROOT / ".github/workflows/connector-verifier.yml").read_text()
     assert "secrets: inherit" not in (ROOT / ".github/workflows/connector-publish.yml").read_text()
     checked = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
-    assert checked == {"enabled": False, "live_signer_accepted": False,
+    assert checked == {"enabled": True, "live_signer_accepted": True,
         "max_observation_age_seconds": 900, "ruleset_ids": {
             "atlas-bootstrap-lock": 25628137, "atlas-catalogue-current": 25618684,
             "atlas-history-lock": 25618809, "atlas-main": 25618213, "atlas-publication-tags": 25618901},
         "schema": "atlas-connector-package-trust/v1", "signer_revision": REVIEWED_IMPLEMENTATION,
         "verification_environment_id": 25016263801}
     contract.check_trust(checked, acceptance_only=True)
-    with pytest.raises(ValueError, match="^connector_publication_disabled$"):
-        contract.check_trust(checked, acceptance_only=False)
+    contract.check_trust(checked, acceptance_only=False)
+    inputs = request()
+    environ = admission_data(inputs)[1]
+    environ["CONNECTOR_VERIFICATION_POLICY"] = json.dumps(checked)
+    assert preflight.configuration(environ, inputs) == (checked, contract.context(environ, inputs))
 
 
 @pytest.mark.parametrize("enabled,accepted", [(False, False), (False, True), (True, False)])
@@ -852,6 +855,44 @@ def test_actual_publisher_entrypoints_reject_disabled_trust_before_credentials(t
     assert engine.main() == 1
     receipt = json.loads((tmp_path / "dist/connector-publication/receipt.json").read_bytes())
     assert receipt["reason"] == "connector_publication_disabled"
+    assert env["PUBLICATION_APP_PRIVATE_KEY"] == "synthetic-key-never-used"
+
+
+@pytest.mark.parametrize("command", ["authorize", "prepare", "execute"])
+@pytest.mark.parametrize("operation", ["tag", "stage", "finalize"])
+def test_enabled_trust_mismatch_blocks_actual_publisher_before_admission_or_credentials(
+        tmp_path, monkeypatch, command, operation):
+    committed = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    assert committed["enabled"] is committed["live_signer_accepted"] is True
+    # Both flags and the exact signer remain valid; independent configuration
+    # equality is still mandatory even for a smaller valid freshness limit.
+    independent = {**committed, "max_observation_age_seconds": 899}
+    contract.check_trust(independent, acceptance_only=False)
+    env = admission_data(request(operation))[1]
+    env.update(CONNECTOR_VERIFICATION_POLICY=json.dumps(independent), RUNNER_TEMP=str(tmp_path),
+        PUBLICATION_APP_PRIVATE_KEY="synthetic-key-never-used")
+    source = tmp_path / "publication-source" / "catalogue/publication"
+    source.mkdir(parents=True)
+    (source / "policy.json").write_bytes((ROOT / contract.POLICY_PATH).read_bytes())
+    (source / "connector-trust.json").write_bytes(canonical_json(committed))
+    monkeypatch.setattr(engine, "ROOT", tmp_path)
+    monkeypatch.setattr(engine, "check_checkouts", lambda *args: None)
+    monkeypatch.setattr(engine.os, "environ", env)
+    monkeypatch.setattr(sys, "argv", ["publish_connector.py", command])
+    def forbidden(*args, **kwargs):
+        pytest.fail("mismatched enabled trust reached admission, preparation or Publisher credentials")
+    for name in ("job_admission", "prepare_candidate", "mint_publisher"):
+        monkeypatch.setattr(engine, name, forbidden)
+    failures = []
+    sanitize = engine.safe_reason
+    def record_failure(error):
+        failures.append(str(error))
+        return sanitize(error)
+    monkeypatch.setattr(engine, "safe_reason", record_failure)
+    assert engine.main() == 1
+    receipt = json.loads((tmp_path / "dist/connector-publication/receipt.json").read_bytes())
+    assert failures == ["connector_independent_trust_mismatch"]
+    assert receipt["reason"] == "connector_publication_failed_read_only_review_required"
     assert env["PUBLICATION_APP_PRIVATE_KEY"] == "synthetic-key-never-used"
 
 

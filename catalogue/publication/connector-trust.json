@@ -1,6 +1,6 @@
 {
-  "enabled": false,
-  "live_signer_accepted": false,
+  "enabled": true,
+  "live_signer_accepted": true,
   "max_observation_age_seconds": 900,
   "ruleset_ids": {
     "atlas-bootstrap-lock": 25628137,
