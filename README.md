@@ -5,6 +5,22 @@ Atlas application/domain/runtime source remains in the AGPL Atlas project.
 Third-party dependencies retain their licences and are inventoried by their
 own distribution. No AGPL application/plugin implementation was copied here.
 
+**Phase 4B.7: Proxmox 0.2.2 is locally prepared for review only.** The separate
+[`0.2.2` release overlay](connectors/proxmox/releases/0.2.2/README.md) and explicit
+recipe entry reuse the qualified 0.2.0/0.2.1 implementation unchanged. Manifest and
+SPDX identities select future tag `proxmox-v0.2.2`; historical implementation
+qualification against Proxmox VE 9.2.11 does not establish live 0.2.2 artifact
+acceptance. No publication, catalogue sequence, pointer or consumer eligibility
+changes. Keep `CONNECTOR_PUBLICATION_ENABLED=false` throughout preparation.
+See the [preparation A–J report](docs/phase-4b7-proxmox-0.2.2-preparation.md) for
+validation and outstanding review, hosted Python 3.12 CI, exact merged source P,
+twice-reproduced digest D using frozen package S4, full P/C workflow equality,
+fresh security checks and separate Tag, Stage, Finalize and catalogue approvals.
+P and authoritative D remain unassigned. All four S4 bindings, workflows, trust,
+dependencies and historical evidence are unchanged. The incomplete private 0.2.1
+draft was not accessed. The Phase 4B.5/4B.6 preparation descriptions below retain
+their historical context; their future-0.2.2 statements precede this local overlay.
+
 Each `connectors/<id>/` package owns its independent SemVer Manifest, fixed
 entry-point playbooks, `library/`, README, NOTICE and SPDX SBOM. Repository-level
 LICENSE is included in every bundle. Fixtures/unit tests live in `tests/`.

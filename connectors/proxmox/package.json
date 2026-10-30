@@ -37,6 +37,12 @@
       "docs/qualification.md",
       "manifest.json",
       "sbom.spdx.json"
+    ],
+    "0.2.2": [
+      "README.md",
+      "docs/qualification.md",
+      "manifest.json",
+      "sbom.spdx.json"
     ]
   }
 }
