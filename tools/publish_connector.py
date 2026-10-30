@@ -4,6 +4,7 @@ import argparse
 from contextlib import contextmanager
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -21,9 +22,40 @@ from publication_contract import (API, MAX_BUNDLE_BYTES, PublicationError, canon
     digest, hexadecimal, positive_integer, require)
 from publication_verify import Verifier, read_regular
 from publish_catalogue import Publisher, check_checkouts, release_identity, source_tag
-from verify_connector_release import app_actor, approved_asset_inventory, build_authority
+from verify_connector_release import app_actor, approved_asset_inventory, asset_download_identity, build_authority
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+# Explicit application-owned vocabulary only. Unknown exceptions, including
+# PublicationError instances containing provider text, never enter receipts/logs.
+SAFE_FAILURE_REASONS = frozenset("""
+connector_publication_failed_read_only_review_required
+connector_upload_ambiguous_review_required connector_draft_ambiguous_review_required
+connector_asset_identity connector_asset_digest connector_asset_bytes connector_asset_download_url
+connector_draft_url_identity connector_release_identity connector_release_changed
+connector_assets_changed connector_asset_inventory connector_inventory connector_asset_name
+connector_duplicate_asset_id connector_resume_identity connector_resume_inventory
+connector_staging_changed connector_workflows_write_required connector_source_identity
+connector_unmerged_source connector_source_ci connector_source_review connector_workflow_tree
+connector_admission_expired connector_readmission_binding connector_publisher_scope
+connector_original_build_bytes connector_original_inventory connector_original_identity
+connector_original_metadata connector_expected_digest connector_release_exists connector_tag_exists
+connector_staging_run_incomplete connector_acceptance_has_no_publisher connector_publication_disabled
+github_deadline github_status github_encoding github_response_limit github_truncated_response
+github_redirect github_conflict_reread_required github_rate_limited github_unavailable
+github_request_failed github_transport_failure github_retry_limit
+invalid_asset asset_bytes_mismatch duplicate_asset_names release_asset_limit
+staged_asset_substitution staged_asset_mismatch immutable_asset_missing invalid_api_response
+connector_asset_endpoint connector_asset_limit connector_draft_state
+release_unauthorized_actor release_identity release_not_immutable tag_source_mismatch
+release_build_not_successful package_unreviewed_source release_app_registration
+""".split())
+
+
+def safe_reason(error):
+    reason = str(error) if isinstance(error, PublicationError) else ""
+    return reason if reason in SAFE_FAILURE_REASONS else "connector_publication_failed_read_only_review_required"
 
 
 @contextmanager
@@ -41,7 +73,13 @@ def package_source(directory):
 
 
 def source_authority(api, commit, caller):
+    """Reviewed source and identical workflow directories for every operation.
+
+    This conservative baseline-permission gate also applies to an existing draft
+    or publication. Neither a release ID nor an implementation repin exempts it.
+    """
     require(hexadecimal(commit, 40) and hexadecimal(caller, 40), "connector_source_identity")
+    check_repository(api.json("GET", "/"))
     comparison = api.json("GET", f"/compare/{commit}...main")
     require(comparison.get("status") in {"ahead", "identical"}
         and comparison.get("merge_base_commit", {}).get("sha") == commit, "connector_unmerged_source")
@@ -58,15 +96,18 @@ def source_authority(api, commit, caller):
         and type(p.get("merged_at")) is str and bool(p["merged_at"]) and p.get("base", {}).get("ref") == "main"]
     require(len(merged) == 1, "connector_source_review")
     check_repository(merged[0]["base"].get("repo"))
-    # Conservative sufficient condition for the provider's conditional Workflows
-    # Write requirement: the entire workflow directory must equal default main.
+
     def workflows(sha):
         rows = api.json("GET", f"/contents/.github/workflows?ref={sha}")
         require(isinstance(rows, list) and 0 < len(rows) < 100, "connector_workflow_tree")
-        require(all(r.get("type") == "file" and hexadecimal(r.get("sha"), 40)
-            and type(r.get("path")) is str and r["path"].startswith(".github/workflows/") for r in rows),
-            "connector_workflow_tree")
-        return sorted((r["path"], r["sha"], r["type"]) for r in rows)
+        require(all(isinstance(r, dict) and r.get("type") == "file" and hexadecimal(r.get("sha"), 40)
+            and type(r.get("path")) is str
+            and re.fullmatch(r"\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml", r["path"])
+            for r in rows), "connector_workflow_tree")
+        result = {r["path"]: r["sha"] for r in rows}
+        require(len(result) == len(rows), "connector_workflow_tree")
+        return result
+
     require(workflows(commit) == workflows(caller), "connector_workflows_write_required")
 
 
@@ -189,23 +230,30 @@ class PackagePublisher:
         source_tag(self.api, p["tag"], p["source_commit"])
 
     def assets(self, release, files, *, complete):
-        self.release_identity(self.api.release_id(release["id"]), draft=release["draft"])
+        check_repository(self.api.json("GET", "/"))
+        observed = self.api.release_id(release["id"])
+        self.release_identity(observed, draft=release["draft"])
+        require(observed["id"] == release["id"], "connector_release_changed")
         actual = self.api.assets(release)
         require(actual.keys() == files.keys() if complete else actual.keys() <= files.keys(), "connector_asset_inventory")
         result = {}
         for name, asset in actual.items():
+            asset_download_identity(asset, observed, name=name, tag=self.package["tag"], allow_draft=True)
             require(asset.get("name") == name and positive_integer(asset.get("id"))
                 and asset.get("url") == f"{API}/releases/assets/{asset['id']}"
-                and asset.get("browser_download_url") ==
-                    f"https://github.com/benchristian88/atlas-connectors/releases/download/{self.package['tag']}/{name}"
-                and asset.get("size") == len(files[name]) and asset.get("state") == "uploaded"
-                and asset.get("digest") == "sha256:" + digest(files[name]), "connector_asset_identity")
+                and type(asset.get("size")) is int and asset["size"] == len(files[name])
+                and asset.get("state") == "uploaded", "connector_asset_identity")
+            require(asset.get("digest") == "sha256:" + digest(files[name]), "connector_asset_digest")
             app_actor(asset.get("uploader"), self.policy)
             require(self.api.asset_bytes(asset, len(files[name])) == files[name], "connector_asset_bytes")
             result[name] = {"id": asset["id"], "sha256": digest(files[name]), "bytes": len(files[name])}
         inventory(result, complete=complete)
         require(self.api.assets(release) == actual, "connector_assets_changed")
-        self.release_identity(self.api.release_id(release["id"]), draft=release["draft"])
+        final = self.api.release_id(release["id"])
+        self.release_identity(final, draft=release["draft"])
+        require(all(final.get(k) == observed.get(k) for k in
+            ("id", "url", "assets_url", "html_url", "tag_name", "target_commitish", "draft", "immutable", "name", "author")),
+            "connector_release_changed")
         return result
 
     def authenticate_files(self, files, manifest):
@@ -235,9 +283,8 @@ class PackagePublisher:
                 release = self.api.json("POST", "/releases", payload={"tag_name": p["tag"],
                     "target_commitish": p["source_commit"], "name": p["tag"], "body": "Authenticated Connector package; catalogue pending.",
                     "draft": True, "prerelease": False, "make_latest": "false"})
-            except PublicationError:
-                self.owned()  # Observe before the owner can consider resuming.
-                raise PublicationError("connector_draft_ambiguous_review_required") from None
+            except Exception as error:
+                self.write_failure("create_draft", error, self.owned)
         else:
             require(release is not None and release.get("id") == p["release_id"], "connector_resume_identity")
         self.release_identity(release, draft=True)
@@ -251,9 +298,8 @@ class PackagePublisher:
                 and self.assets(release, files, complete=False) == approved, "connector_staging_changed")
             try:
                 self.api.upload(release, name, raw)
-            except PublicationError:
-                self.assets(release, files, complete=False)
-                raise PublicationError("connector_upload_ambiguous_review_required") from None
+            except Exception as error:
+                self.write_failure("upload", error, lambda: self.assets(release, files, complete=False))
             current = self.assets(release, files, complete=False)
             require(current.keys() == approved.keys() | {name}
                 and all(current[k] == v for k, v in approved.items()), "connector_staging_changed")
@@ -266,6 +312,19 @@ class PackagePublisher:
             **{k: p[k] for k in ("tag", "source_commit", "sha256", "build_run_id", "artifact_id", "artifact_sha256")},
             "release_id": release["id"], "asset_id": final[filename(manifest)]["id"],
             "assets": final, "inventory_sha256": inventory(final)}
+
+    def write_failure(self, operation, error, observe):
+        # The initial write/verification error remains primary even if a recovery
+        # GET fails differently. Never retry a write, even when observation works.
+        diagnostic = {"operation": operation, "primary_reason": safe_reason(error)}
+        try:
+            observe()
+            diagnostic["observation"] = "completed_requires_review"
+        except Exception as observation:
+            diagnostic.update(observation="unavailable_or_conflicting", observation_reason=safe_reason(observation))
+        self.write_diagnostic = diagnostic
+        raise PublicationError("connector_" + ("upload" if operation == "upload" else "draft")
+            + "_ambiguous_review_required") from None
 
     def finalize(self, directory, files, manifest):
         require(self.operation == "finalize", "connector_operation_boundary")
@@ -352,12 +411,12 @@ def main():
         # Provider exception text, response bodies and credentials never become output.
         failure = {"schema": "atlas-connector-package-receipt/v1",
             "result": "failed_incomplete_or_ambiguous_read_only_review_required", "command": args.command}
-        if isinstance(error, PublicationError):
-            # These exceptions carry only application-owned diagnostic constants.
-            failure["reason"] = str(error)
+        failure["reason"] = safe_reason(error)
         if "expected" in locals():
             failure.update({k: expected[k] for k in ("caller_sha", "run_id", "request_sha256")})
         if "publisher" in locals():
+            if hasattr(publisher, "write_diagnostic"):
+                failure["write_failure"] = publisher.write_diagnostic
             try:
                 observed = publisher.owned()
                 if observed is not None:

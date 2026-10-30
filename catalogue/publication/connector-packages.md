@@ -1,41 +1,112 @@
 # Controlled Connector package publication
 
-Phase 4B.3 prepares activation of reviewed implementation **S3**,
-`be24042c4e7446c7d88d2f08608ab7f058bb24b6`, without changing executable code.
-[PR #42](https://github.com/benchristian88/atlas-connectors/pull/42) merged the four
-S3 bindings at `d3f66b039e2027832be932cacd006d86442821ec`, with successful required
-CI. Original [acceptance run 40542954614](https://github.com/benchristian88/atlas-connectors/actions/runs/40542954614)
-completed isolated observations, signing, strict signer authentication and artifact
-upload; Publisher was skipped. The [activation review](../../docs/phase-4b3-activation-preparation.md)
-records independent run/log/certificate verification, the owner's architecture
-decision and successful original-archive verification with frozen S3 contracts.
+Phase 4B.4 prepares a corrected successor to package-publication S3. **The owner
+has disabled `CONNECTOR_PUBLICATION_ENABLED`; keep it disabled.** The implementation
+is local, uncommitted and unpinned. All four active package bindings and committed
+trust still select S3 `be24042c4e7446c7d88d2f08608ab7f058bb24b6`. Checked-in trust
+flags do not establish live enablement or grant execution authority.
 
-**Live publication remains disabled.** This local proposal sets checked-in
-`enabled` and `live_signer_accepted` true only in the unmerged activation branch.
-It changes neither the live policy nor
-the separate execution gate. Read-only live inspection found repository trust
-false/false, exact S3, no environment overrides and no `CONNECTOR_PUBLICATION_ENABLED`.
-[ADR 0006](../../docs/decisions/0006-connector-package-publication.md) records
-**owner approval on 30 October 2026** of the split least-privilege architecture,
-subject to remaining evidence verification and live security checks. Existing
-residual risks are acknowledged. This accepts Publisher effective-permission
-verification after authenticated admission, without expanding Verifier permissions
-or sharing Publisher credentials. Architecture acceptance, local flags and
-successful acceptance do not authorize live activation, tag, stage or finalize;
-each retains a separate explicit owner approval gate.
+## Current owner decision and historical 0.2.1
 
-The earlier [certificate correction](../../docs/phase-4b2-sigstore-qualification.md),
-[identity correction](../../docs/phase-4b2-identity-qualification.md),
-[PR2 qualification](../../docs/phase-4b2-pr2-local-qualification.md),
-[S2 repinning](../../docs/phase-4b2-s2-local-qualification.md) and
-[S3 repinning](../../docs/phase-4b2-s3-local-qualification.md) reports remain historical
-records; their pending gates describe those earlier increments.
+The owner has abandoned automated recovery of incomplete Proxmox 0.2.1. It will
+remain **unpublished and untouched**, preserving these historical identities:
 
-This prepares the existing trusted publication engine for activation.
-The proposed package remains Proxmox 0.2.1. Routine future releases select their
-reviewed tag/version, source P and digest D as data; they do not require a new
-implementation SHA pin unless the publication engine changes. Caller C, trusted
-engine S and package source P remain independent identities.
+| Historical evidence | Identity |
+| --- | --- |
+| Protected tag / original Tag run | `proxmox-v0.2.1` / `41017433479` |
+| Original source P | `d3f66b039e2027832be932cacd006d86442821ec` |
+| Original signed successful build / artifact | `41017538114` / `12960302111` |
+| Original ZIP SHA-256 | `e941e8108791d7d0bdaea7716eeccb5cfce0dd77440cc1b81faf77b414084602` |
+| Original package SHA-256 | `96eaa736c2919e56e09b9613dddd8648ad1f43b77679899ab706261b2a38e509` |
+| Incomplete draft / uploaded checksum asset | `428740362` / `691270692` |
+| Checksum bytes / SHA-256 | 87 / `20f5c6f473a4908a97790e979baf0cf16f46532a6180325abc0f2cf18d71ab3f` |
+
+These objects are historical evidence, **not valid catalogue publication
+authority**. Do not resume, publish, delete, replace, retag or otherwise mutate
+them. No interaction with that draft is required for this task or the new rollout.
+The next candidate will be **Proxmox 0.2.2**, prepared from new reviewed source in
+a later PR; this task does not create it or change version metadata.
+
+[ADR 0007](../../docs/decisions/0007-post-tag-staging-recovery.md)'s proposed
+workflow-mismatch relaxation is **rejected** and retained as design history.
+[ADR 0006](../../docs/decisions/0006-connector-package-publication.md) remains in
+force: the entire workflow directory at package source P must equal current caller
+C for **every Tag, Stage and Finalize**, including an approved existing draft or
+already-published identity. A reviewed pin-only change is still a mismatch.
+Source review, ancestry, required CI and all original identity controls remain.
+No Workflows Write expansion or conditional permission bypass is authorized.
+
+## Future S4 and clean 0.2.2 rollout — separate owner actions
+
+The [A–J engineering report](../../docs/phase-4b4-draft-staging-recovery.md) records
+the exact implementation handoff and local evidence. Package **S4** below means
+the actual immutable successor implementation SHA, which does not exist yet. It
+is distinct from frozen **catalogue S4** `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`.
+No action below is authorized by implementation review alone.
+
+1. Review and merge this corrected implementation PR through the normal required
+   `validate` CI/security review. Keep publication disabled and active S3 pins intact.
+2. Record the actual immutable merged implementation SHA **S4**. Never substitute
+   a branch ref, invented hash, S3 or catalogue S4.
+3. Prepare a **separate reviewed repinning PR** changing the reusable signer `uses`,
+   executable checkout `ref`, `ATLAS_IMPLEMENTATION_REVISION` and package trust
+   `signer_revision` to that exact S4. Update its pin-regression expectations as
+   needed, without changing the frozen catalogue publisher. Keep qualification
+   trust disabled/unaccepted and `CONNECTOR_PUBLICATION_ENABLED` disabled.
+4. After that separate merge and owner-authorized matching independent repository
+   trust configuration, qualify S4 in a **new original acceptance-only main run**.
+   Preserve original ZIP/subject/bundle, exact S4/C certificate and invocation,
+   approved request and policy/trust bytes, complete signed protections and genuine
+   offline verification results. Require Publisher skipped before environment/key
+   use or token mint. Historical S3 evidence and local fixtures do not qualify S4;
+   acceptance-only does not validate package-source/build or grant write authority.
+5. Obtain **separate owner approval for activation** after genuine evidence and
+   live control review. Any trust/gate change is a later owner action; this task
+   changes neither. Keep baseline App permissions, including Workflows No access.
+6. Prepare Proxmox **0.2.2 metadata/source in a subsequent reviewed PR**, after S4
+   merge/repinning. Preserve all 0.2.1 evidence and existing discovery/dependencies.
+7. Qualify 0.2.2 at its exact reviewed merge source **P**, retain successful required
+   CI/main ancestry and reproduce the exact package digest **D** twice with trusted
+   S4 tools reading P as data. Record advancing current caller **C** independently.
+8. Confirm P's **entire workflow directory equals C's** before Tag, Stage and
+   Finalize. Recheck live controls at each operation. If later caller changes break
+   equality, stop for separately reviewed source/release selection; do not grant
+   Workflows Write, roll workflows back, retarget or invoke the rejected exception.
+9. Separately authorize and execute **Tag**, then inspect the original successful
+   signed build/attempt/artifact and exact ZIP digest; separately authorize **Stage**
+   of its five original files and stop; obtain another explicit human approval for
+   **Finalize**, binding the successful Stage and complete exact asset inventory.
+10. Independently authenticate the final tagged asset URLs, original bytes/signature,
+    approved numeric identities and actual `immutable: true` release before **any
+    catalogue update**. Catalogue publication/sequence/consumer authority remains
+    a separate reviewed boundary with its frozen publisher unchanged.
+
+## Draft asset verification and normal recovery
+
+The admitted Publisher authenticates the official repository and numeric release
+identity. A permitted opaque `untagged-…` selector is derived only from that exact
+release's authenticated `html_url`, with matching numeric `assets_url`; never from
+an asset URL. Final tagged draft URLs are also accepted. Browser URLs are validated
+metadata and are never followed. The numeric asset API download permits one
+restricted GitHub distribution redirect, without forwarded credentials, cookies,
+ambient proxies or further redirects. Name, uploader, ID, state, size, mandatory
+SHA-256 and exact original bytes remain required. Missing/conflicting metadata
+fails closed. The independent anonymous final verifier requires final tagged URLs.
+
+Normal Stage creates a draft and uploads all five originals. An explicitly
+approved partial draft can resume **only with valid P/C workflow equality** and
+an exact approved release ID/partial asset inventory. Verify and preserve existing
+assets; upload only missing originals. Unexpected/substituted assets reject without
+replacement. Every ambiguous write stops for review and is never retried
+automatically. Stage never authorizes Finalize; separate human approval and actual
+immutable final verification remain mandatory.
+
+## Historical S3 qualification context
+
+The S/S2/S3 qualification, activation preparation and evidence records below are
+retained history. Their 0.2.1 examples are superseded by the owner decision above;
+they do not authorize resuming 0.2.1 or reactivating S3. The shared controls and
+symbolic request/recovery contracts remain applicable to future clean releases.
 
 ## Reused controls and new mechanisms
 
@@ -166,7 +237,7 @@ The sequence is:
    acceptance. Preserve C/S2 and all genuine certificate/signature/isolation evidence
    before considering any separate activation decision.
 
-## S3 rollout — completed acceptance, pending activation review
+## Historical S3 rollout — superseded activation sequence
 
 PR #41 established exact S3 `be24042c4e7446c7d88d2f08608ab7f058bb24b6`;
 PR #42 repinned reusable `uses`, Publisher executable checkout,
@@ -176,9 +247,8 @@ performed original acceptance run `40542954614`, attempt one, with Publisher ski
 The unchanged genuine S2 fixtures and synthetic S3 unit tests retain their separate
 meanings; actual S3 evidence is described in the activation review.
 
-The following owner-only sequence applies **after** human review, required Python
-3.12 `validate` CI and merge of this activation proposal. It must not be performed
-as part of activation preparation:
+The following sequence records the historical S3 activation plan. It is
+superseded by the clean S4/0.2.2 rollout above and must not be executed for 0.2.1:
 
 1. Retain the **30 October 2026 owner acceptance** of ADR 0006's split permission
    boundary and existing residual risks. Retain the completed original-archive
@@ -302,9 +372,10 @@ Provider references: [ref creation permissions](https://docs.github.com/en/rest/
 [draft release visibility](https://docs.github.com/en/rest/releases/releases#list-releases),
 [Actions artifact retrieval](https://docs.github.com/en/rest/actions/artifacts#download-an-artifact)
 and [immutable release preparation](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases).
-The implementation conservatively requires the package source workflow directory
-to equal current main. Resolve mismatches with reviewed source planning, never
-permission elevation. Provider-selected Actions download redirects are HTTPS-only
+Active S3 requires the package source workflow directory to equal current main.
+The corrected successor retains this equality for Tag, Stage and Finalize;
+there is no post-tag repin exception. Never resolve a mismatch through permission
+elevation. Provider-selected Actions download redirects are HTTPS-only
 to Azure blob or Actions artifact hosts, without forwarded credentials, further
 redirects, ambient proxies or operator-supplied URLs. Original ZIP SHA-256 and size
 must match the independently approved artifact identity and run metadata.
@@ -313,8 +384,9 @@ must match the independently approved artifact identity and run metadata.
 
 Original S was `d6601ad97815a85da164e4329766ea17b62bddc9`; S2 was
 `c2b4ecb493160f0226b1724aa688d0f436d51489`. Their failed acceptance records above
-remain historical. Only S3 is trusted by this proposal. Advancing caller **C**,
-trusted executable **S3** and package-source **P** remain distinct identities;
+remain historical. Current bindings still select S3; a separate future PR must
+repin all four to the actual package S4. Advancing caller **C**, trusted executable
+**S** and package-source **P** remain distinct identities;
 a commit becoming main does not become executable authority.
 
 Use the repository policy variable as the common source. The Publisher captures
@@ -341,30 +413,33 @@ A required secret mapping does not prove nonempty availability. Any custody or
 availability discrepancy requires separate owner resolution, never key extraction,
 copying, Publisher-to-Verifier credential sharing or permission elevation.
 
-## Acceptance-only reproduction procedure — separately authorized, do not dispatch here
+## Source reproduction for a future approved request — do not execute here
 
-Original S3 acceptance is complete. This retained procedure describes source
-reproduction and any separately authorized future acceptance; it does not require
-a repeat of run `40542954614`. Historical false/false assertions below intentionally
-verify the disabled trust used for that acceptance, not this activation proposal.
+Original S3 acceptance remains historical. Use this source-data procedure only
+after the future S4 repin and separate source review; it creates local unattested
+proposal data. For 0.2.2 it additionally requires the later metadata/source PR and
+qualification. It neither resumes historical 0.2.1 nor authorizes dispatch.
 
 Establish P and D before approving any request:
 
-1. Select exact committed **P** independently of S3 and the pinning merge commit.
+1. Select exact committed **P** independently of S4 and the pinning merge commit.
    Preserve authenticated main ancestry, the merged reviewed PR whose merge SHA
-   is P, successful required Python 3.12 `validate` for P and qualified Proxmox
-   0.2.1 metadata. Record the intended current main caller C separately. The later
+   is P, successful required Python 3.12 `validate` for P and qualified Connector
+   metadata for the separately approved version. Record current main caller C
+   separately. The later
    Publisher also requires P's entire workflow directory to match C's; a source
    predating repinning may not meet that conservative permission rule. Resolve
-   source selection through review, never by changing S3 or App permissions.
-2. Prepare separate clean detached local checkouts at exact S3 (trusted tools) and
+   source selection through review, never by changing the trusted engine or App
+   permissions.
+2. Prepare separate clean detached local checkouts at exact S4 (trusted tools) and
    P (source data), using new directories. Verify both HEADs and clean inventories.
-   Use S3's hash-pinned SDK and existing reviewed dependencies. Do not run P's
+   Use S4's hash-pinned SDK and existing reviewed dependencies. Do not run P's
    helpers, requirements, workflows or playbooks. Store build output outside both
    checkouts. No tag is required for this source-only reproduction.
-3. With `ATLAS_S3_TOOLS`, `ATLAS_PACKAGE_SOURCE_DIR`, `ATLAS_PACKAGE_SOURCE` and
+3. With `ATLAS_S4_TOOLS`, `ATLAS_PACKAGE_IMPLEMENTATION`, `ATLAS_PACKAGE_TAG`,
+   `ATLAS_PACKAGE_SOURCE_DIR`, `ATLAS_PACKAGE_SOURCE` and
    `ATLAS_PACKAGE_REVIEW_OUTPUT` set to those reviewed paths/P and a new empty output
-   directory, run the following local preparation from outside P. It uses S3's
+   directory, run the following local preparation from outside P. It uses S4's
    existing source-data adapter and exact-source checks. Review the two equal
    archives, Manifest, SPDX/licence/qualification validation and resulting D.
 
@@ -376,12 +451,13 @@ from pathlib import Path
 import subprocess
 import sys
 
-S3 = "be24042c4e7446c7d88d2f08608ab7f058bb24b6"
-tools = Path(os.environ["ATLAS_S3_TOOLS"]).resolve()
+S4 = os.environ["ATLAS_PACKAGE_IMPLEMENTATION"]  # Independently reviewed merged SHA
+T = os.environ["ATLAS_PACKAGE_TAG"]  # Separately reviewed new release identity
+tools = Path(os.environ["ATLAS_S4_TOOLS"]).resolve()
 source = Path(os.environ["ATLAS_PACKAGE_SOURCE_DIR"]).resolve()
 P = os.environ["ATLAS_PACKAGE_SOURCE"]
 output = Path(os.environ["ATLAS_PACKAGE_REVIEW_OUTPUT"]).resolve()
-assert subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tools, text=True).strip() == S3
+assert subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tools, text=True).strip() == S4
 assert not subprocess.check_output(["git", "status", "--porcelain=v1", "--untracked-files=all"], cwd=tools)
 sys.path.insert(0, str(tools / "tools"))
 from publish_connector import package_source
@@ -390,16 +466,17 @@ from connector_publication_contract import check_input
 from publication_contract import canonical_json
 
 with package_source(source):
-    first = release_connector.prepare("proxmox-v0.2.1", output / "first", commit=P)
-    second = release_connector.prepare("proxmox-v0.2.1", output / "second", commit=P)
-raw = (output / "first/proxmox-0.2.1.tar.gz").read_bytes()
-assert raw == (output / "second/proxmox-0.2.1.tar.gz").read_bytes()
+    first = release_connector.prepare(T, output / "first", commit=P)
+    second = release_connector.prepare(T, output / "second", commit=P)
+name = first["id"] + "-" + first["version"] + ".tar.gz"
+raw = (output / "first" / name).read_bytes()
+assert raw == (output / "second" / name).read_bytes()
 assert first == second
 D = hashlib.sha256(raw).hexdigest()
 assert first["distribution"]["bundle_digest"] == "sha256:" + D
 assert first["distribution"]["provenance"]["source_commit"] == P
 request = check_input({"operation": "tag", "acceptance_only": True,
-    "package": {"tag": "proxmox-v0.2.1", "source_commit": P, "sha256": D}})
+    "package": {"tag": T, "source_commit": P, "sha256": D}})
 with (output / "request.json").open("xb") as stream:
     stream.write(canonical_json(request))
 print(json.dumps(request["package"], sort_keys=True))
@@ -408,24 +485,24 @@ print(json.dumps(request["package"], sort_keys=True))
 These outputs are local, unattested proposal data. Independently reproduce D from
 the same exact P and retain both build records before owner approval. Neither an
 earlier recorded digest nor equality with a prior candidate authorizes this request.
-The current qualified P/D proposal is recorded above; it still needs separate
-operation approval. This generic reproduction procedure does not authorize it.
+No 0.2.2 P/D is assigned by this task. Later source qualification and separate
+operation approval remain necessary.
 
 After the prerequisites and separate owner authorization, use the reviewed
 `connector-publish.yml` workflow from **main**, original attempt **1**, with original
 and triggering ordinary user `benchristian88` (ID `93822871`). Do not rerun a failed
 attempt as acceptance; investigate and obtain a separately approved new original
-run. The exact future Proxmox 0.2.1 proposal has these inputs:
+run. A separately reviewed future proposal has these symbolic inputs:
 
 ```text
 operation: tag
 acceptance_only: true
-package: {"tag":"proxmox-v0.2.1","source_commit":"<REVIEWED_COMMITTED_SOURCE_P_40_LOWERCASE_HEX>","sha256":"<SOURCE_BUILT_PACKAGE_D_64_LOWERCASE_HEX>"}
+package: {"tag":"<APPROVED_CONNECTOR-vVERSION>","source_commit":"<REVIEWED_COMMITTED_SOURCE_P_40_LOWERCASE_HEX>","sha256":"<SOURCE_BUILT_PACKAGE_D_64_LOWERCASE_HEX>"}
 ```
 
-This is a **non-executable example**, not an approved request. The tag is a proposed
-future identity requiring owner approval; angle-bracket strings are invalid hash
-placeholders. P must be an exact approved committed source with qualified metadata;
+This is a **non-executable example**, not an approved request. The tag must be a
+separately reviewed future identity; angle-bracket strings are invalid placeholders.
+P must be an exact approved committed source with qualified metadata;
 D must be reproduced from that source by the reviewed source-only builder. Do not
 reuse an earlier uncommitted candidate digest, including the PR1 local digest, as
 approval. Preserve the exact approved `package` input string, `operation`, and
@@ -440,7 +517,7 @@ build, authorize finalization or make the package remotely installable. Even if
 `CONNECTOR_PUBLICATION_ENABLED` were erroneously true, acceptance-only must skip
 the entire Publisher job before environment entry, key injection or token mint.
 
-## Acceptance evidence — preserve before one-day expiry
+## Historical S3 acceptance evidence — preserve original bytes
 
 For original S3 run **40542954614**, the owner preserved the original ZIP
 independently of GitHub's expired artifact retention. The recomputed original ZIP
@@ -544,15 +621,16 @@ from the exact approved profile must fail closed and be reported. A code correct
 requires a new reviewed implementation baseline and re-pinning cycle, never a
 weakened comparison or changed code described as S.
 
-The owner has accepted ADR 0006's split security architecture, and original
-evidence verification has passed. Live security checks, activation PR review/CI/merge and
-separate live activation authorization are still required. This proposal retains
-true/true only in the unmerged branch; live trust and the repository gate stay
-disabled until the separately authorized owner sequence above.
-Actual tag/stage/finalize operations each need subsequent explicit publication
-authority; catalogue sequence two remains separate.
+This S3 evidence remains historical and cannot qualify package S4. The current
+owner decision and separate clean-release rollout at the top govern future work.
+Publication stays disabled; Tag, Stage and Finalize each require separate explicit
+authority. Catalogue sequence two remains separate.
 
 ## Request format and separate publication ceremony
+
+These reusable contracts apply only to a future separately approved clean release.
+They do not authorize any operation on historical Proxmox 0.2.1. P/C workflow
+directory equality is mandatory in preparation and execution for every operation.
 
 The workflow supplies `operation` and `acceptance_only` separately. Paste only the
 `package` object into its string input. All examples below are symbolic, **not
@@ -638,12 +716,16 @@ PATCH is not a publication-success receipt.
 | Draft creation response lost | Fresh private inventory, failure receipt; no blind second create. Review exact L before a fresh explicit resume. |
 | Partial upload/accepted response lost | Reread draft/assets, retain safe observed IDs, stop. Fresh stage request must approve exact existing L and partial inventory in `assets`; append only missing original files. |
 | Conflicting digest/ID/author/uploader/extra file | Stop without deleting/replacing anything. Investigate; immutable conflicts require a reviewed new version. |
+| Missing/delayed asset digest | Stop without another write or a byte-only fallback. Reobserve metadata and approve a fresh exact resume after investigation. |
+| Workflow mismatch, including a reviewed repin | Tag, Stage and Finalize all stop, including existing drafts and already-published identities. Select later reviewed source/release separately; no exception or Workflows Write grant. |
 | Changed rules/App scope/CI/stale approval | Admission/state checks reject. Obtain fresh human review and genuine evidence; never bypass. |
 | Final PATCH response lost | GET observation then the independent verifier; exact immutable identity can succeed without another PATCH. Otherwise fail. |
 | Already published exact release | Fresh approved finalize request re-verifies immutable state with zero writes. Mutable or contradictory state rejects. |
 
 Receipts include caller/implementation/request/admission digests; failure receipts
 carry only bounded sanitized identities and safe observed inventories if available.
+A failed draft create/upload also records an allowlisted primary diagnostic and
+separate recovery-observation outcome; a secondary error cannot mask the primary.
 Credentials, provider responses, keys and runner-local admission receipts are never
 uploaded or printed. Successful and incomplete receipts have 90-day Actions
 retention. Preserve original preflight/bundle/policy/trust, exact approved request,

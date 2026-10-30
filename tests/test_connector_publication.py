@@ -268,6 +268,8 @@ class PublicationModel(PackageProvider):
         self.writes = []
         self.exists = False
         self.release_row.update(name=self.tag, tag_name=self.tag, draft=True, immutable=False)
+        self.release_row.update(html_url=ORIGIN + "/releases/tag/untagged-" + "a" * 40,
+            assets_url=API + "/releases/100/assets")
         self.assets_list, self.data = [], {}
         self.lost = None
         self.mutable = False
@@ -319,6 +321,9 @@ class PublicationModel(PackageProvider):
             assert method == "PATCH" and path == "/releases/100"
             assert payload == {"draft": False, "make_latest": "false"}
             self.release_row.update(draft=False, immutable=not self.mutable)
+            self.release_row["html_url"] = ORIGIN + "/releases/tag/" + self.tag
+            for asset in self.assets_list:
+                asset["browser_download_url"] = ORIGIN + "/releases/download/" + self.tag + "/" + asset["name"]
             result = self.release_row
         if self.lost == path:
             raise PublicationError("github_transport_failure")
@@ -329,7 +334,7 @@ class PublicationModel(PackageProvider):
         self.writes.append(("POST", "upload:" + name, None))
         identity = 200 + len(self.assets_list)
         row = {"id": identity, "name": name, "url": API + f"/releases/assets/{identity}",
-            "browser_download_url": ORIGIN + "/releases/download/" + self.tag + "/" + name,
+            "browser_download_url": self.release_row["html_url"].replace("/tag/", "/download/") + "/" + name,
             "uploader": deepcopy(self.actor), "state": "uploaded", "size": len(raw), "digest": "sha256:" + digest(raw)}
         self.assets_list.append(row)
         self.data[identity] = raw

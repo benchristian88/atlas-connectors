@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import re
 import stat
 import subprocess
 import tempfile
@@ -14,9 +15,9 @@ import zipfile
 
 from atlas_connector_sdk.contracts import strict_json
 from connector_publication_contract import ARTIFACT_NAME
-from publication_contract import (API, APP_PERMISSIONS, OWNER_ID, REPOSITORY_ID, canonical_json,
+from publication_contract import (API, APP_PERMISSIONS, OWNER_ID, REPOSITORY_ID, PublicationError, canonical_json,
     check_repository, digest, positive_integer, require)
-from publication_github import Github, NoRedirect
+from publication_github import Github, NoRedirect, _http_failure
 from verification_github import credential
 
 MAX_ZIP = 24 * 1024 * 1024
@@ -67,6 +68,61 @@ def unpack_artifact(raw, names):
 
 
 class ConnectorGithub(Github):
+    def request(self, method, path, **kwargs):
+        if not kwargs.get("asset"):
+            return super().request(method, path, **kwargs)
+        require(method == "GET" and type(path) is str and re.fullmatch(r"/releases/assets/[1-9][0-9]*", path)
+            and set(kwargs) <= {"asset", "maximum"}, "connector_asset_endpoint")
+        maximum = kwargs.get("maximum", 1024 * 1024)
+        require(type(maximum) is int and 0 < maximum <= MAX_ZIP, "connector_asset_limit")
+        headers = {"Accept": "application/octet-stream", "X-GitHub-Api-Version": "2022-11-28",
+            "Accept-Encoding": "identity"}
+        if self.token:
+            headers["Authorization"] = "Bearer " + credential(self.token)
+        try:
+            require(time.monotonic() < self.deadline, "github_deadline")
+            try:
+                response = self.opener.open(urllib.request.Request(API + path, headers=headers), timeout=20)
+            except urllib.error.HTTPError as error:
+                if error.code != 302:
+                    _http_failure(method, path, "repository", error.code, error.headers)
+                    require(False, "github_request_failed")
+                destination = error.headers.get("Location", "")
+                require(type(destination) is str and len(destination) <= 16384
+                    and not any(c.isspace() or ord(c) < 32 for c in destination) and "\\" not in destination,
+                    "github_redirect")
+                parsed = urllib.parse.urlsplit(destination)
+                require(parsed.scheme == "https" and parsed.netloc == "release-assets.githubusercontent.com"
+                    and not parsed.fragment and re.fullmatch(
+                        rf"/github-production-release-asset/{REPOSITORY_ID}/[a-f0-9]{{8}}(?:-[a-f0-9]{{4}}){{3}}-[a-f0-9]{{12}}",
+                        parsed.path), "github_redirect")
+                # The numeric API request authenticates this one redirect. Require
+                # the official distribution host and repository path as well.
+                # A fresh request has no bearer/cookie and cannot redirect again.
+                response = self.opener.open(urllib.request.Request(destination,
+                    headers={"Accept-Encoding": "identity"}), timeout=20)
+            with response:
+                require(response.status == 200 and response.headers.get("Content-Encoding", "identity") == "identity",
+                    "github_status")
+                lengths = response.headers.get_all("Content-Length")
+                require(lengths is None or len(lengths) == 1 and lengths[0].isascii()
+                    and lengths[0].isdigit() and int(lengths[0]) <= maximum, "github_response_limit")
+                raw = bytearray()
+                while True:
+                    require(time.monotonic() < self.deadline, "github_deadline")
+                    chunk = response.read(min(65536, maximum + 1 - len(raw)))
+                    if not chunk:
+                        break
+                    raw.extend(chunk)
+                    require(len(raw) <= maximum, "github_response_limit")
+                require(lengths is None or len(raw) == int(lengths[0]), "github_truncated_response")
+                return bytes(raw)
+        except (urllib.error.URLError, OSError, TimeoutError, ValueError) as error:
+            # Preserve our own diagnostic constants; never propagate provider text.
+            if isinstance(error, PublicationError):
+                raise
+            require(False, "github_transport_failure")
+
     def artifact(self, package):
         run, identity = package["build_run_id"], package["artifact_id"]
         rows = self.json("GET", f"/actions/runs/{run}/artifacts?per_page=100&page=1")

@@ -9,60 +9,41 @@ Each `connectors/<id>/` package owns its independent SemVer Manifest, fixed
 entry-point playbooks, `library/`, README, NOTICE and SPDX SBOM. Repository-level
 LICENSE is included in every bundle. Fixtures/unit tests live in `tests/`.
 
-**Phase 4B: Proxmox 0.2.1 is prepared locally for immutable release, not published.**
-Explicit version metadata in `connectors/proxmox/releases/0.2.1/` reuses all
-qualified executable source. `python tools/build_bundle.py --version 0.2.1`
-selects it; the default 0.2.0 and historical candidate builds retain their exact
-bytes. `python tools/release_connector.py --local --tag proxmox-v0.2.1 --output dist/proxmox-0.2.1-review`
-also performs release archive, qualification, compatibility, SPDX and licence
-checks. Local output is unattested. The
-[operator-controlled package release procedure](catalogue/publication/README.md#phase-4b-package-finalization--separate-human-authorization-required)
-defines the approved App identity, retained build signature, exact-byte draft
-staging, provider immutability checks and read-only independent verifier.
-The historical 0.2.0 source, package, registry and catalogue history remain intact.
+**Phase 4B: incomplete Proxmox 0.2.1 is historical and will remain unpublished
+and untouched.** The owner has abandoned automated recovery of its protected tag,
+original signed build/artifact, incomplete draft and checksum asset. These objects
+preserve evidence; they are not valid catalogue publication authority. Existing
+`connectors/proxmox/releases/0.2.1/` metadata and all historical package bytes remain
+unchanged. The next candidate is a clean **0.2.2**, to be prepared from separately
+reviewed source after the successor engine has been merged and repinned. This task
+creates no 0.2.2 metadata, source, tag or release.
 
-**Phase 4B.3: package publication activation is prepared for owner review;
-live publication remains disabled.** The separate
-[package publication runbook](catalogue/publication/connector-packages.md) documents
-signed isolated admission, independent tag/stage/finalize dispatches, immutable
-verification, and reviewed implementation S3
-`be24042c4e7446c7d88d2f08608ab7f058bb24b6`, squash-merged through
-[PR #41](https://github.com/benchristian88/atlas-connectors/pull/41) with successful
-`validate` CI. [PR #42](https://github.com/benchristian88/atlas-connectors/pull/42)
-merged the four S3 bindings at `d3f66b039e2027832be932cacd006d86442821ec`.
-Original [S3 acceptance run 40542954614](https://github.com/benchristian88/atlas-connectors/actions/runs/40542954614)
-succeeded through strict signer authentication and evidence upload, with Publisher
-skipped. This local activation proposal sets both package-trust flags true while
-preserving S3 and every existing control. Live trust remains false/false and the
-separate `CONNECTOR_PUBLICATION_ENABLED` gate is absent, as independently observed
-during preparation. Genuine
-acceptance run `40523236413` used original S and failed before checkout/signing
-with Publisher skipped; the [historical correction report](docs/phase-4b2-identity-qualification.md)
-preserves that evidence. The [S2 repinning qualification](docs/phase-4b2-s2-local-qualification.md)
-records the previous S2 deployment. Original S2 run `40534608937` completed
-observations and genuine signing, then failed
-local authentication because its genuine signer URI contains S2's SHA while the
-strict profile expected main. The [certificate correction report](docs/phase-4b2-sigstore-qualification.md)
-records preserved evidence, independent bundle authentication, the correction
-merged in PR #41 and verification limits. The
-[S3 repinning qualification](docs/phase-4b2-s3-local-qualification.md) records the
-historical local checks. The [activation review](docs/phase-4b3-activation-preparation.md)
-records current independent evidence, verified original ZIP/preflight/Sigstore bundle,
-residual risks and owner-only post-merge handoff. The owner accepted ADR 0006's
-split least-privilege security architecture on **30 October 2026**, subject to
-remaining evidence verification and live security checks. Review/CI/merge,
-separately authorized live activation and each publication operation remain gated.
+**Phase 4B.4: the corrected successor is local, uncommitted and unpinned.** The owner
+has disabled `CONNECTOR_PUBLICATION_ENABLED`; keep it disabled. Tag, Stage and
+Finalize all require identical workflow directories at package source P and current
+caller C. There is no post-tag repin exception and no Workflows Write expansion.
+[ADR 0007](docs/decisions/0007-post-tag-staging-recovery.md)'s proposed relaxation is
+rejected; [accepted ADR 0006](docs/decisions/0006-connector-package-publication.md)
+continues to govern source equality and the split least-privilege architecture.
 
-This activation preparation preserves the trusted publication implementation and
-Connector package version. Proxmox remains 0.2.1 for the proposed immutable release.
-Routine Connector releases select reviewed package source/version/digest as data;
-they require new implementation SHA pins only when the publication engine changes.
-[Accepted ADR 0006](docs/decisions/0006-connector-package-publication.md) records
-Publisher effective-permission verification after authenticated admission, with
-existing residual risks acknowledged and no Verifier permission expansion or
-Publisher credential sharing. Architecture acceptance does not authorize activation.
-True/true package trust remains confined to the unmerged branch. Proxmox
-0.2.1 remains unpublished; no catalogue or remote-installation authority is added.
+The [A–J report and exact S4 handoff](docs/phase-4b4-draft-staging-recovery.md) and
+[package runbook](catalogue/publication/connector-packages.md) describe authenticated
+draft URL handling, mandatory SHA-256 and exact original bytes, restricted numeric
+asset downloads, safe partial-draft recovery with matching workflows, bounded
+failure diagnostics and independent immutable publication verification. Review and
+merge the implementation, record its actual immutable package S4, then separately
+review repinning, disabled acceptance-only qualification and owner activation.
+Prepare/qualify 0.2.2 in a later PR, reproduce its digest, confirm P/C workflow
+equality, and separately authorize Tag, Stage and Finalize. No catalogue update
+precedes independent immutable release verification.
+
+All four active package bindings still select reviewed S3
+`be24042c4e7446c7d88d2f08608ab7f058bb24b6`; committed trust and all seven workflows
+are unchanged. The [S3 repinning report](docs/phase-4b2-s3-local-qualification.md) and
+[activation preparation](docs/phase-4b3-activation-preparation.md) retain historical
+qualification evidence. Package S4 is a future implementation SHA, distinct from
+the frozen catalogue publisher's existing S4. Neither local implementation nor
+later signer acceptance authorizes publication, catalogue changes or installation.
 
 Production [Proxmox 0.2.0](connectors/proxmox/README.md) promotes the unchanged
 **0.2.0-i4b.6** discovery implementation, qualified against **Proxmox VE 9.2.11**.
