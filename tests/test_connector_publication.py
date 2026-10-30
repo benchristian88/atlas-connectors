@@ -35,14 +35,16 @@ from test_publication_authorization import (NOW, SOURCE, SyntheticProvider, file
 from test_publication_state import StructuralVerifier, structural_bundle
 from verification_github import BASE
 
-REVIEWED_IMPLEMENTATION = "be24042c4e7446c7d88d2f08608ab7f058bb24b6"
+REVIEWED_IMPLEMENTATION = "dc79af8e3115e263c267989dfa9ba72599c25463"
+HISTORICAL_S3 = "be24042c4e7446c7d88d2f08608ab7f058bb24b6"
 HISTORICAL_S2 = "c2b4ecb493160f0226b1724aa688d0f436d51489"
 ORIGINAL_IMPLEMENTATION = "d6601ad97815a85da164e4329766ea17b62bddc9"
 CATALOGUE_S4 = "2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285"
 UNTRUSTED_REVISIONS = (
-    ORIGINAL_IMPLEMENTATION, HISTORICAL_S2, "0" * 40, "f" * 40, "main", "refs/heads/main",
+    ORIGINAL_IMPLEMENTATION, HISTORICAL_S2, HISTORICAL_S3, "0" * 40, "f" * 40, "main", "refs/heads/main",
     "refs/heads/feature/connector-publication-s2-pinning",
-    "refs/heads/feature/connector-publication-s3-pinning", "refs/tags/v1",
+    "refs/heads/feature/connector-publication-s3-pinning",
+    "refs/heads/feature/connector-publication-s4-pinning", "refs/tags/v1",
     CATALOGUE_S4, "${{ inputs.revision }}",
 )
 # Genuine job context from failed acceptance run 40523236413, job 122255725484.
@@ -53,7 +55,7 @@ HISTORICAL_FAILED_JOB_CONTEXT = {
     "workflow_repository": REPOSITORY,
     "workflow_file_path": contract.SIGNER,
 }
-# Synthetic prospective S3 job context using the demonstrated hosted format.
+# Synthetic prospective S4 job context using the demonstrated hosted format.
 # Genuine S2 run 40534608937 and its certificate remain historical evidence.
 HOSTED_JOB_CONTEXT = {
     **HISTORICAL_FAILED_JOB_CONTEXT,
@@ -597,14 +599,15 @@ def test_workflow_pins_and_credential_isolation_preserve_separate_execution_gate
     assert "PUBLICATION_APP_PRIVATE_KEY" not in (ROOT / ".github/workflows/connector-verifier.yml").read_text()
     assert "secrets: inherit" not in (ROOT / ".github/workflows/connector-publish.yml").read_text()
     checked = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
-    assert checked == {"enabled": True, "live_signer_accepted": True,
+    assert checked == {"enabled": False, "live_signer_accepted": False,
         "max_observation_age_seconds": 900, "ruleset_ids": {
             "atlas-bootstrap-lock": 25628137, "atlas-catalogue-current": 25618684,
             "atlas-history-lock": 25618809, "atlas-main": 25618213, "atlas-publication-tags": 25618901},
         "schema": "atlas-connector-package-trust/v1", "signer_revision": REVIEWED_IMPLEMENTATION,
         "verification_environment_id": 25016263801}
     contract.check_trust(checked, acceptance_only=True)
-    contract.check_trust(checked, acceptance_only=False)
+    with pytest.raises(ValueError, match="^connector_publication_disabled$"):
+        contract.check_trust(checked, acceptance_only=False)
 
 
 @pytest.mark.parametrize("enabled,accepted", [(False, False), (False, True), (True, False)])
@@ -612,6 +615,12 @@ def test_disabled_trust_still_rejects_publication_before_credentials(enabled, ac
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
     trust.update(enabled=enabled, live_signer_accepted=accepted)
     contract.check_trust(trust, acceptance_only=True)
+    acceptance = request(acceptance_only=True)
+    acceptance_env = admission_data(acceptance)[1]
+    acceptance_env["CONNECTOR_VERIFICATION_POLICY"] = json.dumps(trust)
+    checked, expected = preflight.configuration(acceptance_env, acceptance)
+    assert checked == trust and checked["signer_revision"] == REVIEWED_IMPLEMENTATION
+    assert expected == contract.context(acceptance_env, acceptance)
     with pytest.raises(ValueError, match="publication_disabled"):
         contract.check_trust(trust, acceptance_only=False)
     inputs = request(acceptance_only=False)
@@ -692,7 +701,7 @@ def test_actual_inline_guard_rejects_consistent_but_unreviewed_job_pin(tmp_path,
     assert not (tmp_path / "output").exists()
 
 
-def test_historical_failed_s_context_is_preserved_but_cannot_authorize_s3(tmp_path, monkeypatch):
+def test_historical_failed_s_context_is_preserved_but_cannot_authorize_s4(tmp_path, monkeypatch):
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
     assert HISTORICAL_FAILED_JOB_CONTEXT["workflow_sha"] == ORIGINAL_IMPLEMENTATION != REVIEWED_IMPLEMENTATION
     assert inline_guard(tmp_path, trust, HISTORICAL_FAILED_JOB_CONTEXT).returncode != 0
@@ -720,7 +729,7 @@ def test_actual_inline_guard_rejects_unsupported_trust(tmp_path, field, value):
 @pytest.mark.parametrize("acceptance", ["", "false", "TRUE", "1", "yes"])
 def test_disabled_inline_guard_cannot_treat_other_values_as_acceptance(tmp_path, acceptance):
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
-    # Exercise disabled trust explicitly even when the proposed file is enabled.
+    # Keep all non-acceptance spellings closed under the disabled baseline.
     trust.update(enabled=False, live_signer_accepted=False)
     assert inline_guard(tmp_path, trust, HOSTED_JOB_CONTEXT, acceptance).returncode != 0
     assert not (tmp_path / "output").exists()
@@ -729,7 +738,8 @@ def test_disabled_inline_guard_cannot_treat_other_values_as_acceptance(tmp_path,
 @pytest.mark.parametrize("field,value", [
     ("GITHUB_WORKFLOW_REF", HOSTED_JOB_CONTEXT["workflow_ref"]),
     *[("GITHUB_WORKFLOW_REF", REPOSITORY + "/" + contract.WORKFLOW + "@" + ref)
-      for ref in (REVIEWED_IMPLEMENTATION, "refs/heads/feature/connector-publication-s3-pinning", "refs/tags/v1")],
+      for ref in (REVIEWED_IMPLEMENTATION, "refs/heads/feature/connector-publication-s3-pinning",
+                  "refs/heads/feature/connector-publication-s4-pinning", "refs/tags/v1")],
     ("VERIFIER_WORKFLOW_REF", REPOSITORY + "/" + contract.WORKFLOW + "@refs/heads/main"),
     *[("VERIFIER_WORKFLOW_REF", REPOSITORY + "/" + contract.SIGNER + "@" + ref)
       for ref in UNTRUSTED_REVISIONS],
@@ -801,6 +811,8 @@ def test_malformed_acceptance_cannot_pass_preflight_even_with_a_truthy_gate(acce
 def test_actual_publisher_entrypoints_reject_acceptance_before_mint(tmp_path, monkeypatch, command, acceptance):
     inputs = request(acceptance_only=acceptance)
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    # Preserve acceptance/input rejection coverage independently of disabled trust.
+    trust.update(enabled=True, live_signer_accepted=True)
     env = admission_data()[1]
     env.update(CONNECTOR_REQUEST=json.dumps(inputs), CONNECTOR_VERIFICATION_POLICY=json.dumps(trust),
         RUNNER_TEMP=str(tmp_path), PUBLICATION_APP_PRIVATE_KEY="synthetic-key-never-used")
@@ -817,6 +829,29 @@ def test_actual_publisher_entrypoints_reject_acceptance_before_mint(tmp_path, mo
     monkeypatch.setattr(engine, "mint_publisher", forbidden)
     monkeypatch.setattr(engine, "prepare_candidate", forbidden)
     assert engine.main() == 1
+    assert env["PUBLICATION_APP_PRIVATE_KEY"] == "synthetic-key-never-used"
+
+
+@pytest.mark.parametrize("command", ["authorize", "prepare", "execute"])
+@pytest.mark.parametrize("operation", ["tag", "stage", "finalize"])
+@pytest.mark.parametrize("enabled,accepted", [(False, False), (False, True), (True, False)])
+def test_actual_publisher_entrypoints_reject_disabled_trust_before_credentials(tmp_path, monkeypatch,
+        command, operation, enabled, accepted):
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    trust.update(enabled=enabled, live_signer_accepted=accepted)
+    env = admission_data(request(operation))[1]
+    env.update(CONNECTOR_VERIFICATION_POLICY=json.dumps(trust), RUNNER_TEMP=str(tmp_path),
+        PUBLICATION_APP_PRIVATE_KEY="synthetic-key-never-used")
+    monkeypatch.setattr(engine, "ROOT", tmp_path)
+    monkeypatch.setattr(engine.os, "environ", env)
+    monkeypatch.setattr(sys, "argv", ["publish_connector.py", command])
+    def forbidden(*args, **kwargs):
+        pytest.fail("disabled trust reached source, admission, preparation or Publisher credentials")
+    for name in ("check_checkouts", "job_admission", "prepare_candidate", "mint_publisher"):
+        monkeypatch.setattr(engine, name, forbidden)
+    assert engine.main() == 1
+    receipt = json.loads((tmp_path / "dist/connector-publication/receipt.json").read_bytes())
+    assert receipt["reason"] == "connector_publication_disabled"
     assert env["PUBLICATION_APP_PRIVATE_KEY"] == "synthetic-key-never-used"
 
 
