@@ -15,10 +15,10 @@ original signed build/artifact, incomplete draft and checksum asset. These objec
 preserve evidence; they are not valid catalogue publication authority. Existing
 `connectors/proxmox/releases/0.2.1/` metadata and all historical package bytes remain
 unchanged. The next candidate is a clean **0.2.2**, to be prepared from separately
-reviewed source after the successor engine has been merged and repinned. This task
+reviewed source after separate S4 trust and live-control approvals. This task
 creates no 0.2.2 metadata, source, tag or release.
 
-**Phase 4B.5: package S4 is merged; local repinning prepares disabled qualification.**
+**Phase 4B.6: genuine package S4 qualification passed; committed trust activation is proposed for review.**
 The approved immutable implementation is
 `dc79af8e3115e263c267989dfa9ba72599c25463` (PR #44). The owner has disabled
 `CONNECTOR_PUBLICATION_ENABLED`; keep it disabled. Tag, Stage and
@@ -33,24 +33,37 @@ The [implementation report](docs/phase-4b4-draft-staging-recovery.md),
 [package runbook](catalogue/publication/connector-packages.md) describe authenticated
 draft URL handling, mandatory SHA-256 and exact original bytes, restricted numeric
 asset downloads, safe partial-draft recovery with matching workflows, bounded
-failure diagnostics and independent immutable publication verification. Review and
-merge the repinning through required Python 3.12 CI, then separately authorize
-matching independent trust configuration, genuine S4 acceptance-only qualification
-and owner activation.
-Prepare/qualify 0.2.2 in a later PR, reproduce its digest, confirm P/C workflow
-equality, and separately authorize Tag, Stage and Finalize. No catalogue update
-precedes independent immutable release verification.
+failure diagnostics and independent immutable publication verification.
 
-All four package bindings now select exact S4 above. Committed package trust has
-`enabled: false` and `live_signer_accepted: false`; ruleset/environment IDs and
-freshness remain unchanged. Live `CONNECTOR_VERIFICATION_POLICY` may still select
-the previously accepted S3 profile; this task does not update repository settings.
+Genuine S4 acceptance-only run **41138855610**, attempt **1**, artifact
+**13018405524** and GitHub attestation **61962326** passed offline Fulcio,
+Sigstore and Rekor verification and all five signed ruleset/security checks;
+Publisher was skipped. Original evidence remains outside the repository at
+`~/Atlas-evidence/s4-acceptance-41138855610`. This qualification grants no
+activation or publication authority and is not reusable live admission.
+
+All four package bindings select exact S4 above. This proposed change sets only
+committed package trust's `enabled` and `live_signer_accepted` to **true**;
+all signer/workflow pins, ruleset/environment IDs, schema and freshness remain
+unchanged. The live repository variable `CONNECTOR_VERIFICATION_POLICY` currently
+has both flags **false** and remains untouched. Its temporary mismatch with the
+proposed committed trust is deliberate: **no publication dispatch is permitted
+during that mismatch**. Human review, required hosted Python 3.12 CI and merge
+remain outstanding; matching live trust activation requires separate owner approval.
+The independent `CONNECTOR_PUBLICATION_ENABLED` gate must remain disabled until
+separately authorized. True/true committed trust cannot open that gate.
+
+The [activation preparation A–J report](docs/phase-4b6-s4-activation-preparation.md)
+records the evidence, exact diff, validation and remaining owner approvals.
+Prepare/qualify Proxmox **0.2.2** in a future reviewed PR, reproduce its digest,
+confirm P/C workflow equality and separately authorize Tag, Stage and Finalize.
+No catalogue update precedes independent immutable release verification.
 Previous S3 is `be24042c4e7446c7d88d2f08608ab7f058bb24b6`.
 The [S3 repinning report](docs/phase-4b2-s3-local-qualification.md) and
 [activation preparation](docs/phase-4b3-activation-preparation.md) retain historical
 qualification evidence. Package S4 is distinct from frozen catalogue S4
-`2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`. Neither local repinning nor
-later signer acceptance authorizes publication, catalogue changes or installation.
+`2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`. Neither repinning nor completed
+signer acceptance authorizes publication, catalogue changes or installation.
 
 Production [Proxmox 0.2.0](connectors/proxmox/README.md) promotes the unchanged
 **0.2.0-i4b.6** discovery implementation, qualified against **Proxmox VE 9.2.11**.
