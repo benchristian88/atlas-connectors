@@ -2,18 +2,19 @@
 """Independently verify a published package. GET-only; never publication authority."""
 import argparse
 from pathlib import Path
+import re
 
 from atlas_connector_sdk.contracts import strict_json
+from connector_publication_github import ConnectorGithub
 from connector_release import (authenticated_bundle, candidate, clean_source, filename)
-from publication_contract import (API, APP_PERMISSIONS, MAX_BUNDLE_BYTES, OWNER_ID, PublicationError,
+from publication_contract import (API, APP_PERMISSIONS, MAX_BUNDLE_BYTES, OWNER_ID, REPOSITORY, PublicationError,
                                   canonical_json, digest, hexadecimal, positive_integer, require)
-from publication_github import Github
 from publication_verify import Verifier, read_regular
 from publish_catalogue import Publisher, release_identity, source_tag
 from release_connector import ROOT, selection
 
 
-class ReadOnlyGithub(Github):
+class ReadOnlyGithub(ConnectorGithub):
     def __init__(self):
         # Anonymous public observation only. No ambient token/config fallback.
         super().__init__()
@@ -28,6 +29,33 @@ def app_actor(value, policy):
     require(isinstance(value, dict) and type(value.get("id")) is int
             and value["id"] == policy["app_bot_user_id"] and value.get("type") == "Bot"
             and value.get("login") == policy["app_slug"] + "[bot]", "release_unauthorized_actor")
+
+
+def asset_download_identity(asset, release, *, name, tag, allow_draft=False):
+    """Validate display URLs; downloads always use the fixed numeric REST route.
+
+    A draft's opaque selector is authoritative only in metadata independently
+    fetched from /releases/{approved_id} in the authenticated official repository.
+    Never learn it from an asset URL, or use it as published-release authority.
+    """
+    require(type(name) is str and re.fullmatch(r"[A-Za-z0-9._-]{1,128}", name)
+        and type(tag) is str and re.fullmatch(r"[a-z][a-z0-9._-]{0,127}", tag), "connector_asset_identity")
+    require(positive_integer(release.get("id")) and release.get("url") == f"{API}/releases/{release['id']}"
+        and release.get("tag_name") == tag and type(release.get("draft")) is bool, "connector_release_identity")
+    origin = "https://github.com/" + REPOSITORY + "/releases/"
+    selector = tag
+    if release["draft"]:
+        require(allow_draft is True, "release_not_immutable")
+        require(release.get("assets_url") == f"{API}/releases/{release['id']}/assets", "connector_draft_url_identity")
+        html = release.get("html_url")
+        require(type(html) is str and (html == origin + "tag/" + tag
+            or re.fullmatch(re.escape(origin + "tag/untagged-") + r"[a-f0-9]{8,64}", html)),
+            "connector_draft_url_identity")
+        selector = html.removeprefix(origin + "tag/")
+    expected = {origin + "download/" + tag + "/" + name}
+    if release["draft"]:
+        expected.add(origin + "download/" + selector + "/" + name)
+    require(asset.get("browser_download_url") in expected, "connector_asset_download_url")
 
 
 def published_identity(release, *, tag, commit, release_id, policy):
@@ -107,6 +135,7 @@ def verify(api, verifier, directory, *, tag, commit, expected_digest, run_id, re
                 and asset.get("url") == f"{API}/releases/assets/{asset['id']}"
                 and asset.get("browser_download_url") == manifest["distribution"]["asset_uri"].rsplit("/", 1)[0] + "/" + name,
                 "release_asset_identity")
+        asset_download_identity(asset, release, name=name, tag=tag)
         app_actor(asset.get("uploader"), policy)
         require(asset.get("state") == "uploaded" and asset.get("size") == len(expected)
                 and asset.get("digest") == "sha256:" + digest(expected)

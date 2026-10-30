@@ -1,0 +1,25 @@
+{
+  "id": 100,
+  "url": "https://api.github.com/repos/benchristian88/atlas-connectors/releases/100",
+  "html_url": "https://github.com/benchristian88/atlas-connectors/releases/tag/untagged-0123456789abcdef0123",
+  "assets_url": "https://api.github.com/repos/benchristian88/atlas-connectors/releases/100/assets",
+  "upload_url": "https://uploads.github.com/repos/benchristian88/atlas-connectors/releases/100/assets{?name,label}",
+  "tag_name": "proxmox-v0.2.1",
+  "target_commitish": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "name": "proxmox-v0.2.1",
+  "draft": true,
+  "prerelease": false,
+  "immutable": false,
+  "published_at": null,
+  "author": {"id": 346232650, "login": "atlas-catalogue-publisher[bot]", "type": "Bot"},
+  "assets": [{
+    "id": 200,
+    "url": "https://api.github.com/repos/benchristian88/atlas-connectors/releases/assets/200",
+    "browser_download_url": "https://github.com/benchristian88/atlas-connectors/releases/download/untagged-0123456789abcdef0123/SHA256SUMS",
+    "name": "SHA256SUMS",
+    "state": "uploaded",
+    "size": 87,
+    "digest": "sha256:20f5c6f473a4908a97790e979baf0cf16f46532a6180325abc0f2cf18d71ab3f",
+    "uploader": {"id": 346232650, "login": "atlas-catalogue-publisher[bot]", "type": "Bot"}
+  }]
+}
