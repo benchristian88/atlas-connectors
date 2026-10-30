@@ -306,8 +306,6 @@ class PublicationModel(PackageProvider):
                 return None
             if path.startswith("/releases/") and not self.exists:
                 return None
-            if path == "/releases/tags/" + self.tag:
-                path = "/releases/tags/" + TAG
             return super().json(method, path, **kwargs)
         self.writes.append((method, path, deepcopy(kwargs.get("payload"))))
         payload = kwargs["payload"]

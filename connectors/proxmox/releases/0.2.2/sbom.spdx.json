@@ -1,0 +1,49 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "atlas-proxmox-0.2.2",
+  "documentNamespace": "https://github.com/benchristian88/atlas-connectors/sbom/proxmox/0.2.2",
+  "creationInfo": {
+    "creators": [
+      "Organization: Atlas Impact"
+    ],
+    "created": "2026-10-30T23:06:25Z"
+  },
+  "packages": [
+    {
+      "name": "atlas-proxmox",
+      "versionInfo": "0.2.2",
+      "SPDXID": "SPDXRef-proxmox",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Copyright 2026 Atlas Impact contributors"
+    },
+    {
+      "name": "community.proxmox",
+      "versionInfo": "2.0.0",
+      "SPDXID": "SPDXRef-community-proxmox",
+      "downloadLocation": "https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/artifacts/community-proxmox-2.0.0.tar.gz",
+      "filesAnalyzed": false,
+      "licenseDeclared": "GPL-3.0-or-later AND BSD-2-Clause",
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "77e02e0d1e341c6b064900fe58484ad8880cee4832f5fd65d09834ed068216f6"
+        }
+      ],
+      "comment": "Referenced runtime-owned dependency; collection contents are not bundled in this Connector."
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-proxmox",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-community-proxmox"
+    }
+  ]
+}

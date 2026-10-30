@@ -1,5 +1,23 @@
 # Controlled Connector package publication
 
+**Phase 4B.7 preparation update:** the separate
+[`0.2.2` overlay](../../connectors/proxmox/releases/0.2.2/README.md) and recipe entry
+are now locally prepared for human review. The
+[A–J engineering report](../../docs/phase-4b7-proxmox-0.2.2-preparation.md) records
+local checks and outstanding gates. No exact merged release source P or
+authoritative publication digest D is assigned. Keep
+`CONNECTOR_PUBLICATION_ENABLED=false` throughout preparation. Human-reviewed PR
+and successful hosted Python 3.12 CI must precede recording P, distinct from
+frozen package S4 `dc79af8e3115e263c267989dfa9ba72599c25463`. Reproduce D twice
+from P using frozen S4 tools; check complete P/C workflow equality, fresh security
+controls and the exact approved release identity before separately authorized
+Tag, Stage and Finalize operations. Independently authenticate the actual immutable
+release and signed original assets before separate catalogue-publication approval.
+Existing catalogue entries, sequence, pointers and consumer eligibility remain
+unchanged. The historical 0.2.1 identity and private draft remain untouched and
+were not inspected. Earlier preparation descriptions and evidence below are
+preserved snapshots; their future-0.2.2 wording predates this local overlay.
+
 Phase 4B.6 prepares human review of committed trust activation for qualified
 package S4 `dc79af8e3115e263c267989dfa9ba72599c25463` (PR #44). Phase 4B.5 already
 repinned all four bindings from S3 `be24042c4e7446c7d88d2f08608ab7f058bb24b6`.
