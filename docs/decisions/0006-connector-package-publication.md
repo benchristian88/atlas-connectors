@@ -1,8 +1,14 @@
 # 0006 — Separate Connector package publication admission
 
-Status: **Proposed for owner security review; locally implemented, execution disabled**
+Status: **Accepted security architecture; remaining evidence verification and live security checks required; execution disabled**
 
 Date: 2026-10-26
+
+Owner approval: **30 October 2026 (Pacific/Auckland)**, for controlled Proxmox
+0.2.1 publication, subject to remaining evidence verification and live security
+checks. This accepts the split least-privilege permission model; it does not
+authorize activation, tag, stage or finalize. Each retains a separate explicit
+owner approval gate.
 
 ## Decision boundary
 
@@ -32,11 +38,16 @@ literal and package trust file. It does not modify S's workflow/helpers or accep
 the signer. The owner independently configures the complete matching package trust
 as a repository Actions variable; environment overrides must be absent or match
 exactly, as the [runbook](../../catalogue/publication/connector-packages.md) explains.
-Both trust flags stay false and the repository publication gate stays absent/false.
+PR2 kept both trust flags false and the repository publication gate absent/false.
 Acceptance-only may sign under unaccepted package trust, but the Publisher job is
 skipped at the job boundary. After inspecting genuine original signed evidence
 and platform isolation, a further reviewed activation can enable package trust.
 Never use current main or S4 as a substitute for S. Pinning is not activation.
+The subsequent activation preparation proposes true/true only on the unmerged
+`feature/connector-publication-activation` branch, pinned to reviewed S3
+`be24042c4e7446c7d88d2f08608ab7f058bb24b6`. Live publication remains disabled;
+the owner approval recorded here does not authorize changing live trust or its
+separate execution gate.
 
 Verifier App 5424851 retains Administration Write and Contents/Actions/Checks/
 Metadata Read, with its key confined to the existing isolated environment. Its
@@ -54,7 +65,7 @@ environments and complete privileged ruleset/bypass observations. Package source
 and original artifact authentication are additional Publisher preparation gates;
 acceptance-only does not run them.
 
-The proposed owner decision is to accept a split least-privilege boundary:
+The owner accepts the split least-privilege boundary on 30 October 2026:
 `publish_connector.main` reauthenticates admission and committed package bytes
 before calling `mint_publisher`. That function JWT-authenticates the expected App
 and installation, demands exact registered/installed baseline permissions, selected
@@ -66,7 +77,7 @@ write repository data. Mutation methods reauthenticate admission and visible con
 
 **Publisher installation permissions are independently validated by the admitted
 Publisher before writes; they are not included as independently observed effective
-permissions in the Verifier's signed pre-token admission.** This proposed split
+permissions in the Verifier's signed pre-token admission.** This accepted split
 avoids expanding the Administration-Write Verifier's access or exposing Publisher
 credentials before admission. It relies on reviewed S, trusted hosted execution,
 GitHub's authenticated responses and the admitted Publisher's enforcement; it is
@@ -76,8 +87,12 @@ and protection changes between observations remain risks. The token-mint POST oc
 after App/installation checks and before token-permission/scope checks; no repository
 mutation is reachable until all checks pass.
 
-This ADR remains **Proposed**, pending the owner's final security decision. PR2
-records the proposal and local checks, not acceptance or activation. A requirement
+The owner acknowledges the existing documented residual risks and accepts
+Publisher effective-permission verification after authenticated admission,
+without expanding Verifier permissions or sharing Publisher credentials. PR2
+remains a historical record of the proposal and local checks. This acceptance
+does not establish completed evidence qualification, live installed grants, key
+custody or current protections. A requirement
 for independently observed effective permissions inside pre-token admission would
 need a separately reviewed architecture/baseline. Do not pass Publisher credentials
 to the Verifier, enlarge its permissions or move keys. Any defect requiring changes
@@ -119,5 +134,6 @@ Future catalogue sequence two and consumer eligibility need their separate
 approved archival/authorization work. Existing package and catalogue bytes,
 Manifest/schema, Atlas, SDK, API/UI and qualified discovery remain unchanged.
 
-See the [operator procedure](../../catalogue/publication/connector-packages.md)
-and [PR2 local qualification report](../phase-4b2-pr2-local-qualification.md).
+See the [operator procedure](../../catalogue/publication/connector-packages.md),
+[current activation qualification](../phase-4b3-activation-preparation.md) and
+[historical PR2 local qualification report](../phase-4b2-pr2-local-qualification.md).

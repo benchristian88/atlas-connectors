@@ -1,28 +1,37 @@
 # Controlled Connector package publication
 
-Phase 4B.2 prepares all four local bindings to reviewed implementation **S3**,
-`be24042c4e7446c7d88d2f08608ab7f058bb24b6`. The certificate correction was
-squash-merged through [PR #41](https://github.com/benchristian88/atlas-connectors/pull/41)
-at this exact SHA; its required `validate` check passed. The separate S3 repinning
-change is local and uncommitted, pending human review/CI/merge.
-**Publication remains disabled.** Both package-trust flags remain false. The first
-acceptance-only run failed before checkout/signing under original S. After S2
-repinning merged through PR #40, original run `40534608937` completed observations
-and signing, then failed local certificate authentication. Its genuine immutable
-signer URI disagrees with S2's main-ref certificate expectation. S3 requires exact
-`@trust["signer_revision"]` identities and matching signer digest. This repin
-preserves the reviewed S3 executable files and makes no live setting changes.
-Successful genuine S3 acceptance remains pending. No acceptance or publication
-is authorized by this local work. See the
-[genuine certificate correction report](../../docs/phase-4b2-sigstore-qualification.md)
-for preserved evidence, independent authentication and unavailable subject bytes.
-See [proposed ADR 0006](../../docs/decisions/0006-connector-package-publication.md),
-the historical [PR2 qualification report](../../docs/phase-4b2-pr2-local-qualification.md)
-and [identity correction qualification](../../docs/phase-4b2-identity-qualification.md),
-the historical [S2 repinning report](../../docs/phase-4b2-s2-local-qualification.md)
-and the current [S3 repinning report](../../docs/phase-4b2-s3-local-qualification.md).
+Phase 4B.3 prepares activation of reviewed implementation **S3**,
+`be24042c4e7446c7d88d2f08608ab7f058bb24b6`, without changing executable code.
+[PR #42](https://github.com/benchristian88/atlas-connectors/pull/42) merged the four
+S3 bindings at `d3f66b039e2027832be932cacd006d86442821ec`, with successful required
+CI. Original [acceptance run 40542954614](https://github.com/benchristian88/atlas-connectors/actions/runs/40542954614)
+completed isolated observations, signing, strict signer authentication and artifact
+upload; Publisher was skipped. The [activation review](../../docs/phase-4b3-activation-preparation.md)
+records independent run/log/certificate verification, the owner's architecture
+decision and successful original-archive verification with frozen S3 contracts.
 
-This upgrades the trusted publication engine, not the Connector package version.
+**Live publication remains disabled.** This local proposal sets checked-in
+`enabled` and `live_signer_accepted` true only in the unmerged activation branch.
+It changes neither the live policy nor
+the separate execution gate. Read-only live inspection found repository trust
+false/false, exact S3, no environment overrides and no `CONNECTOR_PUBLICATION_ENABLED`.
+[ADR 0006](../../docs/decisions/0006-connector-package-publication.md) records
+**owner approval on 30 October 2026** of the split least-privilege architecture,
+subject to remaining evidence verification and live security checks. Existing
+residual risks are acknowledged. This accepts Publisher effective-permission
+verification after authenticated admission, without expanding Verifier permissions
+or sharing Publisher credentials. Architecture acceptance, local flags and
+successful acceptance do not authorize live activation, tag, stage or finalize;
+each retains a separate explicit owner approval gate.
+
+The earlier [certificate correction](../../docs/phase-4b2-sigstore-qualification.md),
+[identity correction](../../docs/phase-4b2-identity-qualification.md),
+[PR2 qualification](../../docs/phase-4b2-pr2-local-qualification.md),
+[S2 repinning](../../docs/phase-4b2-s2-local-qualification.md) and
+[S3 repinning](../../docs/phase-4b2-s3-local-qualification.md) reports remain historical
+records; their pending gates describe those earlier increments.
+
+This prepares the existing trusted publication engine for activation.
 The proposed package remains Proxmox 0.2.1. Routine future releases select their
 reviewed tag/version, source P and digest D as data; they do not require a new
 implementation SHA pin unless the publication engine changes. Caller C, trusted
@@ -106,7 +115,7 @@ The historical S context above is preserved as failed-run evidence and is reject
 under S3 trust, as is the genuine historical S2 identity. Main refs, tags,
 wrong paths/repositories, inconsistent reference/digest pairs and a consistent
 but untrusted SHA pair reject. The approved schema, strict Boolean security flags,
-disabled publication, acceptance-only Publisher exclusion and first-attempt/main/
+disabled-trust rejection, acceptance-only Publisher exclusion and first-attempt/main/
 actor requirements remain enforced. The downstream preflight main-ref check is
 also corrected: once the guard exports its pinned reference, its old exact
 main-ref equality would otherwise reject before credential use. This second
@@ -120,8 +129,9 @@ trusted immutable SHA, and still requires `buildSignerDigest` to equal that SHA.
 Caller `buildConfigURI` / `buildConfigDigest` remain bound to the publication
 workflow at main / C. No branch identity, suffix matching or alternate profile is
 accepted. The report separates authenticated bundle claims from the unavailable
-original subject contents and unobserved hosted CLI exit status. Genuine acceptance
-requires a future successful original run and independent signed-evidence review.
+original subject contents and unobserved hosted CLI exit status. Original S3
+acceptance subsequently succeeded; the activation review above records
+the current independent evidence and its archival limits.
 
 ## Historical S2 rollout — superseded by the S3 correction cycle
 
@@ -156,51 +166,92 @@ The sequence is:
    acceptance. Preserve C/S2 and all genuine certificate/signature/isolation evidence
    before considering any separate activation decision.
 
-## S3 rollout — local preparation and future human gates
+## S3 rollout — completed acceptance, pending activation review
 
-PR #41 established exact S3 `be24042c4e7446c7d88d2f08608ab7f058bb24b6`.
-All four bindings are prepared locally: reusable Verifier `uses`, Publisher
-trusted executable checkout, `ATLAS_IMPLEMENTATION_REVISION` and package trust
-`signer_revision`. The six reviewed S3 executable files are frozen. Tests separate
-the unchanged genuine S2 evidence from synthetic prospective S3 behavior.
+PR #41 established exact S3 `be24042c4e7446c7d88d2f08608ab7f058bb24b6`;
+PR #42 repinned reusable `uses`, Publisher executable checkout,
+`ATLAS_IMPLEMENTATION_REVISION` and independent `signer_revision`. All six reviewed
+S3 executable files remain frozen. The owner configured disabled S3 trust and
+performed original acceptance run `40542954614`, attempt one, with Publisher skipped.
+The unchanged genuine S2 fixtures and synthetic S3 unit tests retain their separate
+meanings; actual S3 evidence is described in the activation review.
 
-After the human commits, pushes, reviews, completes required Python 3.12 CI and
-merges this repinning PR, the following owner-only steps remain. They are
-documented here and must not be performed as part of local pinning:
+The following owner-only sequence applies **after** human review, required Python
+3.12 `validate` CI and merge of this activation proposal. It must not be performed
+as part of activation preparation:
 
-1. Update repository Actions variable `CONNECTOR_VERIFICATION_POLICY` from the
-   new committed trust JSON, preserving `enabled: false` and
-   `live_signer_accepted: false`.
-2. Verify effective repository/environment configuration and absent or identical
-   policy overrides; the effective publication enable gate must remain false.
-3. Independently select and reproduce exact package source P and digest D.
-4. Obtain separate authorization for a new original main acceptance-only run.
-5. Preserve and independently authenticate its genuine certificate, statement,
-   original preflight and complete security observations.
-6. Confirm Publisher skipped, no Publisher credential operations and no tag or
-   release created. Successful signing alone does not establish acceptance.
+1. Retain the **30 October 2026 owner acceptance** of ADR 0006's split permission
+   boundary and existing residual risks. Retain the completed original-archive
+   verification below and its outputs with the owner's preserved evidence before
+   activation review; architecture acceptance does not authorize activation. Any new requirement for
+   an independent effective-permission witness inside signed pre-token admission
+   needs a separately reviewed design. Do not expand permissions or move/share keys.
+2. Record exact merged caller **C**, green required CI and all four unchanged S3
+   bindings. Keep the effective `CONNECTOR_PUBLICATION_ENABLED` absent/false while
+   reviewing/configuring trust. Ensure no publication is running or queued before
+   any owner-authorized configuration change.
+3. Set the existing **repository Actions variable** `CONNECTOR_VERIFICATION_POLICY`
+   to the complete JSON from C's `connector-trust.json` (true/true, exact S3 and
+   unchanged controls). Prefer no same-name variable in either publication or
+   verification environment. Any retained copy must parse identically to C and
+   the repository value. Leave the original catalogue `VERIFICATION_POLICY` alone.
+4. Independently reread repository and both environment variables, applicable
+   inheritance, protected-main environment restrictions, App registration/installed
+   scope, key custody and complete ruleset/bypass observations. Do not reveal keys
+   or mint a Publisher token just to inspect configuration. Confirm effective
+   evaluation at both the Publisher's job-level `env` and Verifier's step-level
+   `env`; mismatch or unavailable evidence is a stop condition. Fresh live
+   controls are required for each operation; the old acceptance is not replayable.
+5. Only after a **separate explicit owner authorization to activate the live gate**,
+   set repository `CONNECTOR_PUBLICATION_ENABLED` to literal `true` as the final
+   configuration change. Reread its effective value, exact policy and overrides;
+   confirm C/S3/CI and controls still match. This enables eligible manual requests;
+   it does not authorize or dispatch one. An environment-only value cannot open
+   this job-level gate. If verification fails, keep/return the gate to literal
+   `false` and investigate. Disabling prevents new Publisher starts; it does not
+   cancel an already running job or undo remote writes.
+6. Reconfirm package **P/T/D** independently of advancing C. The qualified proposal
+   is P `d3f66b039e2027832be932cacd006d86442821ec`, T `proxmox-v0.2.1`, D
+   `96eaa736c2919e56e09b9613dddd8648ad1f43b77679899ab706261b2a38e509`.
+   Local reproduction is evidence, not approval. Require P's merged PR, successful
+   CI, clean source, qualification and workflow directory equality with C. This
+   activation changes no workflow, so it can retain P without a new engine pin.
+7. Obtain **separate tag authorization** for exact P/T/D and a fresh original main
+   dispatch with `operation: tag`, `acceptance_only: false`. Recheck tag absence;
+   the admitted Publisher additionally checks drafts. Stop after the verified tag.
+   Inspect the resulting unchanged `release.yml` original build, attestation and
+   exact artifact ID/ZIP digest. Do not rebuild or substitute its published bytes.
+8. Obtain **separate stage authorization** binding that original build/artifact and
+   P/T/D. Inspect the draft's five original assets and retain L/A, every asset
+   ID/digest/size, canonical inventory digest and staging run ID. Stage stops at
+   `staged_requires_separate_approval`; its receipt is not finalize authority.
+9. Obtain **separate finalize authorization** of C/P/T/D/R/L/A, staging run and all
+   five asset identities. Use a fresh original dispatch, never a rerun or inferred
+   approval from current provider state. Require the independent anonymous GET-only
+   verifier to confirm exact assets and `immutable: true` after publication. An
+   ambiguous write requires read-only investigation, never a blind retry, deletion,
+   replacement or retag. Catalogue sequence two and remote installation remain
+   separately governed.
 
-The remaining procedure uses **S** for exact reviewed **S3** above, after its
-separate reviewed repin and owner configuration. Do not substitute a branch,
-PR head or caller C for S3.
-The PR2 baseline section below records the original S deployment, not authority
-to dispatch its known failing workflow again.
+**Architecture acceptance and prepared trust are not live enablement or publication authority.**
+A new original acceptance-only run is needed only if separately required by owner
+review or a changed baseline; never rerun the old acceptance to obtain authority.
 
 ## Administration prerequisites — owner verification required
 
-Historical owner-reported observations from the earlier qualification: both `catalogue-verification` and
-`catalogue-publication` exist with their original App secrets/variables, neither
-has a conflicting environment-level `CONNECTOR_VERIFICATION_POLICY`, and the
-repository variable contained previous S. `CONNECTOR_PUBLICATION_ENABLED`
-was absent. Both environments reported **Protected branches only**, applying
-to exactly `main`; the five Atlas rulesets remain, and a complementary classic
-branch protection rule for `main` was added to make that environment restriction
-effective. These observations are not independent privileged qualification, and
-current effective values have not been inspected during this local S3 repin.
-Before dispatch, the owner must verify the live branch restriction really selects
-only main, complete protections/bypass visibility and effective variable values.
-This local change does not modify settings, original catalogue `VERIFICATION_POLICY`,
-secrets, App permissions, environments or rulesets.
+Read-only preparation inspected repository Actions Variables on 30 October 2026
+(Pacific/Auckland): `CONNECTOR_VERIFICATION_POLICY` matches main's disabled S3
+trust; `CONNECTOR_PUBLICATION_ENABLED` is absent. The complete environment-variable
+list contains only the existing App IDs/install ID and catalogue `VERIFICATION_POLICY`,
+with no package-policy or enable-gate overrides. The repository belongs to an
+ordinary user, so organization-variable inheritance does not apply. This is a
+point-in-time observation, not a continuing guarantee of effective configuration.
+
+Earlier environment/main-protection observations remain historical. Before any
+future dispatch, the owner must freshly verify that protected-branch deployment
+restrictions select only main, all protections/bypass arrays and App scopes remain
+correct, and secret custody is intact without reading or moving any key. This
+increment changes no live settings, catalogue trust, App permissions or protections.
 
 | Control | Exact required configuration |
 | --- | --- |
@@ -236,10 +287,12 @@ installation GETs and the single fixed token-mint POST.
 
 **Publisher installation permissions are independently validated by the admitted
 Publisher before writes; they are not included as independently observed effective
-permissions in the Verifier's signed pre-token admission.** The proposed owner
-security decision is to accept this split as the least-privilege boundary. It does
-not give the Verifier independent knowledge of the Publisher's effective grant.
-ADR 0006 remains Proposed: final owner acceptance and activation are separate.
+permissions in the Verifier's signed pre-token admission.** The owner accepted
+this split as the least-privilege boundary on **30 October 2026**, subject to
+remaining evidence verification and live security checks, acknowledging the
+existing documented residual risks. Acceptance does not give the Verifier
+independent knowledge of the Publisher's effective grant. ADR 0006 architecture
+acceptance and live activation are separate decisions.
 No Verifier permission expansion, Publisher credential sharing or secret move is
 part of this design. Local tests do not verify live installed scope, key custody,
 or uninterrupted hidden bypass configuration.
@@ -256,75 +309,44 @@ to Azure blob or Actions artifact hosts, without forwarded credentials, further
 redirects, ambient proxies or operator-supplied URLs. Original ZIP SHA-256 and size
 must match the independently approved artifact identity and run metadata.
 
-## Historical PR2 baseline and current independent configuration
+## Independent configuration and historical baselines
 
-PR #37 merged at original S `d6601ad97815a85da164e4329766ea17b62bddc9`;
-PR2 bound all four identities to that S. The failed acceptance used that historical
-deployment. PR #40 subsequently deployed S2; the current pinning change replaces
-only those S2 bindings with S3.
-`connector-verifier.yml`, its helpers, vendored SDK/hash lock, gh 2.102.1 and frozen
-roots remain the reviewed executable distribution at S3. Code in a subsequent
-pinning commit does not become executable authority merely because advancing
-caller main **C** contains it.
-The package-source commit **P** is a third identity, carried as request data; it is
-not the caller C or the implementation S by definition. P may coincide with C
-only when separately reviewed that way.
+Original S was `d6601ad97815a85da164e4329766ea17b62bddc9`; S2 was
+`c2b4ecb493160f0226b1724aa688d0f436d51489`. Their failed acceptance records above
+remain historical. Only S3 is trusted by this proposal. Advancing caller **C**,
+trusted executable **S3** and package-source **P** remain distinct identities;
+a commit becoming main does not become executable authority.
 
-Before a future dispatch, the owner must independently confirm:
+Use the repository policy variable as the common source. The Publisher captures
+`${{ vars.CONNECTOR_VERIFICATION_POLICY }}` in **job-level `env`**, while the
+reusable Verifier reads it in **step-level `env`** after entering
+`catalogue-verification`. Environment-only configuration is insufficient.
+Repository variables override organization variables; environment values become
+available after job start and cannot replace contexts already captured at job
+level. See GitHub's [variable precedence and timing](https://docs.github.com/en/actions/reference/workflows-and-actions/variables#configuration-variable-precedence)
+and [vars context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context).
+Prefer absent environment overrides; retained copies must parse identically to C.
 
-1. PR #41 and the separate S3 pinning PR above passed their required review
-   and Python 3.12 `validate` CI and were merged into main. Record that exact
-   dispatch caller C and its successful CI. C must contain
-   all four S bindings and the complete disabled/unaccepted package trust JSON.
-2. Review every field in [connector-trust.json](connector-trust.json), including
-   the schema, S, both false flags, 900-second freshness limit, five ruleset IDs and
-   Verifier environment ID. Independently inspect the configuration table above,
-   complete privileged bypass visibility, App registrations, environment protection
-   and existing secret availability. None of these live settings is certified by
-   the local pinning work.
-3. **After the S3 pinning PR is merged and before the next dispatch**, update the
-   existing **repository Actions variable** `CONNECTOR_VERIFICATION_POLICY` at
-   repository Settings → Secrets and variables → Actions → Variables to the exact
-   complete JSON from the new committed `catalogue/publication/connector-trust.json`,
-   including exact S3 and both false flags. This is
-   public trust configuration, never a secret or downloaded authority. It must
-   parse identically to C's checked-in package trust. The Publisher captures
-   `${{ vars.CONNECTOR_VERIFICATION_POLICY }}` in its **job-level `env`**, whereas
-   the reusable Verifier reads it in **step-level `env`** after entering
-   `catalogue-verification`. Environment-only configuration is insufficient for
-   this caller. Use the repository variable as the common source; prefer no
-   same-name override in either `catalogue-verification` or `catalogue-publication`.
-   If existing environment copies are retained, independently confirm their complete
-   parsed JSON matches the repository value and C exactly before dispatch.
-4. GitHub gives repository variables precedence over organization variables;
-   environment values become available after the job starts. They cannot replace
-   contexts already captured in job-level `env`; step evaluation after entering an
-   environment can see that environment's variables. Thus same-name repository and
-   environment variables are not interchangeable. Both workflows use the caller
-   repository's variables. See GitHub's [variable precedence and timing](https://docs.github.com/en/actions/reference/workflows-and-actions/variables#configuration-variable-precedence)
-   and [vars context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context).
-   A mismatch fails closed against C's trust and the actual reusable job SHA.
-5. Repository `CONNECTOR_PUBLICATION_ENABLED` must be absent or the literal string
-   `false`. Inspect organization inheritance too: no inherited effective `true`
-   may be present. This job-level condition is evaluated before any Publisher
-   environment is entered; an environment variable cannot serve as that gate.
-   Leave original catalogue `VERIFICATION_POLICY`, `verifier-trust.json`, all App
-   scopes, IDs, secrets, protection settings and catalogue state unchanged.
-6. Confirm the existing Verifier key can be supplied through the explicit named
-   secret mapping to the reusable job's `catalogue-verification` environment.
-   GitHub's [reusable secret rules](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#using-inputs-and-secrets-in-a-reusable-workflow)
-   give that job's same-name environment secret precedence; `required: true`
-   checks the mapping, not a nonempty secret value. Do not extract, copy or move
-   either key. A custody/availability discrepancy is an operational prerequisite
-   for the owner to resolve separately, never a reason to pass Publisher credentials
-   to the Verifier. The Publisher environment/key is not entered or exercised by
-   acceptance.
+The Publisher job-level condition independently requires
+`vars.CONNECTOR_PUBLICATION_ENABLED == 'true'`, successful preflight and
+`!inputs.acceptance_only`, plus all original actor/main/attempt checks. GitHub string
+[comparisons ignore case](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators),
+so use literal lowercase `false`/`true` for administration;
+do not rely on uppercase `TRUE` being disabled. The gate must remain absent/false
+through this preparation and owner configuration review. Environment variables
+cannot substitute for this pre-environment condition.
 
-These are owner-operated prerequisites, not instructions for this local increment
-to change settings. Missing live confirmation does not establish a local code
-failure or confer remote authority.
+Keep explicit Verifier secret forwarding and existing environment key precedence.
+A required secret mapping does not prove nonempty availability. Any custody or
+availability discrepancy requires separate owner resolution, never key extraction,
+copying, Publisher-to-Verifier credential sharing or permission elevation.
 
-## Future owner-operated acceptance-only request — do not dispatch here
+## Acceptance-only reproduction procedure — separately authorized, do not dispatch here
+
+Original S3 acceptance is complete. This retained procedure describes source
+reproduction and any separately authorized future acceptance; it does not require
+a repeat of run `40542954614`. Historical false/false assertions below intentionally
+verify the disabled trust used for that acceptance, not this activation proposal.
 
 Establish P and D before approving any request:
 
@@ -386,7 +408,8 @@ print(json.dumps(request["package"], sort_keys=True))
 These outputs are local, unattested proposal data. Independently reproduce D from
 the same exact P and retain both build records before owner approval. Neither an
 earlier recorded digest nor equality with a prior candidate authorizes this request.
-No actual P or D is selected by this runbook or the local S3 pinning increment.
+The current qualified P/D proposal is recorded above; it still needs separate
+operation approval. This generic reproduction procedure does not authorize it.
 
 After the prerequisites and separate owner authorization, use the reviewed
 `connector-publish.yml` workflow from **main**, original attempt **1**, with original
@@ -418,6 +441,42 @@ build, authorize finalization or make the package remotely installable. Even if
 the entire Publisher job before environment entry, key injection or token mint.
 
 ## Acceptance evidence — preserve before one-day expiry
+
+For original S3 run **40542954614**, the owner preserved the original ZIP
+independently of GitHub's expired artifact retention. The recomputed original ZIP
+SHA-256 is `3023e7abb9906a7cbdafabd8d31c83a261790c27f71f793aad696e99115dce47`;
+the recomputed original preflight SHA-256 is
+`e78819ff12f28d6dd218f43e14c91dc6ad5095ad335a5fd467f3c338b656e88b`.
+The **30 October 2026 owner-approval review independently authenticated the original
+bytes** after locating the retained ZIP in Finder and copying only that file to
+the local verification directory. The 14,893-byte ZIP contains exactly two regular
+members: 64,192-byte `connector-preflight.json` and 10,917-byte
+`connector-preflight.sigstore.json`. The original bundle SHA-256 is
+`ad40b88deaaac8ceaac1503903acbddd21205e444f611ff06d7c4146443b9b36`.
+
+Frozen S3 `check_preflight` passed against independently established C/R/request,
+original false/false trust and exact policy bytes from C, including canonical
+preflight bytes, policy/trust/request bindings, all five complete signed ruleset
+observations and the historical freshness interval. Frozen
+`ConnectorSigstore.verify` and pinned **gh 2.102.1** offline verification passed
+on both original members with S3's frozen root distribution and exact
+certificate/statement/subject/predicate/transparency profile. The SDK was installed
+only into a temporary target from S3's hash-pinned vendored wheel. The original
+bundle and independently verified API bundle have equal parsed content but different
+serialized hashes; neither was substituted for the other. See the activation
+review for output locations and the remaining live security checks. This is
+historical evidence authentication, not current admission or activation authority.
+
+For any independent repeat, recompute the original ZIP's SHA-256 before inspecting
+bounded regular members; require exactly `connector-preflight.json` and
+`connector-preflight.sigstore.json`, and recompute the preflight digest above.
+Use those original member bytes with the frozen S3 validators below, original
+disabled trust and exact policy bytes at caller C
+`d3f66b039e2027832be932cacd006d86442821ec`. Preserve the ZIP/member hashes,
+`check_preflight` result and pinned offline `ConnectorSigstore.verify` result.
+Do not reconstruct the preflight, reserialize its original bytes, substitute the
+API-serialized bundle for the original member, or infer completion from a logged
+digest. Unavailable or contradictory evidence remains a stop condition.
 
 Record run ID R and `https://github.com/benchristian88/atlas-connectors/actions/runs/R`.
 Save these observations immediately; artifact `connector-preflight-R` retains only
@@ -485,9 +544,11 @@ from the exact approved profile must fail closed and be reported. A code correct
 requires a new reviewed implementation baseline and re-pinning cycle, never a
 weakened comparison or changed code described as S.
 
-The next human governance decision reviews this genuine evidence and the proposed
-ADR 0006 split. **Neither trust flag nor the repository gate changes in this
-correction, the separate S3 repin or acceptance.** Only separately authorized later reviewed activation may change them.
+The owner has accepted ADR 0006's split security architecture, and original
+evidence verification has passed. Live security checks, activation PR review/CI/merge and
+separate live activation authorization are still required. This proposal retains
+true/true only in the unmerged branch; live trust and the repository gate stay
+disabled until the separately authorized owner sequence above.
 Actual tag/stage/finalize operations each need subsequent explicit publication
 authority; catalogue sequence two remains separate.
 

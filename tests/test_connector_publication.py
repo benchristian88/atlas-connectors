@@ -561,13 +561,13 @@ def test_reviewed_pin_contract_rejects_every_other_authority(binding, revision):
         assert_reviewed_bindings(caller, trust)
 
 
-def test_workflow_pins_and_credential_isolation_are_reviewed_and_disabled():
+def test_workflow_pins_and_credential_isolation_preserve_separate_execution_gate():
     load = lambda name: yaml.load((ROOT / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
     caller, signer = load("connector-publish.yml"), load("connector-verifier.yml")
     assert caller["on"]["workflow_dispatch"]["inputs"]["acceptance_only"]["default"] == "true"
     publisher_job = caller["jobs"]["publisher"]
     assert "!inputs.acceptance_only" in publisher_job["if"] and "needs.preflight.result == 'success'" in publisher_job["if"]
-    assert "CONNECTOR_PUBLICATION_ENABLED" in publisher_job["if"]
+    assert "vars.CONNECTOR_PUBLICATION_ENABLED == 'true'" in publisher_job["if"]
     assert caller["concurrency"] == {"group": "official-catalogue-publication", "cancel-in-progress": "false"}
     assert_reviewed_bindings(caller, json.loads((ROOT / contract.TRUST_PATH).read_bytes()))
     steps = publisher_job["steps"]
@@ -592,16 +592,28 @@ def test_workflow_pins_and_credential_isolation_are_reviewed_and_disabled():
     assert "PUBLICATION_APP_PRIVATE_KEY" not in (ROOT / ".github/workflows/connector-verifier.yml").read_text()
     assert "secrets: inherit" not in (ROOT / ".github/workflows/connector-publish.yml").read_text()
     checked = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
-    assert checked == {"enabled": False, "live_signer_accepted": False,
+    assert checked == {"enabled": True, "live_signer_accepted": True,
         "max_observation_age_seconds": 900, "ruleset_ids": {
             "atlas-bootstrap-lock": 25628137, "atlas-catalogue-current": 25618684,
             "atlas-history-lock": 25618809, "atlas-main": 25618213, "atlas-publication-tags": 25618901},
         "schema": "atlas-connector-package-trust/v1", "signer_revision": REVIEWED_IMPLEMENTATION,
         "verification_environment_id": 25016263801}
-    assert checked["enabled"] is checked["live_signer_accepted"] is False
     contract.check_trust(checked, acceptance_only=True)
+    contract.check_trust(checked, acceptance_only=False)
+
+
+@pytest.mark.parametrize("enabled,accepted", [(False, False), (False, True), (True, False)])
+def test_disabled_trust_still_rejects_publication_before_credentials(enabled, accepted):
+    trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    trust.update(enabled=enabled, live_signer_accepted=accepted)
+    contract.check_trust(trust, acceptance_only=True)
     with pytest.raises(ValueError, match="publication_disabled"):
-        contract.check_trust(checked, acceptance_only=False)
+        contract.check_trust(trust, acceptance_only=False)
+    inputs = request(acceptance_only=False)
+    environ = admission_data(inputs)[1]
+    environ["CONNECTOR_VERIFICATION_POLICY"] = json.dumps(trust)
+    with pytest.raises(ValueError, match="publication_disabled"):
+        preflight.configuration(environ, inputs)
 
 
 def inline_guard(tmp_path, trust, job, acceptance="true"):
@@ -624,7 +636,8 @@ def test_inline_guard_rejects_revision_mismatch_before_checkout_or_key(tmp_path,
 
 
 @pytest.mark.parametrize("acceptance,accepted,enabled,valid", [(True, False, False, True),
-    (False, False, True, False), (False, True, False, False), (False, True, True, True)])
+    (False, False, False, False), (False, False, True, False), (False, True, False, False),
+    (False, True, True, True)])
 def test_actual_inline_guard_requires_reviewed_pin_and_acceptance_boundaries(tmp_path, acceptance, accepted, enabled, valid):
     trust = admission_data()[2]
     trust.update(enabled=enabled, live_signer_accepted=accepted)
@@ -700,8 +713,10 @@ def test_actual_inline_guard_rejects_unsupported_trust(tmp_path, field, value):
 
 
 @pytest.mark.parametrize("acceptance", ["", "false", "TRUE", "1", "yes"])
-def test_actual_inline_guard_cannot_treat_other_values_as_acceptance(tmp_path, acceptance):
+def test_disabled_inline_guard_cannot_treat_other_values_as_acceptance(tmp_path, acceptance):
     trust = json.loads((ROOT / contract.TRUST_PATH).read_bytes())
+    # Exercise disabled trust explicitly even when the proposed file is enabled.
+    trust.update(enabled=False, live_signer_accepted=False)
     assert inline_guard(tmp_path, trust, HOSTED_JOB_CONTEXT, acceptance).returncode != 0
     assert not (tmp_path / "output").exists()
 
