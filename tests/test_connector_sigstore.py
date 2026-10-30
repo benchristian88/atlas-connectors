@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Historical S2 certificate regressions and explicitly synthetic prospective S3 tests.
+"""Historical S2 certificate regressions and explicitly synthetic prospective S4 tests.
 
 The hosted subject bytes were not exported. Mocked CLI output below combines
 the real decoded certificate with a modeled subject/statement; it must never be
 presented as the original gh verification result or cryptographic admission.
-S3 models use synthetic certificates; the genuine S2 fixture is never rewritten.
+S4 models use synthetic certificates; the genuine S2 fixture is never rewritten.
 """
 from copy import deepcopy
 import base64
@@ -71,8 +71,8 @@ def hosted_policy_model(monkeypatch):
     return raw, expected, data[2], output
 
 
-def prospective_s3_policy_model(monkeypatch):
-    """Entirely synthetic S3 certificate/statement/CLI output, never live evidence."""
+def prospective_s4_policy_model(monkeypatch):
+    """Entirely synthetic S4 certificate/statement/CLI output, never live evidence."""
     inputs = request(acceptance_only=True)
     data = admission_data(inputs)
     raw = issue(data, monkeypatch)
@@ -193,8 +193,8 @@ def test_signer_identity_uses_independent_trust_revision(monkeypatch):
     assert verify_model(model) == digest(model[0])
 
 
-@pytest.mark.parametrize("model_factory", [hosted_policy_model, prospective_s3_policy_model],
-    ids=["historical-s2", "synthetic-s3"])
+@pytest.mark.parametrize("model_factory", [hosted_policy_model, prospective_s4_policy_model],
+    ids=["historical-s2", "synthetic-s4"])
 def test_pinned_cli_command_retains_every_constraint(monkeypatch, model_factory):
     model = model_factory(monkeypatch)
     commands = []
@@ -218,8 +218,8 @@ def test_pinned_cli_command_retains_every_constraint(monkeypatch, model_factory)
         "--digest-alg", "sha256", "--format", "json"]
 
 
-def test_synthetic_s3_profile_requires_reviewed_signer_identity_and_digest(monkeypatch):
-    model = prospective_s3_policy_model(monkeypatch)
+def test_synthetic_s4_profile_requires_reviewed_signer_identity_and_digest(monkeypatch):
+    model = prospective_s4_policy_model(monkeypatch)
     certificate = model[3][0]["verificationResult"]["signature"]["certificate"]
     identity = f"{ORIGIN}/{contract.SIGNER}@{REVIEWED_IMPLEMENTATION}"
     assert certificate["subjectAlternativeName"] == certificate["buildSignerURI"] == identity
@@ -229,8 +229,8 @@ def test_synthetic_s3_profile_requires_reviewed_signer_identity_and_digest(monke
 
 @pytest.mark.parametrize("field", ["subjectAlternativeName", "buildSignerURI", "buildSignerDigest", "all"])
 @pytest.mark.parametrize("revision", UNTRUSTED_REVISIONS)
-def test_synthetic_s3_rejects_historical_mutable_and_mismatched_signers(monkeypatch, field, revision):
-    model = prospective_s3_policy_model(monkeypatch)
+def test_synthetic_s4_rejects_historical_mutable_and_mismatched_signers(monkeypatch, field, revision):
+    model = prospective_s4_policy_model(monkeypatch)
     certificate = model[3][0]["verificationResult"]["signature"]["certificate"]
     values = {"subjectAlternativeName": f"{ORIGIN}/{contract.SIGNER}@{revision}",
         "buildSignerURI": f"{ORIGIN}/{contract.SIGNER}@{revision}", "buildSignerDigest": revision}
@@ -239,16 +239,16 @@ def test_synthetic_s3_rejects_historical_mutable_and_mismatched_signers(monkeypa
         verify_model(model)
 
 
-def test_genuine_s2_certificate_cannot_authorize_s3(monkeypatch):
+def test_genuine_s2_certificate_cannot_authorize_s4(monkeypatch):
     # Keep genuine S2 certificate and original caller/run context intact. Only
-    # prospective trust changes, so S2 cannot become S3 evidence by relabeling.
+    # prospective trust changes, so S2 cannot become S4 evidence by relabeling.
     model = hosted_policy_model(monkeypatch)
     model[2]["signer_revision"] = REVIEWED_IMPLEMENTATION
     with pytest.raises(ValueError, match="authorization_certificate"):
         verify_model(model)
 
 
-def test_historical_s2_preflight_model_cannot_be_readmitted_under_s3(monkeypatch):
+def test_historical_s2_preflight_model_cannot_be_readmitted_under_s4(monkeypatch):
     inputs = request(acceptance_only=True)
     data = admission_data(inputs, implementation=HISTORICAL_S2)
     raw = issue(data, monkeypatch)

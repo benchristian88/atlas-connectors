@@ -1,10 +1,13 @@
 # Controlled Connector package publication
 
-Phase 4B.4 prepares a corrected successor to package-publication S3. **The owner
-has disabled `CONNECTOR_PUBLICATION_ENABLED`; keep it disabled.** The implementation
-is local, uncommitted and unpinned. All four active package bindings and committed
-trust still select S3 `be24042c4e7446c7d88d2f08608ab7f058bb24b6`. Checked-in trust
-flags do not establish live enablement or grant execution authority.
+Phase 4B.5 repins package publication to reviewed, merged S4
+`dc79af8e3115e263c267989dfa9ba72599c25463` (PR #44), replacing S3
+`be24042c4e7446c7d88d2f08608ab7f058bb24b6` in all four bindings. **The owner
+has disabled `CONNECTOR_PUBLICATION_ENABLED`; keep it disabled.** Committed package
+trust is deliberately `enabled: false` and `live_signer_accepted: false`, with the
+schema, five ruleset IDs, observation age and verification environment unchanged.
+Live `CONNECTOR_VERIFICATION_POLICY` may still reflect accepted S3; no settings are
+updated or automatically reconciled here. S4 requires independent qualification.
 
 ## Current owner decision and historical 0.2.1
 
@@ -36,22 +39,24 @@ already-published identity. A reviewed pin-only change is still a mismatch.
 Source review, ancestry, required CI and all original identity controls remain.
 No Workflows Write expansion or conditional permission bypass is authorized.
 
-## Future S4 and clean 0.2.2 rollout — separate owner actions
+## S4 qualification and future clean release — separate owner actions
 
-The [A–J engineering report](../../docs/phase-4b4-draft-staging-recovery.md) records
-the exact implementation handoff and local evidence. Package **S4** below means
-the actual immutable successor implementation SHA, which does not exist yet. It
-is distinct from frozen **catalogue S4** `2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`.
-No action below is authorized by implementation review alone.
+The [implementation report](../../docs/phase-4b4-draft-staging-recovery.md) preserves
+the engine handoff; the [repinning A–J report](../../docs/phase-4b5-s4-repinning.md)
+records this local qualification preparation. Package **S4** below means exact
+`dc79af8e3115e263c267989dfa9ba72599c25463`, distinct from frozen **catalogue S4**
+`2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`. No action below is authorized by
+repinning or implementation review alone.
 
-1. Review and merge this corrected implementation PR through the normal required
-   `validate` CI/security review. Keep publication disabled and active S3 pins intact.
-2. Record the actual immutable merged implementation SHA **S4**. Never substitute
+1. **Completed implementation:** PR #44 merged exact package S4. Its implementation
+   remains unchanged by repinning; this does not establish genuine S4 acceptance.
+2. Retain that actual immutable merged implementation SHA **S4**. Never substitute
    a branch ref, invented hash, S3 or catalogue S4.
-3. Prepare a **separate reviewed repinning PR** changing the reusable signer `uses`,
+3. Review and merge this **separate repinning PR** changing the reusable signer `uses`,
    executable checkout `ref`, `ATLAS_IMPLEMENTATION_REVISION` and package trust
    `signer_revision` to that exact S4. Update its pin-regression expectations as
-   needed, without changing the frozen catalogue publisher. Keep qualification
+   needed, without changing the frozen catalogue publisher. Require hosted Python
+   3.12 `validate` CI and security review. Keep qualification
    trust disabled/unaccepted and `CONNECTOR_PUBLICATION_ENABLED` disabled.
 4. After that separate merge and owner-authorized matching independent repository
    trust configuration, qualify S4 in a **new original acceptance-only main run**.
@@ -61,8 +66,8 @@ No action below is authorized by implementation review alone.
    use or token mint. Historical S3 evidence and local fixtures do not qualify S4;
    acceptance-only does not validate package-source/build or grant write authority.
 5. Obtain **separate owner approval for activation** after genuine evidence and
-   live control review. Any trust/gate change is a later owner action; this task
-   changes neither. Keep baseline App permissions, including Workflows No access.
+   live control review. Any live trust/gate change is a later owner action. Keep
+   baseline App permissions, including Workflows No access.
 6. Prepare Proxmox **0.2.2 metadata/source in a subsequent reviewed PR**, after S4
    merge/repinning. Preserve all 0.2.1 evidence and existing discovery/dependencies.
 7. Qualify 0.2.2 at its exact reviewed merge source **P**, retain successful required

@@ -18,31 +18,38 @@ unchanged. The next candidate is a clean **0.2.2**, to be prepared from separate
 reviewed source after the successor engine has been merged and repinned. This task
 creates no 0.2.2 metadata, source, tag or release.
 
-**Phase 4B.4: the corrected successor is local, uncommitted and unpinned.** The owner
-has disabled `CONNECTOR_PUBLICATION_ENABLED`; keep it disabled. Tag, Stage and
+**Phase 4B.5: package S4 is merged; local repinning prepares disabled qualification.**
+The approved immutable implementation is
+`dc79af8e3115e263c267989dfa9ba72599c25463` (PR #44). The owner has disabled
+`CONNECTOR_PUBLICATION_ENABLED`; keep it disabled. Tag, Stage and
 Finalize all require identical workflow directories at package source P and current
 caller C. There is no post-tag repin exception and no Workflows Write expansion.
 [ADR 0007](docs/decisions/0007-post-tag-staging-recovery.md)'s proposed relaxation is
 rejected; [accepted ADR 0006](docs/decisions/0006-connector-package-publication.md)
 continues to govern source equality and the split least-privilege architecture.
 
-The [A–J report and exact S4 handoff](docs/phase-4b4-draft-staging-recovery.md) and
+The [implementation report](docs/phase-4b4-draft-staging-recovery.md),
+[S4 repinning A–J report](docs/phase-4b5-s4-repinning.md) and
 [package runbook](catalogue/publication/connector-packages.md) describe authenticated
 draft URL handling, mandatory SHA-256 and exact original bytes, restricted numeric
 asset downloads, safe partial-draft recovery with matching workflows, bounded
 failure diagnostics and independent immutable publication verification. Review and
-merge the implementation, record its actual immutable package S4, then separately
-review repinning, disabled acceptance-only qualification and owner activation.
+merge the repinning through required Python 3.12 CI, then separately authorize
+matching independent trust configuration, genuine S4 acceptance-only qualification
+and owner activation.
 Prepare/qualify 0.2.2 in a later PR, reproduce its digest, confirm P/C workflow
 equality, and separately authorize Tag, Stage and Finalize. No catalogue update
 precedes independent immutable release verification.
 
-All four active package bindings still select reviewed S3
-`be24042c4e7446c7d88d2f08608ab7f058bb24b6`; committed trust and all seven workflows
-are unchanged. The [S3 repinning report](docs/phase-4b2-s3-local-qualification.md) and
+All four package bindings now select exact S4 above. Committed package trust has
+`enabled: false` and `live_signer_accepted: false`; ruleset/environment IDs and
+freshness remain unchanged. Live `CONNECTOR_VERIFICATION_POLICY` may still select
+the previously accepted S3 profile; this task does not update repository settings.
+Previous S3 is `be24042c4e7446c7d88d2f08608ab7f058bb24b6`.
+The [S3 repinning report](docs/phase-4b2-s3-local-qualification.md) and
 [activation preparation](docs/phase-4b3-activation-preparation.md) retain historical
-qualification evidence. Package S4 is a future implementation SHA, distinct from
-the frozen catalogue publisher's existing S4. Neither local implementation nor
+qualification evidence. Package S4 is distinct from frozen catalogue S4
+`2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285`. Neither local repinning nor
 later signer acceptance authorizes publication, catalogue changes or installation.
 
 Production [Proxmox 0.2.0](connectors/proxmox/README.md) promotes the unchanged
