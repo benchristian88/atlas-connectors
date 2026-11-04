@@ -1,5 +1,13 @@
 # Atlas consumer handoff — P1 single-maintainer authorization
 
+Current Catalogue 2 development handoff: the
+[durable evidence contract candidate](durable-evidence.md) preserves original
+preflight/bundle/policy bytes in a proposed seven-asset future release. The
+[engineering report](../../docs/catalogue2-phase1-engineering-report.md) includes
+a proposed Atlas ADR 0012 amendment for separate owner review. No Atlas trust,
+sequence-one exception, frozen signer, live pin or active publication contract
+changes in this increment. The historical P1/P2 evidence below is retained.
+
 No Atlas or SDK files were modified. B1.2 does not accept the selection profile.
 Atlas must retain publication rejection until this producer contract and the
 **single-maintainer-v1** trust policy are explicitly reviewed and independently

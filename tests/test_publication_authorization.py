@@ -365,7 +365,9 @@ def test_issuer_erases_step_scoped_key_before_openssl_and_exports_no_credentials
 
 
 def test_checked_in_s4_trust_is_accepted_and_rejects_unaccepted_trust():
-    trust = json.loads((ROOT / "catalogue/publication/verifier-trust.json").read_bytes())
+    # Preserve the historical S4 acceptance contract independently of any later
+    # reviewed caller adoption. Active controls remain separately hash-pinned.
+    trust = json.loads((ROOT / "tests/fixtures/publication_evidence/s4-verifier-trust.json").read_bytes())
     assert trust == {"schema": "atlas-publication-verifier-trust/v2", "live_signer_accepted": True,
         "signer_revision": "2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285",
         "ruleset_ids": {"atlas-main": 25618213, "atlas-history-lock": 25618809,

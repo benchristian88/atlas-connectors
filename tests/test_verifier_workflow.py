@@ -8,6 +8,7 @@ import sys
 
 import pytest
 import yaml
+from workflow_cases import publisher_case
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -120,16 +121,18 @@ def test_verifier_is_reusable_only_isolated_and_uses_no_caller_code():
     assert job["outputs"] == {"artifact-id": "${{ steps.upload.outputs.artifact-id }}"}
 
 
-def test_publisher_depends_on_isolated_preflight_before_credentials_and_executes_pinned_code():
-    caller = yaml.load((ROOT / ".github/workflows/catalogue-publish.yml").read_text(), Loader=yaml.BaseLoader)
+def test_publisher_depends_on_isolated_preflight_before_credentials_and_executes_pinned_code(publisher_case):
+    caller = yaml.load(publisher_case.raw, Loader=yaml.BaseLoader)
     assert set(caller["jobs"]) == {"preflight", "publish"}
     signer, publisher = caller["jobs"]["preflight"], caller["jobs"]["publish"]
     match = re.fullmatch(r"benchristian88/atlas-connectors/\.github/workflows/catalogue-verifier\.yml@([a-f0-9]{40})", signer["uses"])
     assert match and signer["with"] == {"request": "${{ toJSON(inputs) }}"}
-    assert match[1] == "2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285"
-    trust = json.loads((ROOT / "catalogue/publication/verifier-trust.json").read_text())
-    assert trust["signer_revision"] == match[1] and trust["live_signer_accepted"] is True
-    workflow_source = (ROOT / ".github/workflows/catalogue-publish.yml").read_text()
+    assert match[1] == publisher_case.pin
+    if not publisher_case.successor:
+        assert match[1] == "2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285"
+        trust = json.loads((ROOT / "tests/fixtures/publication_evidence/s4-verifier-trust.json").read_text())
+        assert trust["signer_revision"] == match[1] and trust["live_signer_accepted"] is True
+    workflow_source = publisher_case.raw
     assert workflow_source.count(match[1]) == 3
     assert "da5562eeb21d5c1cc653cfea7ae8d025d2a9174a" not in workflow_source
     assert signer["secrets"] == {
@@ -140,7 +143,7 @@ def test_publisher_depends_on_isolated_preflight_before_credentials_and_executes
     implementation, source = steps[:2]
     assert implementation["with"]["ref"] == match[1] == publisher["env"]["ATLAS_IMPLEMENTATION_REVISION"]
     assert source["with"]["ref"] == "${{ github.sha }}" and source["with"]["path"] == "publication-source"
-    verify = next(i for i, step in enumerate(steps) if step.get("run") == "python tools/publish_catalogue.py authorize")
+    verify = next(i for i, step in enumerate(steps) if step.get("run") == f"python {publisher_case.driver} authorize")
     mint = next(i for i, step in enumerate(steps) if step.get("id") == "app")
     download = next(i for i, step in enumerate(steps) if "download-artifact@" in step.get("uses", ""))
     assert download < verify < mint
@@ -159,8 +162,8 @@ def test_installed_dependencies_are_vendored_and_offline():
     assert "setup-python" not in source and "pip install -r requirements-dev" not in source
 
 
-def test_publisher_token_requires_bootstrap_permission_without_inheritance_or_fallback():
-    workflow = yaml.safe_load((ROOT / ".github/workflows/catalogue-publish.yml").read_text())
+def test_publisher_token_requires_exact_profile_permission_without_inheritance_or_fallback(publisher_case):
+    workflow = yaml.safe_load(publisher_case.raw)
     job = workflow["jobs"]["publish"]
     steps = job["steps"]
     mints = [step for step in steps if step.get("uses", "").startswith("actions/create-github-app-token@")]
@@ -169,11 +172,13 @@ def test_publisher_token_requires_bootstrap_permission_without_inheritance_or_fa
     assert mint["uses"] == "actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349"
     assert mint["id"] == "app" and "if" not in mint and "continue-on-error" not in mint
     assert "continue-on-error" not in job
-    assert mint["with"] == {
+    expected = {
         "app-id": "${{ vars.PUBLICATION_APP_ID }}", "private-key": "${{ secrets.PUBLICATION_APP_PRIVATE_KEY }}",
         "owner": "benchristian88", "repositories": "atlas-connectors",
-        "permission-contents": "write", "permission-actions": "read", "permission-administration": "read",
-        "permission-workflows": "${{ inputs.operation == 'bootstrap' && 'write' || '' }}"}
+        "permission-contents": "write", "permission-actions": "read", "permission-administration": "read"}
+    if not publisher_case.successor:
+        expected['permission-workflows'] = "${{ inputs.operation == 'bootstrap' && 'write' || '' }}"
+    assert mint['with'] == expected
     # The pinned action ignores the empty workflows input for publish/recover.
     # For bootstrap it requests workflows=write from GitHub, which must grant it
     # on this installation. A denied mint stops the job; no local fallback exists.

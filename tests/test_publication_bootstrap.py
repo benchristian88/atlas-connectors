@@ -758,7 +758,8 @@ def test_cli_rejects_cross_operation_phases_before_transport(monkeypatch, operat
 
 def test_workflow_bootstrap_has_fixed_dispatch_and_two_exclusive_modes():
     import yaml
-    workflow = yaml.safe_load((ROOT / '.github/workflows/catalogue-publish.yml').read_text())
+    from prepare_evidence_workflow import template
+    workflow = yaml.safe_load(template('catalogue-publish-s4.yml'))
     triggers = workflow.get('on', workflow.get(True))
     assert set(triggers) == {'workflow_dispatch'}
     inputs = triggers['workflow_dispatch']['inputs']

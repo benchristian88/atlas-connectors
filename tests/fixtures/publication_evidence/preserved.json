@@ -1,0 +1,32 @@
+{
+  "baseline": "e58788a667c0c0006477ac149e8ad28aedda0745",
+  "sha256": {
+    ".github/workflows/catalogue-publish.yml": "52fbc2775d3e718fdc4e1b8ebf1e97fe44767c3214c649d3a11578b01d189bee",
+    ".github/workflows/catalogue-verifier.yml": "1f3f812466eb700eb9c6a823c7e40174926285eeb66f0c9a599d83d24fc5e654",
+    ".github/workflows/catalogue.yml": "111387fd0c74d3b9e123c8555e9e514312031504749338080f3a2b316f884aa1",
+    ".github/workflows/ci.yml": "f63dc8d3fa4bd7ba09961bf25639a184808a93ea13c28b80a3a281b25904f421",
+    ".github/workflows/connector-publish.yml": "96c1b1070a5eb770122079a0cc6c69609225c4829e6ef0d1db4f65009e000b18",
+    ".github/workflows/connector-verifier.yml": "c2a842f9b032c86b042522627d1afe06b0e5899cdc30af29f2443c0e691a29af",
+    ".github/workflows/release.yml": "9d210b7d421d5e1e0bdbfee5082a349a920c51aca8a77151cc122f2d7128d3bf",
+    "catalogue/publication/connector-trust.json": "cc9fe70692166e7639cdc9143c3bb4694bb979accde3b2783eaa57c99443e161",
+    "catalogue/publication/policy.json": "c9a88eeb6c7e6d0a7f1a08eaa07eeed5ea251449db7104f7757626842cf1bbe9",
+    "catalogue/publication/verifier-trust.json": "ed8f10a4fd98197884e5424eea5cd116c5ce4f19e7b6a11d75bb6a83ba369f21",
+    "catalogue/releases/proxmox-0.2.0.json": "6de9311414be226bea9c662c2f473e9bf19a442bff4c09cb9cd184fde0018bfb",
+    "catalogue/sequence.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "connectors/proxmox/releases/0.2.1/manifest.json": "c469590c6a8999b16919aeea0c5a864d3ed3476d927f7e59796c9b03da5fcd58",
+    "connectors/proxmox/releases/0.2.1/sbom.spdx.json": "1752fb9806270341df9a7080bde41e1af91ec387a76b7cceb36e05141283ada3",
+    "connectors/proxmox/releases/0.2.2/manifest.json": "7934165eb9cc567aee2c9f5118e8583b2119e90f683febabe0814412dc9f5ba7",
+    "connectors/proxmox/releases/0.2.2/sbom.spdx.json": "a1b0bc2e871886676f15c728b940c0805c3d7e228729df9db146ee4735fdd72e",
+    "tests/fixtures/official_catalogue/catalogue-000001.json": "55533ca67e7e9a14f82961e0a8c34ad78e2596049b3db02fde787494e3975afd",
+    "tests/fixtures/official_catalogue/publication.json": "76786ec213ad4b77bc8f10a572ecf5a0ff52a2984d8594358a745b08579c47ee",
+    "tests/fixtures/publication/catalogue.sigstore.json": "0a404de77a6c47dc2f08e3acecf835a01313e924f6883a4b13d720c57610f72f",
+    "tests/fixtures/publication/package.sigstore.json": "2929b38721e31d48ca9ee8a51753c595880dca3c5fef9dea79c8bfdf0dca7db4",
+    "tools/authorization_sigstore.py": "d61f18e4db77ad74a68bfcd8b2f7c0825a5e8caea703caf3d8fcf95c61622c52",
+    "tools/bootstrap_catalogue.py": "4ce2028e19e4da35857a62f687421ce923cdd0bd24847ab7ababe51e17888452",
+    "tools/issue_publication_authorization.py": "f25b3a7e6c9f32229694ca6af9d6c252883ebdc1b4fcd4e4df7de3e2236ed637",
+    "tools/publication_authorization.py": "ea2e84602fa23eeab03cf0bff7a97cb34e3563833e01d21be7b878c263c2ff58",
+    "tools/publication_github.py": "ebe78d0d9a16a1267f06448db106913fa5fc64f121821504016c908d512c55df",
+    "tools/publication_verify.py": "33a58430aa5a1c1db85b4f6befb24139812652f6d5610b75d2d9cbe593e6a942",
+    "tools/publish_catalogue.py": "e1ebae0f25343afa8451c213fd97925e5c19dfb8aaa0d8aa887ebc1e015f0dca"
+  }
+}
