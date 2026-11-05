@@ -5,6 +5,18 @@ Atlas application/domain/runtime source remains in the AGPL Atlas project.
 Third-party dependencies retain their licences and are inventoried by their
 own distribution. No AGPL application/plugin implementation was copied here.
 
+**Catalogue 2 workflow adoption is locally implemented for independent review;
+publication remains disabled.** The existing Publisher/build workflow paths now
+select exact successor S `4be90c5292f931497473595a0958cc5e0f9d1beb` and the
+`catalogue/candidate-v2` registry. Checked-in successor live signing is unaccepted;
+hosted verifier-policy alignment and genuine acceptance require separate owner
+authorization. Bootstrap/recovery operations are removed from the active Publisher.
+Catalogue 1 history and published Proxmox 0.2.2 identities remain unchanged.
+See the [workflow adoption A–J report](docs/catalogue2-workflow-adoption-report.md)
+and [current publication runbook](catalogue/publication/README.md).
+The release-phase narratives below retain their earlier preparation context;
+they are not current publication instructions or activation authority.
+
 **Phase 4B.7: Proxmox 0.2.2 is locally prepared for review only.** The separate
 [`0.2.2` release overlay](connectors/proxmox/releases/0.2.2/README.md) and explicit
 recipe entry reuse the qualified 0.2.0/0.2.1 implementation unchanged. Manifest and

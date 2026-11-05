@@ -1,10 +1,39 @@
-# Official catalogue publication — Lean V2 operator runbook
+# Catalogue 2 workflow adoption and historical Lean V2 runbook
 
-Catalogue 2 Phase 1 now has an **inactive successor candidate** for
-[durable original publication evidence](durable-evidence.md). It does not change
-this frozen runbook's active workflow, pins or original four-asset releases.
-See the [A–J engineering report](../../docs/catalogue2-phase1-engineering-report.md)
-for its development-only scope and independent security/publication gates.
+## Current source state — publication disabled
+
+The two existing active workflow files now select the seven-asset Catalogue 2
+Publisher and sequence-two candidate builder. Exact executable successor S is
+`4be90c5292f931497473595a0958cc5e0f9d1beb`. The reusable verifier call, executable
+checkout, implementation environment pin and checked-in verifier trust agree on
+S. Source C remains the actual dispatch SHA, read as data by the Publisher.
+
+Only `publish` is supported. `acceptance_only` defaults to true and always skips
+the Publisher. Normal publication additionally requires external
+`CATALOGUE_EVIDENCE_ENABLED` to be exactly `true`, propagated without a default to
+the driver's independent exact-string check. No variable was set. Checked-in
+`live_signer_accepted` is **false**; no successor signing acceptance is claimed.
+
+Before any separately authorized acceptance-only qualification, the owner must
+align `VERIFICATION_POLICY` in **catalogue-verification** (ID **25016263801**) with
+the complete checked-in [trust JSON](verifier-trust.json), preserving false and
+all numeric identities. Its hosted value could not be read in this local session;
+the last documented S4 setting must not be assumed aligned. Keep publication
+enablement absent/false. See the [workflow adoption A–J report](../../docs/catalogue2-workflow-adoption-report.md)
+for exact alignment, qualification and later authorization requirements.
+
+Catalogue 1's original root, four immutable assets, public policy bytes and all
+published Connector identities remain unchanged. Bootstrap and recovery have no
+active Publisher entry point. Historical tools remain dependencies of frozen S
+and verification fixtures; they provide no new executable workflow authority.
+
+## Historical S4 runbook — preserved evidence, superseded operations
+
+Everything below records earlier increments. References to active S4, accepted
+S4 trust, normal recovery or bootstrap procedures describe their historical
+state, not the adopted Catalogue 2 workflows. Do not use these procedures to
+operate the successor. The immutable S4 templates under `tools/templates` and
+archived trust fixture preserve those exact earlier controls.
 
 Phase 4B.1 [security acceptance](../../docs/phase-4b1-security-acceptance.md) concluded
 **GO FOR PR for preparation only**. Phase 4B.2 now locally implements the separate

@@ -13,16 +13,16 @@ from workflow_cases import publisher_case
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_context_guard(tmp_path, changes=None, *, remove=None, accepted=True, acceptance_only=False):
+def run_context_guard(tmp_path, changes=None, *, remove=None, accepted=True, acceptance_only=False, trust=None):
     """Execute the actual pre-credential inline Python with synthetic context.
 
     This tests the local guard, not GitHub's runner/environment isolation.
     """
     from test_publication_authorization import REVISION, fixture
-    trust = fixture()[3]
+    trust = fixture()[3] if trust is None else trust.copy()
     trust["live_signer_accepted"] = accepted
     job = {"workflow_ref": "benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@refs/heads/main",
-           "workflow_sha": REVISION, "workflow_repository": "benchristian88/atlas-connectors",
+           "workflow_sha": trust.get('signer_revision'), "workflow_repository": "benchristian88/atlas-connectors",
            "workflow_file_path": ".github/workflows/catalogue-verifier.yml"}
     job.update(changes or {})
     if remove:

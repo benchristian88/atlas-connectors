@@ -1,4 +1,20 @@
-# Catalogue 2 Phase 1 — proposed durable publication evidence contract
+# Catalogue 2 durable publication evidence contract
+
+Current source status: the owner accepted the contract under Atlas ADR 0018,
+PR #49 recorded its release-owned fingerprint, and the two existing workflows
+now select exact successor S `4be90c5292f931497473595a0958cc5e0f9d1beb`.
+The [workflow adoption report](../../docs/catalogue2-workflow-adoption-report.md)
+records the active publish-only caller and candidate builder. Publication remains
+disabled and successor live signing remains unaccepted. No bootstrap exception
+or cross-job recovery was added. Seven assets, original policy bytes, independent
+verification, 900/300-second limits and the thirty-second reserve remain enforced.
+
+## Historical Phase 1 implementation boundary
+
+The remainder records the earlier inactive-candidate increment. Its statements
+about unset contract approvals, active S4 or unchanged workflow/trust bytes are
+historical; the current source status above supersedes them. Historical design
+and security evidence is retained without rewriting the original decisions.
 
 The [successor engineering report](../../docs/catalogue2-completion-engineering-report.md)
 adds a gated driver, durable checkpoints, candidate registry and inactive workflow

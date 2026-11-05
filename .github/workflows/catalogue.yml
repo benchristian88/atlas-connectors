@@ -27,7 +27,7 @@ jobs:
         # Connector-only conftest provisions Ansible imports, so omit it for
         # this independent, offline catalogue suite.
         run: python -m pytest --noconftest -q tests/test_catalogue.py tests/test_documentation.py
-      - run: python tools/build_catalogue.py
+      - run: python tools/build_catalogue_candidate.py
       - uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
           subject-path: dist/catalogue/*.json
