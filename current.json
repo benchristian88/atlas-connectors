@@ -1,9 +1,9 @@
 {
-  "asset_id": 667867351,
-  "previous_pointer_sha256": null,
-  "release_id": 421426993,
-  "release_tag": "catalogue-000001",
+  "asset_id": 712971861,
+  "previous_pointer_sha256": "a275f63d0ac818a193826478328ee324be62353addc5c97a2ed0a28d217b5372",
+  "release_id": 435045367,
+  "release_tag": "catalogue-000002",
   "schema_version": "1.0",
-  "sequence": 1,
-  "sha256": "55533ca67e7e9a14f82961e0a8c34ad78e2596049b3db02fde787494e3975afd"
+  "sequence": 2,
+  "sha256": "1340146fa9ef10a630a6f6fea86c8f6374acec343ff2dec80f9b738f0f2c6c7c"
 }
