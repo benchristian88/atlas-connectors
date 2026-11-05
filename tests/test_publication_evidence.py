@@ -689,8 +689,17 @@ def test_real_crypto_rejects_unsigned_archive(signed, monkeypatch):
 def test_frozen_safeguards_and_all_historical_implementation_files_unchanged():
     preserved = json.loads((ROOT / "tests/fixtures/publication_evidence/preserved.json").read_bytes())
     assert preserved["baseline"] == "e58788a667c0c0006477ac149e8ad28aedda0745"
+    # These three controls have deliberately been replaced at their active paths.
+    # Preserve the original manifest and authenticate its archived bytes instead.
+    # Adopted successor pins/gates are independently tested in test_evidence_workflows.
+    archived = {
+        '.github/workflows/catalogue-publish.yml': 'tools/templates/catalogue-publish-s4.yml',
+        '.github/workflows/catalogue.yml': 'tools/templates/catalogue-build-s4.yml',
+        'catalogue/publication/verifier-trust.json': 'tests/fixtures/publication_evidence/s4-verifier-trust.json',
+    }
+    assert archived.keys() <= preserved['sha256'].keys()
     for path, expected in preserved["sha256"].items():
-        assert digest((ROOT / path).read_bytes()) == expected, path
+        assert digest((ROOT / archived.get(path, path)).read_bytes()) == expected, path
     workflow = (ROOT / ".github/workflows/connector-publish.yml").read_text()
     assert "CONNECTOR_PUBLICATION_ENABLED" in workflow
-    assert "publish_catalogue_evidence" not in (ROOT / ".github/workflows/catalogue-publish.yml").read_text()
+    assert "python tools/catalogue_evidence_driver.py stage" in (ROOT / ".github/workflows/catalogue-publish.yml").read_text()

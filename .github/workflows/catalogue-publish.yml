@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Publish, recover, or explicitly bootstrap the historical root
+        description: Publish a seven-asset immutable successor
         type: choice
-        options: [publish, recover, bootstrap]
+        options: [publish]
         default: publish
       acceptance_only:
         description: Verify and sign preflight only; Publisher job never starts
@@ -21,14 +21,14 @@ jobs:
     if: >-
       github.repository == 'benchristian88/atlas-connectors' &&
       github.repository_id == '1414494920' && github.repository_owner_id == '93822871' &&
-      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.operation == 'publish'
     permissions:
       contents: read
       id-token: write
       attestations: write
     # Frozen reviewed Lean V2 implementation S, independent of caller/source C.
     # Trust remains unaccepted until genuine acceptance evidence is reviewed.
-    uses: benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285
+    uses: benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@4be90c5292f931497473595a0958cc5e0f9d1beb
     with:
       request: ${{ toJSON(inputs) }}
     secrets:
@@ -37,15 +37,16 @@ jobs:
   publish:
     needs: preflight
     if: >-
-      !inputs.acceptance_only && github.repository == 'benchristian88/atlas-connectors' &&
-      github.ref == 'refs/heads/main' && github.run_attempt == 1
+      !inputs.acceptance_only && vars.CATALOGUE_EVIDENCE_ENABLED == 'true' && fromJSON(vars.CATALOGUE_EVIDENCE_ENABLED) == true && github.repository == 'benchristian88/atlas-connectors' &&
+      github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.operation == 'publish'
     environment: catalogue-publication
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
+      ATLAS_CATALOGUE_EVIDENCE_ENABLED: ${{ vars.CATALOGUE_EVIDENCE_ENABLED }}
       PUBLICATION_OPERATION: ${{ inputs.operation }}
       ATLAS_SOURCE_DIRECTORY: publication-source
-      ATLAS_IMPLEMENTATION_REVISION: 2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285
+      ATLAS_IMPLEMENTATION_REVISION: 4be90c5292f931497473595a0958cc5e0f9d1beb
     permissions:
       contents: read
       actions: read
@@ -55,7 +56,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: benchristian88/atlas-connectors
-          ref: 2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285
+          ref: 4be90c5292f931497473595a0958cc5e0f9d1beb
           persist-credentials: false
       - name: Read advancing source as data only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -82,8 +83,6 @@ jobs:
           check_policy(policy, operation=os.environ["PUBLICATION_OPERATION"])
           if str(policy['app_id']) != os.environ['APP_ID']:
               raise SystemExit('publication_disabled_or_app_mismatch')
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
-              stream.write('bootstrap_mode=' + policy.get('bootstrap_operation', 'disabled') + '\n')
           PY
       - run: python tools/prepare_publication_verifier.py
       - name: Download only the isolated verifier public preflight
@@ -93,10 +92,7 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/publication-preflight
       - name: Cryptographically admit this exact run before Publisher credentials
-        run: python tools/publish_catalogue.py authorize
-      - name: Authenticate frozen original bytes offline before write credentials
-        if: inputs.operation == 'bootstrap'
-        run: python tools/publish_catalogue.py bootstrap-preflight
+        run: python tools/catalogue_evidence_driver.py authorize
       - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         id: app
         with:
@@ -107,8 +103,6 @@ jobs:
           permission-contents: write
           permission-actions: read
           permission-administration: read
-          # This pinned action omits empty inputs; baseline permissions stay explicit.
-          permission-workflows: ${{ inputs.operation == 'bootstrap' && 'write' || '' }}
       - name: Authenticate candidate, authority, packages and history; stage exact assets
         if: inputs.operation == 'publish'
         id: stage
@@ -116,22 +110,14 @@ jobs:
           ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
           ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
           ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
-        run: python tools/publish_catalogue.py stage
-      - name: Stage the frozen bootstrap snapshot without finalising it
-        if: inputs.operation == 'bootstrap' && steps.policy.outputs.bootstrap_mode == 'stage'
-        id: bootstrap_stage
-        env:
-          ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
-          ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
-          ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
-        run: python tools/publish_catalogue.py bootstrap-stage
+        run: python tools/catalogue_evidence_driver.py stage
       - uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
-        if: steps.stage.outputs.needs_attestation == 'true' || steps.bootstrap_stage.outputs.needs_attestation == 'true'
+        if: steps.stage.outputs.needs_attestation == 'true'
         id: attest
         with:
           subject-path: dist/publication/current.json
       - name: Retain authenticated pointer bundle
-        if: steps.stage.outputs.needs_attestation == 'true' || steps.bootstrap_stage.outputs.needs_attestation == 'true'
+        if: steps.stage.outputs.needs_attestation == 'true'
         env:
           BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
         run: |
@@ -139,34 +125,13 @@ jobs:
           import os, shutil
           shutil.copyfile(os.environ['BUNDLE_PATH'], 'dist/publication/current.sigstore.json')
           PY
-      - name: Authenticate and seal bootstrap draft; stop for separate policy approval
-        if: inputs.operation == 'bootstrap' && steps.policy.outputs.bootstrap_mode == 'stage'
-        env:
-          ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
-          ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
-          ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
-        run: python tools/publish_catalogue.py bootstrap-seal
-      - name: Activate only the separately approved exact bootstrap pointer
-        if: inputs.operation == 'bootstrap' && steps.policy.outputs.bootstrap_mode == 'activate'
-        env:
-          ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
-          ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
-          ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
-        run: python tools/publish_catalogue.py bootstrap-activate
       - name: Verify, lock snapshot, verify immutability, then compare-and-swap current
         if: inputs.operation == 'publish'
         env:
           ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
           ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
           ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
-        run: python tools/publish_catalogue.py finish
-      - name: Recover only the authenticated immutable immediate successor
-        if: inputs.operation == 'recover'
-        env:
-          ATLAS_PUBLICATION_TOKEN: ${{ steps.app.outputs.token }}
-          ATLAS_APP_SLUG: ${{ steps.app.outputs.app-slug }}
-          ATLAS_APP_INSTALLATION_ID: ${{ steps.app.outputs.installation-id }}
-        run: python tools/publish_catalogue.py recover
+        run: python tools/catalogue_evidence_driver.py finish
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

@@ -16,5 +16,13 @@ the [engineering report](../../../docs/catalogue2-phase1-engineering-report.md).
 `s4-verifier-trust.json` preserves the exact historical S4 trust bytes as test
 input. The byte-pinned historical Publisher/build workflows live under
 `tools/templates`, outside active Actions paths. Historical security/bootstrap
-assertions continue using those inputs while generated successor profiles are
-tested separately. This creates no new accepted pin or production approval.
+assertions continue using those inputs. During workflow adoption exactly three
+historical active-path hashes are now checked against those archives: Publisher,
+build and verifier trust. The other 24 entries still pin their original paths.
+`preserved.json` itself was not regenerated or edited.
+
+`successor-workflows.json` pins the separately reviewed adopted Publisher/build
+and unaccepted S trust bytes for regression only. Semantic and adversarial tests
+also exercise the actual active files, exact S, C isolation, credential ordering,
+permissions and operational gates. These test fingerprints cannot grant signing
+or publication authority. See the [adoption report](../../../docs/catalogue2-workflow-adoption-report.md).

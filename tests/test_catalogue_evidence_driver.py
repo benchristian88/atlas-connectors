@@ -318,7 +318,7 @@ def test_successor_recovery_stays_disabled_with_real_production_approval(
 
 
 @pytest.mark.parametrize('phase', ['authorize', 'stage', 'finish'])
-@pytest.mark.parametrize('gate', [None, 'false', 'False', '1'])
+@pytest.mark.parametrize('gate', [None, '', 'false', 'False', '1', 'True', 'TRUE', ' true ', 'true\n', 'null'])
 def test_valid_approval_and_forged_environment_cannot_bypass_disabled_gate(
         monkeypatch, capsys, denied_job, tmp_path, phase, gate):
     if gate is not None:
@@ -330,6 +330,50 @@ def test_valid_approval_and_forged_environment_cannot_bypass_disabled_gate(
     monkeypatch.setattr(driver, 'check_checkouts', lambda *a: None)
     monkeypatch.setattr(driver, 'read_regular', lambda *a: pytest.fail('gate-off job read source or preflight'))
     monkeypatch.setattr(driver, 'job_preflight', lambda *a, **kw: pytest.fail('gate-off job reached preflight'))
+    assert_job_rejected(monkeypatch, capsys, phase)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize('operation', ['bootstrap', 'recover', '', None, 'PUBLISH'])
+@pytest.mark.parametrize('phase', ['authorize', 'stage', 'finish'])
+def test_non_publish_operation_is_denied_before_source_preflight_or_credentials(
+        monkeypatch, capsys, denied_job, tmp_path, phase, operation):
+    denied_job.update(ATLAS_CATALOGUE_EVIDENCE_ENABLED='true', PUBLICATION_OPERATION=operation)
+    monkeypatch.setattr(driver, 'check_checkouts', lambda *a: None)
+    monkeypatch.setattr(driver, 'read_regular', lambda *a: pytest.fail('invalid operation read source'))
+    assert_job_rejected(monkeypatch, capsys, phase)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize('phase', ['authorize', 'stage', 'finish'])
+@pytest.mark.parametrize('pin', [None, 'main', 'a' * 40, '4BE90C5292F931497473595A0958CC5E0F9D1BEB'])
+def test_adopted_trust_rejects_missing_invalid_or_future_pin_before_credentials(
+        monkeypatch, capsys, denied_job, tmp_path, phase, pin):
+    from workflow_cases import SUCCESSOR
+    denied_job.update(ATLAS_CATALOGUE_EVIDENCE_ENABLED='true', ATLAS_IMPLEMENTATION_REVISION=SUCCESSOR)
+    monkeypatch.setattr(driver, 'check_checkouts', lambda *a: None)
+    policy_raw = (ROOT / 'catalogue/publication/policy.json').read_bytes()
+    trust = json.loads((ROOT / 'catalogue/publication/verifier-trust.json').read_bytes())
+    if pin is None: trust.pop('signer_revision')
+    else: trust['signer_revision'] = pin
+    monkeypatch.setattr(driver, 'read_regular', lambda path, maximum:
+        policy_raw if path.name == 'policy.json' else canonical_json(trust))
+    monkeypatch.setattr(driver, 'job_preflight', lambda *a, **k: pytest.fail('invalid trust reached admission'))
+    assert_job_rejected(monkeypatch, capsys, phase)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize('phase', ['authorize', 'stage', 'finish'])
+def test_checked_in_unaccepted_S_denies_publication_even_with_isolated_enabled_gate(
+        monkeypatch, capsys, denied_job, tmp_path, phase):
+    from workflow_cases import SUCCESSOR
+    denied_job.update(ATLAS_CATALOGUE_EVIDENCE_ENABLED='true', ATLAS_IMPLEMENTATION_REVISION=SUCCESSOR)
+    monkeypatch.setattr(driver, 'check_checkouts', lambda *a: None)
+    policy_raw = (ROOT / 'catalogue/publication/policy.json').read_bytes()
+    trust_raw = (ROOT / 'catalogue/publication/verifier-trust.json').read_bytes()
+    assert json.loads(trust_raw)['live_signer_accepted'] is False
+    monkeypatch.setattr(driver, 'read_regular', lambda path, maximum:
+        policy_raw if path.name == 'policy.json' else trust_raw)
     assert_job_rejected(monkeypatch, capsys, phase)
     assert list(tmp_path.iterdir()) == []
 

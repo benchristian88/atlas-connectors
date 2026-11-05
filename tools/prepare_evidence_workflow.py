@@ -33,7 +33,13 @@ def prepare(revision):
     raw = raw.replace(OLD_PIN, revision).replace('tools/publish_catalogue.py', 'tools/catalogue_evidence_driver.py')
     raw = raw.replace('options: [publish, recover, bootstrap]', 'options: [publish]')
     raw = raw.replace('Publish, recover, or explicitly bootstrap the historical root', 'Publish a seven-asset immutable successor')
-    raw = raw.replace("!inputs.acceptance_only && github.repository", "!inputs.acceptance_only && vars.CATALOGUE_EVIDENCE_ENABLED == 'true' && github.repository")
+    # Actions string equality ignores case. The JSON parse additionally rejects
+    # TRUE/True; the string comparison rejects whitespace, numbers and null.
+    # An invalid parse fails job admission, never falling back to an enabled gate.
+    raw = raw.replace("!inputs.acceptance_only && github.repository",
+        "!inputs.acceptance_only && vars.CATALOGUE_EVIDENCE_ENABLED == 'true' && "
+        "fromJSON(vars.CATALOGUE_EVIDENCE_ENABLED) == true && github.repository")
+    raw = raw.replace("github.run_attempt == 1", "github.run_attempt == 1 && inputs.operation == 'publish'")
     raw = raw.replace('      PUBLICATION_OPERATION:', "      ATLAS_CATALOGUE_EVIDENCE_ENABLED: ${{ vars.CATALOGUE_EVIDENCE_ENABLED }}\n      PUBLICATION_OPERATION:")
     # Remove unsupported phases and their temporary elevated token input from the
     # generated candidate. Historical bootstrap remains covered by the template.
