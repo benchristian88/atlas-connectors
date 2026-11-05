@@ -364,14 +364,16 @@ def test_adopted_trust_rejects_missing_invalid_or_future_pin_before_credentials(
 
 
 @pytest.mark.parametrize('phase', ['authorize', 'stage', 'finish'])
-def test_checked_in_unaccepted_S_denies_publication_even_with_isolated_enabled_gate(
+def test_unaccepted_S_denies_publication_even_with_isolated_enabled_gate(
         monkeypatch, capsys, denied_job, tmp_path, phase):
     from workflow_cases import SUCCESSOR
     denied_job.update(ATLAS_CATALOGUE_EVIDENCE_ENABLED='true', ATLAS_IMPLEMENTATION_REVISION=SUCCESSOR)
     monkeypatch.setattr(driver, 'check_checkouts', lambda *a: None)
     policy_raw = (ROOT / 'catalogue/publication/policy.json').read_bytes()
-    trust_raw = (ROOT / 'catalogue/publication/verifier-trust.json').read_bytes()
-    assert json.loads(trust_raw)['live_signer_accepted'] is False
+    trust = json.loads((ROOT / 'catalogue/publication/verifier-trust.json').read_bytes())
+    assert trust['live_signer_accepted'] is True
+    trust['live_signer_accepted'] = False
+    trust_raw = canonical_json(trust)
     monkeypatch.setattr(driver, 'read_regular', lambda path, maximum:
         policy_raw if path.name == 'policy.json' else trust_raw)
     assert_job_rejected(monkeypatch, capsys, phase)

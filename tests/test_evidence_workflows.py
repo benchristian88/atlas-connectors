@@ -206,11 +206,11 @@ def test_actual_workflows_match_generated_security_semantics_and_exact_reviewed_
         assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == expected, path
 
 
-def test_source_trust_prepares_only_S_without_accepting_live_signing_or_changing_numeric_pins():
+def test_source_trust_accepts_qualified_S_without_changing_numeric_pins():
     historical = json.loads((ROOT / 'tests/fixtures/publication_evidence/s4-verifier-trust.json').read_bytes())
     trust = json.loads((ROOT / 'catalogue/publication/verifier-trust.json').read_bytes())
     assert historical['signer_revision'] == S4 and historical['live_signer_accepted'] is True
-    assert trust == {**historical, 'signer_revision': SUCCESSOR, 'live_signer_accepted': False}
+    assert trust == {**historical, 'signer_revision': SUCCESSOR, 'live_signer_accepted': True}
 
 
 @pytest.mark.parametrize('kind', ['old-builder', 'build-secret', 'build-write', 'mutable-action', 'publisher-token'])
@@ -244,12 +244,14 @@ def test_actual_build_cli_and_frozen_driver_select_identical_sequence_two_bytes(
 
 
 @pytest.mark.parametrize('acceptance_only', [True, False])
-def test_actual_unaccepted_S_guard_qualifies_only_acceptance_mode(tmp_path, acceptance_only):
+@pytest.mark.parametrize('accepted', [True, False])
+def test_actual_S_guard_requires_acceptance_for_live_signing(tmp_path, acceptance_only, accepted):
     from test_verifier_workflow import run_context_guard
     trust = json.loads((ROOT / 'catalogue/publication/verifier-trust.json').read_bytes())
-    result, output = run_context_guard(tmp_path, trust=trust, accepted=False, acceptance_only=acceptance_only)
-    assert (result.returncode == 0) is acceptance_only
-    assert output.exists() is acceptance_only
+    result, output = run_context_guard(tmp_path, trust=trust, accepted=accepted, acceptance_only=acceptance_only)
+    allowed = accepted or acceptance_only
+    assert (result.returncode == 0) is allowed
+    assert output.exists() is allowed
 
 
 @pytest.mark.parametrize('pin', [None, '', 'main', 'refs/heads/main', S4, 'a' * 40, SUCCESSOR.upper()])
