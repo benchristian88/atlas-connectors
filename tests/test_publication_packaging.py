@@ -6,6 +6,7 @@ import json
 import shutil
 import sys
 import pytest
+from workflow_cases import publisher_case
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
 import build_bundle
@@ -66,9 +67,10 @@ def test_symlink_source_rejected(future):
     with pytest.raises(ValueError):build_bundle.build('future-hypervisor')
 
 
-def test_workflows_have_explicit_security_boundaries():
+def test_workflows_have_explicit_security_boundaries(publisher_case):
     import yaml
     workflows={p.stem:yaml.safe_load(p.read_text()) for p in (ROOT/'.github/workflows').glob('*.yml')}
+    workflows['catalogue-publish'] = yaml.safe_load(publisher_case.raw)
     publish=workflows['catalogue-publish']
     assert publish['concurrency']=={'group':'official-catalogue-publication','cancel-in-progress':False}
     job=publish['jobs']['publish']
@@ -77,18 +79,20 @@ def test_workflows_have_explicit_security_boundaries():
     assert 'github.run_attempt == 1' in job['if']
     assert job['permissions']=={'contents':'read','actions':'read','id-token':'write','attestations':'write'}
     steps = job['steps']
-    preflight = next(i for i, step in enumerate(steps) if step.get('run') == 'python tools/publish_catalogue.py authorize')
+    preflight = next(i for i, step in enumerate(steps) if step.get('run') == f'python {publisher_case.driver} authorize')
     mint = next(i for i, step in enumerate(steps) if step.get('uses', '').startswith('actions/create-github-app-token@'))
     assert preflight < mint
     assert 'ATLAS_PUBLICATION_TOKEN' not in steps[preflight].get('env', {})
     assert job['needs'] == 'preflight'
-    assert steps[mint]['with'] == {
+    expected = {
         'app-id': '${{ vars.PUBLICATION_APP_ID }}', 'private-key': '${{ secrets.PUBLICATION_APP_PRIVATE_KEY }}',
         'owner': 'benchristian88', 'repositories': 'atlas-connectors',
-        'permission-contents': 'write', 'permission-actions': 'read', 'permission-administration': 'read',
-        'permission-workflows': "${{ inputs.operation == 'bootstrap' && 'write' || '' }}"}
+        'permission-contents': 'write', 'permission-actions': 'read', 'permission-administration': 'read'}
+    if not publisher_case.successor:
+        expected['permission-workflows'] = "${{ inputs.operation == 'bootstrap' && 'write' || '' }}"
+    assert steps[mint]['with'] == expected
     for step in steps:
-        if step.get('run') in {'python tools/publish_catalogue.py ' + phase for phase in ('stage', 'finish', 'recover')}:
+        if step.get('run') in {f'python {publisher_case.driver} ' + phase for phase in ('stage', 'finish', 'recover')}:
             assert step['env']['ATLAS_APP_SLUG'] == '${{ steps.app.outputs.app-slug }}'
             assert step['env']['ATLAS_APP_INSTALLATION_ID'] == '${{ steps.app.outputs.installation-id }}'
     # Owner activation is an explicit reviewed policy change, not a reason to
@@ -98,7 +102,7 @@ def test_workflows_have_explicit_security_boundaries():
         for job in workflow['jobs'].values():
             if 'uses' in job:
                 assert job['uses'] in {
-                    'benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@2dd1ffcd2f5677dc35bdbc8f68ea28275c91c285',
+                    'benchristian88/atlas-connectors/.github/workflows/catalogue-verifier.yml@' + publisher_case.pin,
                     'benchristian88/atlas-connectors/.github/workflows/connector-verifier.yml@dc79af8e3115e263c267989dfa9ba72599c25463'}
                 assert 'steps' not in job
                 if '/catalogue-verifier.yml@' in job['uses'] or '/connector-verifier.yml@' in job['uses']:

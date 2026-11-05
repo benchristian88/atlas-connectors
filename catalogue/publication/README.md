@@ -1,5 +1,11 @@
 # Official catalogue publication — Lean V2 operator runbook
 
+Catalogue 2 Phase 1 now has an **inactive successor candidate** for
+[durable original publication evidence](durable-evidence.md). It does not change
+this frozen runbook's active workflow, pins or original four-asset releases.
+See the [A–J engineering report](../../docs/catalogue2-phase1-engineering-report.md)
+for its development-only scope and independent security/publication gates.
+
 Phase 4B.1 [security acceptance](../../docs/phase-4b1-security-acceptance.md) concluded
 **GO FOR PR for preparation only**. Phase 4B.2 now locally implements the separate
 [package publication mechanism](connector-packages.md) for review. Execution is
