@@ -3,6 +3,6 @@
   "sha256": {
     ".github/workflows/catalogue-publish.yml": "3c7f05bfb0ed3870f0cba5337e30f5dd667d8aa61d9764b6831c3762a11ff533",
     ".github/workflows/catalogue.yml": "95cfe9d552523f1c21860d74aee2338f6fa55449481e60bfb8f751acd1e61815",
-    "catalogue/publication/verifier-trust.json": "b95dd53f5034623d324ac4e0b9b5d92cf454f3d7ddc1aea93c01c7db95e70bbd"
+    "catalogue/publication/verifier-trust.json": "b36cc579f8f2ceec130653b0e23ae23ce46727a769ac23c385cee9bdc702ddf4"
   }
 }

@@ -4,9 +4,14 @@ Current source status: the owner accepted the contract under Atlas ADR 0018,
 PR #49 recorded its release-owned fingerprint, and the two existing workflows
 now select exact successor S `4be90c5292f931497473595a0958cc5e0f9d1beb`.
 The [workflow adoption report](../../docs/catalogue2-workflow-adoption-report.md)
-records the active publish-only caller and candidate builder. Publication remains
-disabled and successor live signing remains unaccepted. No bootstrap exception
-or cross-job recovery was added. Seven assets, original policy bytes, independent
+records the active publish-only caller and candidate builder. Following genuine
+qualification [run 42006297079](https://github.com/benchristian88/atlas-connectors/actions/runs/42006297079),
+the owner accepted S and checked-in signer trust now records
+`live_signer_accepted: true`. Hosted `VERIFICATION_POLICY` still requires a separately
+authorized false-to-true acceptance change after merge. Actual Catalogue 2
+publication remains disabled; keep `CATALOGUE_EVIDENCE_ENABLED` absent/false. See the
+[current runbook](README.md). No bootstrap exception or cross-job recovery was added.
+Seven assets, original policy bytes, independent
 verification, 900/300-second limits and the thirty-second reserve remain enforced.
 
 ## Historical Phase 1 implementation boundary

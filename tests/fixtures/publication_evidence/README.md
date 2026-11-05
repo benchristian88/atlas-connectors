@@ -22,7 +22,7 @@ build and verifier trust. The other 24 entries still pin their original paths.
 `preserved.json` itself was not regenerated or edited.
 
 `successor-workflows.json` pins the separately reviewed adopted Publisher/build
-and unaccepted S trust bytes for regression only. Semantic and adversarial tests
+and owner-accepted S trust bytes for regression only. Semantic and adversarial tests
 also exercise the actual active files, exact S, C isolation, credential ordering,
 permissions and operational gates. These test fingerprints cannot grant signing
 or publication authority. See the [adoption report](../../../docs/catalogue2-workflow-adoption-report.md).

@@ -11,16 +11,25 @@ S. Source C remains the actual dispatch SHA, read as data by the Publisher.
 Only `publish` is supported. `acceptance_only` defaults to true and always skips
 the Publisher. Normal publication additionally requires external
 `CATALOGUE_EVIDENCE_ENABLED` to be exactly `true`, propagated without a default to
-the driver's independent exact-string check. No variable was set. Checked-in
-`live_signer_accepted` is **false**; no successor signing acceptance is claimed.
+the driver's independent exact-string check. No variable was set.
 
-Before any separately authorized acceptance-only qualification, the owner must
-align `VERIFICATION_POLICY` in **catalogue-verification** (ID **25016263801**) with
-the complete checked-in [trust JSON](verifier-trust.json), preserving false and
-all numeric identities. Its hosted value could not be read in this local session;
-the last documented S4 setting must not be assumed aligned. Keep publication
-enablement absent/false. See the [workflow adoption A–J report](../../docs/catalogue2-workflow-adoption-report.md)
-for exact alignment, qualification and later authorization requirements.
+The owner accepted signer S following genuine qualification
+[run 42006297079](https://github.com/benchristian88/atlas-connectors/actions/runs/42006297079).
+The run confirmed immutable verifier identity S, a signed and independently verified
+Sigstore preflight, the correct original source and first-attempt workflow identity,
+and successful isolated verification. The Publisher job was skipped; no catalogue
+was published. Checked-in [signer trust](verifier-trust.json) now records
+`live_signer_accepted: true`, preserving S, all five ruleset IDs, schema,
+verification environment ID and the 900-second freshness setting.
+
+After merge, hosted `VERIFICATION_POLICY` in **catalogue-verification** (ID
+**25016263801**) still requires a separately authorized change from
+`live_signer_accepted: false` to **true**, matching the complete merged trust JSON.
+This source change does not update hosted settings. Actual Catalogue 2 publication
+remains disabled; keep `CATALOGUE_EVIDENCE_ENABLED` absent/false. The
+[workflow adoption A–J report](../../docs/catalogue2-workflow-adoption-report.md)
+preserves the earlier adoption and qualification gates; this status records the
+subsequent qualification and owner signer acceptance, not publication authorization.
 
 Catalogue 1's original root, four immutable assets, public policy bytes and all
 published Connector identities remain unchanged. Bootstrap and recovery have no
