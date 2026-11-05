@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Seven-asset successor driver. No active workflow or approved authority pins.
+"""Seven-asset successor driver with a release-owned contract approval.
 
 The approval is release-owned code, never an environment/downloaded document.
 Runner-local checkpoints are bound to this source/run/original preflight and are
@@ -35,10 +35,24 @@ class SuccessorApproval:
     recovery_decision: str  # This candidate supports only explicitly disabled recovery.
 
 
-# Separate owner/security acceptance and a frozen successor SHA are outstanding.
-# No runtime argument, producer archive or environment variable can fill these.
-APPROVED_SUCCESSOR = None
-APPROVED_SUCCESSOR_SHA256 = None
+# Owner accepted ADR 0018 at the immutable Atlas commit below on 2026-11-05.
+# This approves the contract only; independent security acceptance, a frozen S,
+# workflow adoption and explicit operational activation remain outstanding.
+# No runtime argument, producer archive or environment variable can replace it.
+APPROVED_SUCCESSOR = SuccessorApproval(
+    policy_sha256='c9a88eeb6c7e6d0a7f1a08eaa07eeed5ea251449db7104f7757626842cf1bbe9',
+    selection_seconds=900,
+    publication_seconds=300,
+    historical_decision=(
+        'https://github.com/benchristian88/atlas/blob/76031dc6358a81c3babd15f74d407e22f0778dee/'
+        'docs/decisions/0018-catalogue-durable-publication-evidence.md#historical-authorization'),
+    selection_binding_decision=(
+        'https://github.com/benchristian88/atlas/blob/76031dc6358a81c3babd15f74d407e22f0778dee/'
+        'docs/decisions/0018-catalogue-durable-publication-evidence.md#selection-binding'),
+    recovery_decision='disabled-pending-permanent-archive-decision',
+)
+# digest(canonical_json(asdict(APPROVED_SUCCESSOR))); never recomputed at runtime.
+APPROVED_SUCCESSOR_SHA256 = '8a1c69168ed22dc2f0bff385da182de9bae913e900df031d4b47aabccd7e9070'
 
 
 def approved_successor():

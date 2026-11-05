@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Generated successor security contracts; no live workflow/pin/approval changes."""
+"""Generated successor security contracts; no live workflow or trust-pin changes."""
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -55,7 +55,10 @@ def assert_successor(value, pin):
         assert 'bootstrap' not in step.get('run', '') and 'recover' not in step.get('run', '')
         assert 'VERIFICATION_APP_PRIVATE_KEY' not in str(step)
     assert value['concurrency'] == {'group': 'official-catalogue-publication', 'cancel-in-progress': 'false'}
-    assert driver.APPROVED_SUCCESSOR is None and driver.APPROVED_SUCCESSOR_SHA256 is None
+    # Contract acceptance cannot supply a reviewed S or activate a generated job.
+    # Missing/tampered owner approvals are exercised separately by driver tests.
+    assert driver.approved_successor() is driver.APPROVED_SUCCESSOR
+    assert driver.approved_successor().recovery_decision == 'disabled-pending-permanent-archive-decision'
 
 
 def test_generated_successor_enforces_independent_pins_admission_and_publish_only_gate():
